@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #07110f;
+  color: #e2e8f0;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+select,
+input {
+  font: inherit;
+}
+
+.button {
+  @apply inline-flex items-center justify-center gap-2 border border-line bg-accent px-3 py-2 text-sm font-semibold text-ink transition hover:bg-emerald-300;
+}
+
+.icon-button {
+  @apply inline-flex h-9 w-9 items-center justify-center border border-line bg-panel text-slate-300 transition hover:border-accent hover:text-white;
+}
+
+.input {
+  @apply mt-1 w-full border border-line bg-panel px-2 py-2 text-sm text-slate-100 outline-none transition focus:border-accent;
+}
+
+.filter-label {
+  @apply block text-xs font-semibold uppercase tracking-wide text-slate-400;
+}
+
+.maplibregl-control-container .maplibregl-ctrl {
+  border-radius: 0;
+}
+
+code {
+  @apply border border-line bg-ink px-1.5 py-0.5 text-accent;
+}
