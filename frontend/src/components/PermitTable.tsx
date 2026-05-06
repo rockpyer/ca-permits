@@ -38,7 +38,7 @@ export function PermitTable({ rows, selected, onSelect }: Props) {
   const table = useReactTable({ data: rows, columns, getCoreRowModel: getCoreRowModel() });
 
   return (
-    <div className="max-h-[590px] overflow-auto border border-line bg-panel">
+    <div className="permit-table max-h-[420px] overflow-auto border border-line bg-panel sm:max-h-[590px]">
       <table className="min-w-full text-left text-sm">
         <thead className="sticky top-0 z-10 bg-ink text-xs uppercase tracking-wide text-slate-400">
           {table.getHeaderGroups().map((headerGroup) => (

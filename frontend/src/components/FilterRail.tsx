@@ -15,7 +15,7 @@ type Props = {
 
 export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedChange, onChange }: Props) {
   return (
-    <aside className="flex h-full min-h-0 flex-col border-r border-line bg-ink p-3">
+    <aside className="flex min-h-0 flex-col border-b border-line bg-ink p-3 lg:h-full lg:border-b-0 lg:border-r">
       <div className="mb-3 flex items-center justify-between">
         {!collapsed && (
           <div>
@@ -23,7 +23,13 @@ export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedCh
             <p className="text-xs text-slate-500">Development scope by default</p>
           </div>
         )}
-        <div className={`flex gap-2 ${collapsed ? 'flex-col' : ''}`}>
+        {collapsed && (
+          <div className="lg:hidden">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-white">Filters</h2>
+            <p className="text-xs text-slate-500">Tap to expand controls</p>
+          </div>
+        )}
+        <div className={`flex gap-2 ${collapsed ? 'lg:flex-col' : ''}`}>
           <button
             className="icon-button"
             title="Reset filters"
@@ -43,7 +49,7 @@ export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedCh
         </div>
       </div>
 
-      {!collapsed && <div className="space-y-2 overflow-y-auto pr-1">
+      {!collapsed && <div className="max-h-[68vh] space-y-2 overflow-y-auto pr-1 lg:max-h-none">
         <FilterSection title="Permit Scope" defaultOpen>
           <FilterGroup
             options={ALL_NOTICE_TYPES}
@@ -146,7 +152,7 @@ function FilterGroup({
   onToggle: (value: string) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2">
       {options.map((option) => (
         <label key={option} className="flex items-center gap-2 text-sm text-slate-200">
           <input
