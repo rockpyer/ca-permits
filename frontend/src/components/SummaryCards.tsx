@@ -37,7 +37,7 @@ export function SummaryCards({ rows }: Props) {
   return (
     <section className="space-y-3">
       <div className="border-y border-line py-3">
-        <div className="grid gap-x-6 gap-y-2 text-sm md:grid-cols-4 xl:grid-cols-7">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7">
           <Stat label="YTD permits" value={currentYearRows.length} />
           <Stat label="Last 4 weeks" value={recentCount(rows, 28)} />
           <Stat label="Operators YTD" value={operatorCount} />
@@ -47,7 +47,7 @@ export function SummaryCards({ rows }: Props) {
         </div>
       </div>
 
-      <div className="h-56 border border-line bg-panel/60 p-3">
+      <div className="h-[280px] border border-line bg-panel/60 p-3 sm:h-56">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Weekly Permit Trend</h2>

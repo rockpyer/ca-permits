@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Database, Github, Linkedin, Loader2, MapPinned } from 'lucide-react';
+import { CalendarDays, Github, Loader2, MapPinned } from 'lucide-react';
 import { ActivityMap } from './components/ActivityMap';
 import { DetailDrawer } from './components/DetailDrawer';
 import { FilterRail } from './components/FilterRail';
@@ -19,7 +19,9 @@ export function App() {
   const [selected, setSelected] = useState<PermitActivity | null>(null);
   const [loading, setLoading] = useState(hasSupabaseConfig);
   const [error, setError] = useState<string | null>(null);
-  const [filtersCollapsed, setFiltersCollapsed] = useState(false);
+  const [filtersCollapsed, setFiltersCollapsed] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 1023px)').matches : false
+  );
   const [dateBounds, setDateBounds] = useState<{ minDate: string; maxDate: string }>({ minDate: '', maxDate: '' });
 
   useEffect(() => {
@@ -49,6 +51,7 @@ export function App() {
 
   const filteredRows = useMemo(() => applyFilters(rows, filters), [rows, filters]);
   const lastRun = etlRuns[0];
+  const weeklyUpdateDate = dateBounds.maxDate || lastRun?.finished_at?.slice(0, 10) || '';
 
   if (!hasSupabaseConfig) {
     return (
@@ -60,7 +63,7 @@ export function App() {
 
   return (
     <Shell>
-      <div className={`grid h-screen min-h-0 grid-cols-1 ${filtersCollapsed ? 'lg:grid-cols-[56px_1fr]' : 'lg:grid-cols-[300px_1fr]'}`}>
+      <div className={`min-h-screen lg:grid lg:h-screen lg:min-h-0 ${filtersCollapsed ? 'lg:grid-cols-[56px_1fr]' : 'lg:grid-cols-[300px_1fr]'}`}>
         <FilterRail
           rows={rows}
           filters={filters}
@@ -69,39 +72,42 @@ export function App() {
           onCollapsedChange={setFiltersCollapsed}
           onChange={setFilters}
         />
-        <main className="min-h-0 overflow-y-auto bg-ink">
-          <header className="border-b border-line bg-ink/95 px-4 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
-                  <h1 className="font-display text-3xl font-semibold text-white">California Well Permit Tracker</h1>
-                  <span className="pb-1 text-sm text-slate-500">
-                    by{' '}
-                    <a className="text-accent hover:underline" href="https://ryweller.com" target="_blank" rel="noreferrer">
-                      Ryan Weller
-                    </a>
-                    <a
-                      className="ml-2 inline-flex text-sky-400 hover:text-sky-300"
-                      href="https://www.linkedin.com/in/ryweller/"
-                      target="_blank"
-                      rel="noreferrer"
-                      title="Ryan Weller on LinkedIn"
-                    >
-                      <Linkedin size={15} />
-                    </a>
-                  </span>
-                </div>
-                <p className="mt-1 text-sm text-slate-400">
+        <main className="min-h-0 bg-ink lg:overflow-y-auto">
+          <header className="border-b border-line bg-ink/95 px-4 py-4 sm:px-5">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+              <div className="max-w-4xl">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  CalGEM / WellSTAR activity intelligence
+                </p>
+                <h1 className="product-title">
+                  <span>California</span>
+                  <span> Well Permit Tracker</span>
+                </h1>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">
                   Active CalGEM permit activity, WellSTAR well metadata, and field concentration.
                 </p>
               </div>
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <Database size={15} />
-                <span>
-                  {lastRun
-                    ? `Last Weekly Update: ${lastRun.source} ${lastRun.status}, ${lastRun.upsert_count.toLocaleString()} rows`
-                    : 'No weekly update recorded'}
-                </span>
+              <div className="min-w-0 border-l-0 border-line text-sm text-slate-400 xl:min-w-[260px] xl:border-l xl:pl-5">
+                <div className="flex items-center gap-2 text-slate-300">
+                  <CalendarDays size={15} />
+                  <span>Last Weekly Update: {weeklyUpdateDate ? formatDisplayDate(weeklyUpdateDate) : 'Pending'}</span>
+                </div>
+                <div className="mt-2 flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-500">
+                  <span>By</span>
+                  <a className="author-link" href="https://ryweller.com" target="_blank" rel="noreferrer">
+                    Ryan Weller
+                  </a>
+                  <a
+                    className="linkedin-mark"
+                    href="https://www.linkedin.com/in/ryweller/"
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Ryan Weller on LinkedIn"
+                    title="Ryan Weller on LinkedIn"
+                  >
+                    in
+                  </a>
+                </div>
               </div>
             </div>
           </header>
@@ -116,7 +122,7 @@ export function App() {
           {error && <div className="m-4 border border-danger bg-danger/10 p-4 text-sm text-red-200">{error}</div>}
 
           {!loading && !error && (
-            <div className="space-y-4 p-4">
+            <div className="space-y-4 p-3 sm:p-4">
               <SummaryCards rows={filteredRows} />
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(520px,0.95fr)]">
                 <ActivityMap rows={filteredRows} selected={selected} onSelect={setSelected} />
@@ -134,6 +140,12 @@ export function App() {
       <DetailDrawer row={selected} onClose={() => setSelected(null)} />
     </Shell>
   );
+}
+
+function formatDisplayDate(date: string) {
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(parsed);
 }
 
 function Shell({ children }: { children: React.ReactNode }) {

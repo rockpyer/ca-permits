@@ -122,7 +122,7 @@ export function ActivityMap({ rows, selected, onSelect }: Props) {
   }, [selected]);
 
   return (
-    <div className="relative h-[460px] min-h-[380px] overflow-hidden border border-line bg-panel xl:h-[590px]">
+    <div className="relative h-[420px] min-h-[360px] overflow-hidden border border-line bg-panel sm:h-[460px] xl:h-[590px]">
       <div ref={containerRef} className="absolute inset-0" />
       <div className="absolute left-3 top-3 z-30 flex flex-wrap gap-2 border border-line bg-ink/90 p-2 text-xs text-slate-300">
         <label className="map-control">
@@ -142,7 +142,7 @@ export function ActivityMap({ rows, selected, onSelect }: Props) {
 
 function MapLegend({ colorModel }: { colorModel: ColorModel }) {
   return (
-    <div className="pointer-events-none absolute bottom-3 left-3 z-30 max-w-[360px] border border-line bg-ink/90 px-3 py-2 text-xs text-slate-300">
+    <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-30 max-w-[360px] border border-line bg-ink/90 px-3 py-2 text-xs text-slate-300 sm:right-auto">
       <div className="mb-1 font-semibold uppercase tracking-wide text-slate-400">Map Legend</div>
       {colorModel.type === 'date' ? (
         <div className="space-y-1">
