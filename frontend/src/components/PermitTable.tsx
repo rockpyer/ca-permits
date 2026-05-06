@@ -14,15 +14,31 @@ const columns: ColumnDef<PermitActivity>[] = [
   { accessorKey: 'field_name', header: 'Field' },
   { accessorKey: 'county', header: 'County' },
   { accessorKey: 'well_type_label', header: 'Type' },
-  { accessorKey: 'api_display', header: 'API' },
-  { accessorKey: 'join_status', header: 'Join' }
+  {
+    accessorKey: 'api_display',
+    header: 'API',
+    cell: ({ row }) =>
+      row.original.api_10 ? (
+        <a
+          className="text-accent hover:underline"
+          href={`https://wellstar-public.conservation.ca.gov/Well/Well/Detail?api=${row.original.api_10}`}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(event) => event.stopPropagation()}
+        >
+          {row.original.api_display || row.original.api_10}
+        </a>
+      ) : (
+        row.original.api_display || '—'
+      )
+  }
 ];
 
 export function PermitTable({ rows, selected, onSelect }: Props) {
   const table = useReactTable({ data: rows, columns, getCoreRowModel: getCoreRowModel() });
 
   return (
-    <div className="h-full overflow-auto border border-line bg-panel">
+    <div className="max-h-[590px] overflow-auto border border-line bg-panel">
       <table className="min-w-full text-left text-sm">
         <thead className="sticky top-0 z-10 bg-ink text-xs uppercase tracking-wide text-slate-400">
           {table.getHeaderGroups().map((headerGroup) => (

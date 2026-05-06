@@ -1,10 +1,10 @@
-import { countBy, monthlyTrend } from '../lib/summary';
+import { countBy, weeklyGroupedTrend } from '../lib/summary';
 import type { PermitActivity } from '../lib/types';
 
 export function FieldPanel({ rows }: { rows: PermitActivity[] }) {
   const field = countBy(rows, 'field_name', 1)[0]?.name;
   const fieldRows = field ? rows.filter((row) => row.field_name === field) : [];
-  const trend = monthlyTrend(fieldRows);
+  const trend = weeklyGroupedTrend(fieldRows, 8);
   const operators = countBy(fieldRows, 'operator_name', 4);
   const statuses = countBy(fieldRows, 'well_status', 4);
 
@@ -18,7 +18,7 @@ export function FieldPanel({ rows }: { rows: PermitActivity[] }) {
         <div className="text-right text-2xl font-semibold text-accent">{fieldRows.length}</div>
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
-        <MiniList title="Recent Months" rows={trend.map((item) => [item.month, item.permits])} />
+        <MiniList title="Recent Weeks" rows={trend.map((item) => [item.week, item.total])} />
         <MiniList title="Operator Mix" rows={operators.map((item) => [item.name, item.count])} />
         <MiniList title="Wells By Status" rows={statuses.map((item) => [item.name, item.count])} />
       </div>

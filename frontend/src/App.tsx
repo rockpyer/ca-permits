@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Database, Github, Loader2, MapPinned } from 'lucide-react';
+import { Database, Github, Linkedin, Loader2, MapPinned } from 'lucide-react';
 import { ActivityMap } from './components/ActivityMap';
 import { DetailDrawer } from './components/DetailDrawer';
-import { FieldPanel } from './components/FieldPanel';
 import { FilterRail } from './components/FilterRail';
 import { PermitTable } from './components/PermitTable';
 import { RankingPanels } from './components/RankingPanels';
 import { SummaryCards } from './components/SummaryCards';
-import { loadEtlRuns, loadFields, loadPermitActivity } from './lib/data';
-import { applyFilters, defaultFilters } from './lib/filters';
+import { loadEtlRuns, loadFields, loadPermitActivity, loadPermitDateBounds } from './lib/data';
+import { applyFilters, dateRangeForRows, defaultFilters } from './lib/filters';
 import { hasSupabaseConfig } from './lib/supabase';
 import type { EtlRun, FieldBoundary, Filters, PermitActivity } from './lib/types';
 
@@ -20,18 +19,33 @@ export function App() {
   const [selected, setSelected] = useState<PermitActivity | null>(null);
   const [loading, setLoading] = useState(hasSupabaseConfig);
   const [error, setError] = useState<string | null>(null);
+  const [filtersCollapsed, setFiltersCollapsed] = useState(false);
+  const [dateBounds, setDateBounds] = useState<{ minDate: string; maxDate: string }>({ minDate: '', maxDate: '' });
 
   useEffect(() => {
     if (!hasSupabaseConfig) return;
-    Promise.all([loadPermitActivity(), loadFields(), loadEtlRuns()])
-      .then(([permitRows, fieldRows, runs]) => {
+    Promise.all([loadPermitActivity(), loadFields(), loadEtlRuns(), loadPermitDateBounds()])
+      .then(([permitRows, fieldRows, runs, bounds]) => {
         setRows(permitRows);
         setFields(fieldRows);
         setEtlRuns(runs);
+        setDateBounds(bounds);
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Unable to load data'))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    const rowBounds = dateRangeForRows(rows);
+    const minDate = dateBounds.minDate || rowBounds.minDate;
+    const maxDate = dateBounds.maxDate || rowBounds.maxDate;
+    if (!minDate && !maxDate) return;
+    setFilters((current) => ({
+      ...current,
+      startDate: minDate || current.startDate,
+      endDate: maxDate || current.endDate
+    }));
+  }, [dateBounds, rows]);
 
   const filteredRows = useMemo(() => applyFilters(rows, filters), [rows, filters]);
   const lastRun = etlRuns[0];
@@ -46,14 +60,38 @@ export function App() {
 
   return (
     <Shell>
-      <div className="grid h-screen min-h-0 grid-cols-1 lg:grid-cols-[300px_1fr]">
-        <FilterRail rows={rows} filters={filters} onChange={setFilters} />
+      <div className={`grid h-screen min-h-0 grid-cols-1 ${filtersCollapsed ? 'lg:grid-cols-[56px_1fr]' : 'lg:grid-cols-[300px_1fr]'}`}>
+        <FilterRail
+          rows={rows}
+          filters={filters}
+          dateBounds={dateBounds}
+          collapsed={filtersCollapsed}
+          onCollapsedChange={setFiltersCollapsed}
+          onChange={setFilters}
+        />
         <main className="min-h-0 overflow-y-auto bg-ink">
           <header className="border-b border-line bg-ink/95 px-4 py-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h1 className="text-2xl font-semibold text-white">California Well Permit Tracker</h1>
-                <p className="text-sm text-slate-400">
+                <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
+                  <h1 className="font-display text-3xl font-semibold text-white">California Well Permit Tracker</h1>
+                  <span className="pb-1 text-sm text-slate-500">
+                    by{' '}
+                    <a className="text-accent hover:underline" href="https://ryweller.com" target="_blank" rel="noreferrer">
+                      Ryan Weller
+                    </a>
+                    <a
+                      className="ml-2 inline-flex text-sky-400 hover:text-sky-300"
+                      href="https://www.linkedin.com/in/ryweller/"
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Ryan Weller on LinkedIn"
+                    >
+                      <Linkedin size={15} />
+                    </a>
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-slate-400">
                   Active CalGEM permit activity, WellSTAR well metadata, and field concentration.
                 </p>
               </div>
@@ -61,8 +99,8 @@ export function App() {
                 <Database size={15} />
                 <span>
                   {lastRun
-                    ? `Last ingest: ${lastRun.source} ${lastRun.status}, ${lastRun.upsert_count.toLocaleString()} rows`
-                    : 'No ingest run recorded'}
+                    ? `Last Weekly Update: ${lastRun.source} ${lastRun.status}, ${lastRun.upsert_count.toLocaleString()} rows`
+                    : 'No weekly update recorded'}
                 </span>
               </div>
             </div>
@@ -80,12 +118,11 @@ export function App() {
           {!loading && !error && (
             <div className="space-y-4 p-4">
               <SummaryCards rows={filteredRows} />
-              <div className="grid min-h-[640px] grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(500px,0.8fr)]">
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(520px,0.95fr)]">
                 <ActivityMap rows={filteredRows} selected={selected} onSelect={setSelected} />
                 <PermitTable rows={filteredRows} selected={selected} onSelect={setSelected} />
               </div>
               <RankingPanels rows={filteredRows} />
-              <FieldPanel rows={filteredRows} />
               <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-xs text-slate-500">
                 <span>{filteredRows.length.toLocaleString()} filtered permits from {rows.length.toLocaleString()} loaded rows</span>
                 <span>{fields.length.toLocaleString()} field boundaries available for the field view roadmap</span>

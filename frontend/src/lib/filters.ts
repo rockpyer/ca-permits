@@ -1,7 +1,7 @@
 import { DEVELOPMENT_NOTICE_TYPES } from './constants';
 import type { Filters, PermitActivity } from './types';
 
-export function defaultFilters(): Filters {
+export function defaultFilters(bounds?: { minDate?: string; maxDate?: string }): Filters {
   const end = new Date();
   const start = new Date();
   start.setFullYear(end.getFullYear() - 1);
@@ -14,8 +14,8 @@ export function defaultFilters(): Filters {
     districts: [],
     wellStatuses: [],
     directional: 'all',
-    startDate: start.toISOString().slice(0, 10),
-    endDate: end.toISOString().slice(0, 10)
+    startDate: bounds?.minDate || start.toISOString().slice(0, 10),
+    endDate: bounds?.maxDate || end.toISOString().slice(0, 10)
   };
 }
 
@@ -65,4 +65,15 @@ export function applyFilters(rows: PermitActivity[], filters: Filters): PermitAc
 
 export function toggleListValue(values: string[], value: string): string[] {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+}
+
+export function dateRangeForRows(rows: PermitActivity[]) {
+  const dates = rows
+    .map((row) => row.notice_dated)
+    .filter((date): date is string => Boolean(date))
+    .sort((a, b) => a.localeCompare(b));
+  return {
+    minDate: dates[0] || '',
+    maxDate: dates[dates.length - 1] || ''
+  };
 }

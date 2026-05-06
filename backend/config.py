@@ -13,7 +13,7 @@ FIELDS_LAYER_URL = (
     "https://gis.conservation.ca.gov/server/rest/services/CalGEM/DOMS_Admin_Bounds/FeatureServer/0"
 )
 
-WELLSTAR_PUBLIC_URL = "https://wellstar-public.conservation.ca.gov/Well/Well/Details"
+WELLSTAR_PUBLIC_URL = "https://wellstar-public.conservation.ca.gov/Well/Well/Detail"
 WELLSTAR_SEARCH_URL = "https://wellstar-public.conservation.ca.gov/Well/Well/Search"
 WELLFINDER_URL = "https://maps.conservation.ca.gov/doggr/wellfinder/"
 

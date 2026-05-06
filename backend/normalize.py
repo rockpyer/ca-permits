@@ -5,7 +5,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
-from config import WELLFINDER_URL, WELLSTAR_SEARCH_URL
+from config import WELLFINDER_URL, WELLSTAR_PUBLIC_URL
 
 
 def normalize_api(api: Any) -> dict[str, str | None]:
@@ -42,7 +42,7 @@ def generated_links(api_10: str | None) -> dict[str, str | None]:
     if not api_10:
         return {"wellstar_url": None, "wellfinder_url": None}
     return {
-        "wellstar_url": f"{WELLSTAR_SEARCH_URL}?api={api_10}",
+        "wellstar_url": f"{WELLSTAR_PUBLIC_URL}?api={api_10}",
         "wellfinder_url": f"{WELLFINDER_URL}?api={api_10}",
     }
 

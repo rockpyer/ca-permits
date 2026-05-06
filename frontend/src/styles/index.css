@@ -14,6 +14,12 @@ body {
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+.font-display {
+  font-family:
+    "Aptos Display", "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0;
+}
+
 button,
 select,
 input {
@@ -32,12 +38,54 @@ input {
   @apply mt-1 w-full border border-line bg-panel px-2 py-2 text-sm text-slate-100 outline-none transition focus:border-accent;
 }
 
+.compact-input {
+  @apply mt-0 min-w-0 py-1.5 text-xs;
+}
+
 .filter-label {
   @apply block text-xs font-semibold uppercase tracking-wide text-slate-400;
 }
 
+.filter-row {
+  @apply grid grid-cols-[72px_1fr] items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500;
+}
+
 .maplibregl-control-container .maplibregl-ctrl {
   border-radius: 0;
+}
+
+.map-control {
+  @apply flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400;
+}
+
+.map-control select {
+  @apply border border-line bg-panel px-2 py-1 text-xs normal-case tracking-normal text-slate-100 outline-none;
+}
+
+.permit-marker {
+  z-index: 5;
+  width: 16px;
+  height: 16px;
+  border: 3px solid #07110f;
+  border-radius: 999px;
+  background: #36d399;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 45%);
+  cursor: pointer;
+}
+
+.permit-marker.selected {
+  z-index: 10;
+  width: 24px;
+  height: 24px;
+  border-color: #ffffff;
+  box-shadow:
+    0 0 0 4px #f8fafc,
+    0 0 0 7px #07110f,
+    0 2px 8px rgb(0 0 0 / 55%);
+}
+
+.permit-marker:hover {
+  transform: scale(1.35);
 }
 
 code {

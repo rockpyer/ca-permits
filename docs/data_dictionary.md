@@ -12,7 +12,7 @@ Key fields:
 - `notice_date_determination`: source determination date
 - `notice_type`: source notice type, such as `NOI - New Drill`
 - `api_raw`, `api_10`, `api_display`, `wellbore_id`: normalized API variants
-- `join_status`: `matched`, `permit_only`, or `well_only`
+- `join_status`: internal QA field only. Indicates whether a permit row matched a WellSTAR well metadata row by API.
 - `depth_data_status`: `not_available`, `linked_only`, `scraped`, or `api_source`
 
 ## wells

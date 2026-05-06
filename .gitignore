@@ -7,3 +7,5 @@ __pycache__/
 .DS_Store
 frontend/dist/
 *.pyc
+*.tsbuildinfo
+frontend/vite.config.js

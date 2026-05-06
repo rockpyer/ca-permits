@@ -12,6 +12,31 @@ export async function loadPermitActivity(): Promise<PermitActivity[]> {
   return (data || []) as PermitActivity[];
 }
 
+export async function loadPermitDateBounds(): Promise<{ minDate: string; maxDate: string }> {
+  const [{ data: oldest, error: oldestError }, { data: newest, error: newestError }] = await Promise.all([
+    supabase
+      .from('permit_activity')
+      .select('notice_dated')
+      .not('notice_dated', 'is', null)
+      .order('notice_dated', { ascending: true })
+      .limit(1),
+    supabase
+      .from('permit_activity')
+      .select('notice_dated')
+      .not('notice_dated', 'is', null)
+      .order('notice_dated', { ascending: false })
+      .limit(1)
+  ]);
+
+  if (oldestError) throw oldestError;
+  if (newestError) throw newestError;
+
+  return {
+    minDate: oldest?.[0]?.notice_dated || '',
+    maxDate: newest?.[0]?.notice_dated || ''
+  };
+}
+
 export async function loadFields(): Promise<FieldBoundary[]> {
   const { data, error } = await supabase
     .from('fields')

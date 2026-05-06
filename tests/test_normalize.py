@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
-from normalize import arcgis_date, normalize_api, stable_source_key
+from normalize import arcgis_date, generated_links, normalize_api, stable_source_key
 
 
 def test_normalize_api_formats_display_value():
@@ -25,3 +25,8 @@ def test_arcgis_epoch_date():
 
 def test_stable_source_key_is_repeatable():
     assert stable_source_key(["api", "permit", None]) == stable_source_key(["api", "permit", None])
+
+
+def test_generated_links_use_wellstar_detail_page():
+    links = generated_links("0403016327")
+    assert links["wellstar_url"] == "https://wellstar-public.conservation.ca.gov/Well/Well/Detail?api=0403016327"

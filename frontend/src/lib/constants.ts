@@ -7,11 +7,7 @@ export const DEVELOPMENT_NOTICE_TYPES = [
 
 export const ABANDONMENT_NOTICE_TYPES = ['NOI - Abandon', 'NOI - Re-Abandon'];
 
-export const ALL_NOTICE_TYPES = [
-  ...DEVELOPMENT_NOTICE_TYPES,
-  ...ABANDONMENT_NOTICE_TYPES,
-  'NOI'
-];
+export const ALL_NOTICE_TYPES = [...DEVELOPMENT_NOTICE_TYPES, ...ABANDONMENT_NOTICE_TYPES];
 
 export const WELL_TYPE_PRIORITY = [
   'Oil & Gas',

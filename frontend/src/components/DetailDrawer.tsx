@@ -1,4 +1,5 @@
 import { ExternalLink, X } from 'lucide-react';
+import type { ReactNode } from 'react';
 import type { PermitActivity } from '../lib/types';
 
 type Props = {
@@ -8,6 +9,9 @@ type Props = {
 
 export function DetailDrawer({ row, onClose }: Props) {
   if (!row) return null;
+  const wellstarUrl = row.api_10
+    ? `https://wellstar-public.conservation.ca.gov/Well/Well/Detail?api=${row.api_10}`
+    : row.wellstar_url;
   return (
     <aside className="fixed bottom-0 right-0 top-0 z-30 w-full max-w-md border-l border-line bg-ink shadow-2xl">
       <div className="flex items-center justify-between border-b border-line p-4">
@@ -23,7 +27,16 @@ export function DetailDrawer({ row, onClose }: Props) {
         <DetailSection
           title="Permit"
           rows={[
-            ['API', row.api_display || row.api_10],
+            [
+              'API',
+              wellstarUrl ? (
+                <a className="text-accent hover:underline" href={wellstarUrl} target="_blank" rel="noreferrer">
+                  {row.api_display || row.api_10}
+                </a>
+              ) : (
+                row.api_display || row.api_10
+              )
+            ],
             ['Permit', row.notice_permit_number],
             ['Notice Type', row.notice_type_label || row.notice_type],
             ['Status', row.notice_status],
@@ -39,14 +52,12 @@ export function DetailDrawer({ row, onClose }: Props) {
             ['Well Type', row.well_type_label || row.well_type],
             ['Well Status', row.well_status],
             ['Spud Date', row.spud_date],
-            ['Directional', row.is_directionally_drilled],
-            ['Join Status', row.join_status]
+            ['Directional', row.is_directionally_drilled]
           ]}
         />
         <DetailSection
           title="Depth And Target"
           rows={[
-            ['Depth Status', row.depth_data_status],
             ['Bottom Hole MD', row.bottom_hole_md],
             ['Bottom Hole TVD', row.bottom_hole_tvd],
             ['Completion Top MD', row.completion_top_md],
@@ -56,8 +67,20 @@ export function DetailDrawer({ row, onClose }: Props) {
             ['Wellbore Direction', row.wellbore_direction]
           ]}
         />
+        <section className="border border-line bg-panel/40 p-3 text-sm text-slate-300">
+          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Depth Details</div>
+          <p>
+            Public ArcGIS layers do not expose depth and completion intervals yet. See WellSTAR for the official well
+            detail page.
+          </p>
+          {wellstarUrl && (
+            <a className="mt-3 inline-flex text-accent hover:underline" href={wellstarUrl} target="_blank" rel="noreferrer">
+              Open WellSTAR depth and target details
+            </a>
+          )}
+        </section>
         <div className="flex gap-2">
-          {row.wellstar_url && <LinkButton href={row.wellstar_url} label="WellSTAR" />}
+          {wellstarUrl && <LinkButton href={wellstarUrl} label="WellSTAR Detail" />}
           {row.wellfinder_url && <LinkButton href={row.wellfinder_url} label="WellFinder" />}
         </div>
       </div>
@@ -65,7 +88,7 @@ export function DetailDrawer({ row, onClose }: Props) {
   );
 }
 
-function DetailSection({ title, rows }: { title: string; rows: [string, string | number | null][] }) {
+function DetailSection({ title, rows }: { title: string; rows: [string, ReactNode][] }) {
   return (
     <section>
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{title}</h3>

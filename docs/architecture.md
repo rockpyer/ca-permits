@@ -8,7 +8,7 @@ flowchart LR
   Actions --> Supabase["Supabase Postgres"]
   Supabase --> React["React + Vite frontend"]
   React --> Cloudflare["Cloudflare Pages"]
-  Cloudflare --> Domain["permits.ryweller.com"]
+  Cloudflare --> Domain["ca-permits.ryweller.com"]
 ```
 
 ## Backend
@@ -18,6 +18,13 @@ The backend is a set of Python ingest scripts, not a long-running service. Scrip
 ## Frontend
 
 The frontend uses Supabase JS with the anon key against public read policies. It queries the `permit_activity` view and performs V1 filtering client-side.
+
+The frontend intentionally keeps layout constraints local:
+
+- The map component has a bounded responsive height so wide table layouts do not force excessive map height.
+- Map points are rendered as individual clickable markers with a legend. Canvas clusters are disabled for now.
+- Map controls support coloring by Permit Scope, Well Type, Operator, or Date. V1 uses one clean OSM basemap.
+- Weekly trend, current-year operator/field stacked charts, and operator permit-rate trend are computed client-side from the loaded permit activity rows.
 
 ## Security
 
