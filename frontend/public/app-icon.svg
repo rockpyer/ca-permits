@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="California Well Permit Tracker">
+  <rect width="512" height="512" rx="88" fill="#07110f"/>
+  <path d="M136 370h240" fill="none" stroke="#3dd39f" stroke-width="34" stroke-linecap="round"/>
+  <path d="M256 72c-63 0-114 51-114 114 0 84 114 219 114 219s114-135 114-219c0-63-51-114-114-114Z" fill="none" stroke="#3dd39f" stroke-width="34" stroke-linejoin="round"/>
+  <circle cx="256" cy="186" r="42" fill="#7db8ff"/>
+</svg>

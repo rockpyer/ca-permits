@@ -147,3 +147,25 @@ input {
 code {
   @apply border border-line bg-ink px-1.5 py-0.5 text-accent;
 }
+
+.skip-link {
+  position: fixed;
+  left: 12px;
+  top: 12px;
+  z-index: 9999;
+  transform: translateY(-160%);
+  border: 1px solid #223833;
+  background: #3dd39f;
+  color: #07110f;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform 160ms ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}

@@ -72,7 +72,7 @@ export function App() {
           onCollapsedChange={setFiltersCollapsed}
           onChange={setFilters}
         />
-        <main className="min-h-0 bg-ink lg:overflow-y-auto">
+        <main id="activity-content" className="min-h-0 bg-ink lg:overflow-y-auto" aria-label="California permit activity explorer">
           <header className="border-b border-line bg-ink/95 px-4 py-4 sm:px-5">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
               <div className="max-w-4xl">
@@ -123,12 +123,16 @@ export function App() {
 
           {!loading && !error && (
             <div className="space-y-4 p-3 sm:p-4">
-              <SummaryCards rows={filteredRows} />
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(520px,0.95fr)]">
+              <section aria-label="Permit activity summary">
+                <SummaryCards rows={filteredRows} />
+              </section>
+              <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(520px,0.95fr)]" aria-label="Permit map and records">
                 <ActivityMap rows={filteredRows} fields={fields} selected={selected} onSelect={setSelected} />
                 <PermitTable rows={filteredRows} selected={selected} onSelect={setSelected} />
-              </div>
-              <RankingPanels rows={filteredRows} />
+              </section>
+              <section aria-label="Operator and field trend analysis">
+                <RankingPanels rows={filteredRows} />
+              </section>
               <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-xs text-slate-500">
                 <span>{filteredRows.length.toLocaleString()} filtered permits from {rows.length.toLocaleString()} loaded rows</span>
                 <span>{fields.length.toLocaleString()} field boundaries available for the field view roadmap</span>
@@ -149,12 +153,19 @@ function formatDisplayDate(date: string) {
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-screen bg-ink text-slate-100">{children}</div>;
+  return (
+    <div className="min-h-screen bg-ink text-slate-100">
+      <a className="skip-link" href="#activity-content">
+        Skip to activity explorer
+      </a>
+      {children}
+    </div>
+  );
 }
 
 function SetupState() {
   return (
-    <div className="flex min-h-screen items-center justify-center p-6">
+    <main id="activity-content" className="flex min-h-screen items-center justify-center p-6" aria-label="Supabase setup required">
       <div className="max-w-2xl border border-line bg-panel p-6">
         <div className="mb-4 flex items-center gap-3 text-accent">
           <MapPinned size={24} />
@@ -169,6 +180,6 @@ function SetupState() {
           Deployment README
         </a>
       </div>
-    </div>
+    </main>
   );
 }
