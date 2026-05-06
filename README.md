@@ -1,28 +1,63 @@
 # California Well Permit Tracker
 
-A modern web app for tracking California oil and gas well permit activity from public CalGEM and WellSTAR ArcGIS services.
+California Well Permit Tracker is a public web app for monitoring California oil and gas well permit activity using CalGEM and WellSTAR public data.
 
-V1 uses:
+The project is designed as an oilfield activity intelligence tool rather than a generic dashboard. It helps users see who is actively permitting wells, what work is being permitted, where activity is concentrated, and how to jump from a permit record back to official state sources.
 
-- React + Vite + TypeScript + Tailwind for the frontend
-- Supabase for hosted Postgres and public read APIs
-- Python ingest scripts for CalGEM ArcGIS REST data
-- GitHub Actions for weekly refresh
-- Cloudflare Pages for static hosting at `ca-permits.ryweller.com`
+![California Well Permit Tracker app overview](docs/images/app-overview.png)
 
-## Public Data Sources
+## What It Shows
 
-- Permits: `https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Notices/MapServer/1`
-- Wells: `https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Wells/MapServer/0`
-- Field boundaries: `https://gis.conservation.ca.gov/server/rest/services/CalGEM/DOMS_Admin_Bounds/FeatureServer/0`
+- Current permit activity by operator, field, county, district, well type, and notice type.
+- Default development-focused scope: New Drill, Deepen, Sidetrack, and Rework.
+- Abandon and Re-Abandon records available as optional filters, but off by default.
+- Weekly permit trends grouped by New Drills, Reentries, Injection, and Abandonments.
+- Map-based activity view with configurable coloring by Permit Scope, Well Type, Operator, or Date.
+- Scrollable permit table with clickable WellSTAR detail links.
+- Official WellSTAR detail links using normalized California API numbers.
+- WellFinder links where available.
 
-## Supabase Setup
+## Data Sources
 
-1. Create a Supabase project.
-2. Open the SQL editor.
-3. Run `supabase/migrations/001_initial_schema.sql`.
-4. Copy `.env.example` to `.env`.
-5. Fill in:
+This app uses public California data services and does not require private CalGEM credentials for V1.
+
+- Permits: [WellSTAR Notices layer 1](https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Notices/MapServer/1)
+- Wells: [WellSTAR Wells layer 0](https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Wells/MapServer/0)
+- Field boundaries: [CalGEM DOMS Admin Bounds](https://gis.conservation.ca.gov/server/rest/services/CalGEM/DOMS_Admin_Bounds/FeatureServer)
+- WellFinder context: [CalGEM Well Finder](https://conservation.ca.gov/calgem/Pages/Wellfinder.aspx)
+
+## Project Status
+
+V1 is a working prototype with:
+
+- React + Vite + TypeScript + Tailwind frontend.
+- Supabase hosted Postgres database with public-read app tables/views.
+- Python ingest scripts for CalGEM ArcGIS REST services.
+- GitHub Actions workflow for weekly data refresh.
+- Cloudflare Pages deployment target for `ca-permits.ryweller.com`.
+
+Depth and completion interval data are intentionally treated as a future enrichment step. V1 stores placeholder depth/target fields and links users to the official WellSTAR detail page when those values are not available in the public ArcGIS layers.
+
+## Repository Layout
+
+```text
+backend/                 Python ingest and Supabase upsert scripts
+frontend/                React/Vite app
+supabase/migrations/     Database schema and RLS setup
+docs/                    Product, architecture, and data notes
+tests/                   Python ingest/normalization tests
+.github/workflows/       Weekly ingest automation
+```
+
+## Local Setup
+
+Create a Supabase project first, then run the initial migration from:
+
+```text
+supabase/migrations/001_initial_schema.sql
+```
+
+Copy `.env.example` to `.env` and fill in:
 
 ```bash
 VITE_SUPABASE_URL=https://your-project.supabase.co
@@ -31,9 +66,9 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-secret-or-service-role-key
 ```
 
-The migration enables row-level security and allows public read access. Writes are intended to use the private Supabase key from local ingest or GitHub Actions. In newer Supabase projects this may be named a secret key and start with `sb_secret_`; older projects may show a JWT-style `service_role` key.
+Newer Supabase projects may call the private write key a secret key and show it with an `sb_secret_` prefix. Older projects may show a JWT-style `service_role` key. Do not commit `.env`.
 
-## Local Frontend
+## Run The App Locally
 
 ```bash
 cd frontend
@@ -41,9 +76,9 @@ npm install
 npm run dev
 ```
 
-Then open the local Vite URL.
+Open the local Vite URL, usually `http://localhost:5173` or `http://localhost:5174`.
 
-## Local Ingest
+## Run The Ingest
 
 ```bash
 python -m venv .venv
@@ -52,27 +87,30 @@ pip install -r backend/requirements.txt
 python backend/run_ingest.py
 ```
 
-The ingest loads wells, permits, and fields, then upserts them into Supabase.
+The ingest loads wells, permits, and fields, normalizes API numbers, deduplicates permit records, validates expected source fields, and upserts into Supabase.
 
 ## Tests
 
 ```bash
 pytest tests
-cd frontend && npm test
+cd frontend
+npm test
+npm run lint
+npm run build
 ```
 
 ## GitHub Actions
 
-Add repository secrets:
+Add these repository secrets before enabling the weekly ingest workflow:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
-The workflow `.github/workflows/weekly-ingest.yml` runs every Monday at 11:17 UTC and can also be triggered manually.
+The workflow at `.github/workflows/weekly-ingest.yml` runs weekly and can also be triggered manually from GitHub.
 
 ## Cloudflare Pages
 
-Recommended settings:
+Recommended Cloudflare Pages settings:
 
 - Framework preset: Vite
 - Build command: `npm run build`
@@ -81,25 +119,16 @@ Recommended settings:
   - `VITE_SUPABASE_URL`
   - `VITE_SUPABASE_ANON_KEY`
 
-Connect the custom domain `ca-permits.ryweller.com` in Cloudflare Pages after the first successful deploy. DNS is case-insensitive, so this also covers the requested `CA-permits.ryweller.com` presentation.
+Connect `ca-permits.ryweller.com` after the first successful deploy. DNS is case-insensitive, so this also covers the requested `CA-permits.ryweller.com` presentation.
 
-## Depth Data
+## Design Direction
 
-V1 stores API numbers, official links, and placeholder depth/target fields. The app links directly to WellSTAR detail pages with `https://wellstar-public.conservation.ca.gov/Well/Well/Detail?api=<API10>` and presents missing depth data as "see WellSTAR for official details" instead of treating `linked_only` as user-facing copy.
-
-The `backend/enrich_wellstar_details.py` script is intentionally disabled until a stable public WellSTAR detail data source is confirmed.
-
-## Current Product Direction
-
-- Keep the interface closer to an intelligence product than a card-heavy dashboard.
-- Keep the filter rail compact and collapsible.
-- Keep the map height bounded so it does not expand to match tall tables.
-- Use individual colored permit points with a visible legend; avoid cluster bubbles unless clustering is redesigned.
-- Map coloring can be switched between Permit Scope, Well Type, Operator, and continuous Date colors.
-- Permit table rows should stay scrollable and compact rather than becoming a long page-height table.
-- Show weekly point-to-point trends grouped as New Drills, Reentries, Injection, and Abandonments.
-- Prioritize operator/field analysis for the current year: fields stacked by operator and operators stacked by field.
+- Keep the interface dense, modern, and useful for repeat analysis.
+- Keep the map and permit table as the primary workspace.
+- Keep filters compact and collapsible.
+- Avoid over-interpreting permit types without depth, formation, pool, and completion context.
+- Reserve future field narratives for when richer geologic and wellbore data are available.
 
 ## License
 
-This project is licensed under CC BY-SA 4.0. See `LICENSE.md`.
+This project is licensed under [CC BY-SA 4.0](LICENSE.md).
