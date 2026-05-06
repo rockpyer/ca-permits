@@ -106,6 +106,11 @@ Add these repository secrets before enabling the weekly ingest workflow:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
+Add these repository secrets before deploying the frontend with GitHub Pages:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
 The workflow at `.github/workflows/weekly-ingest.yml` runs weekly and can also be triggered manually from GitHub.
 
 ## GitHub Pages Deployment
