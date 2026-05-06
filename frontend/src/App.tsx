@@ -125,7 +125,7 @@ export function App() {
             <div className="space-y-4 p-3 sm:p-4">
               <SummaryCards rows={filteredRows} />
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(520px,0.95fr)]">
-                <ActivityMap rows={filteredRows} selected={selected} onSelect={setSelected} />
+                <ActivityMap rows={filteredRows} fields={fields} selected={selected} onSelect={setSelected} />
                 <PermitTable rows={filteredRows} selected={selected} onSelect={setSelected} />
               </div>
               <RankingPanels rows={filteredRows} />

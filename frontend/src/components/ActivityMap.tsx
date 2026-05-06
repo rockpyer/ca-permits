@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import maplibregl from 'maplibre-gl';
 import { WORK_GROUP_LABELS, classifyWork, countBy, type WorkGroup } from '../lib/summary';
-import type { PermitActivity } from '../lib/types';
+import type { FieldBoundary, PermitActivity } from '../lib/types';
 
 type Props = {
   rows: PermitActivity[];
+  fields: FieldBoundary[];
   selected: PermitActivity | null;
   onSelect: (row: PermitActivity) => void;
 };
@@ -33,16 +34,22 @@ const GROUP_COLORS: Record<WorkGroup, string> = {
 
 const CATEGORY_COLORS = ['#36d399', '#60a5fa', '#c084fc', '#f5b84b', '#ef6767', '#2dd4bf', '#f472b6'];
 
-export function ActivityMap({ rows, selected, onSelect }: Props) {
+export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
   const [legendType, setLegendType] = useState<LegendType>('permit_scope');
+  const [showFields, setShowFields] = useState(true);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const rowsRef = useRef<PermitActivity[]>(rows);
   const selectedRef = useRef<PermitActivity | null>(selected);
   const onSelectRef = useRef(onSelect);
+  const showFieldsRef = useRef(showFields);
   const hasFitBoundsRef = useRef(false);
   const markerRefs = useRef<maplibregl.Marker[]>([]);
   const geojsonRef = useRef<GeoJSON.FeatureCollection<GeoJSON.Point>>({ type: 'FeatureCollection', features: [] });
+  const fieldGeojsonRef = useRef<GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.MultiPolygon>>({
+    type: 'FeatureCollection',
+    features: []
+  });
 
   const colorModel = useMemo(() => buildColorModel(rows, legendType), [rows, legendType]);
 
@@ -68,6 +75,8 @@ export function ActivityMap({ rows, selected, onSelect }: Props) {
     [colorModel, rows]
   );
 
+  const fieldGeojson = useMemo(() => buildFieldGeojson(fields), [fields]);
+
   useEffect(() => {
     rowsRef.current = rows;
   }, [rows]);
@@ -81,8 +90,16 @@ export function ActivityMap({ rows, selected, onSelect }: Props) {
   }, [onSelect]);
 
   useEffect(() => {
+    showFieldsRef.current = showFields;
+  }, [showFields]);
+
+  useEffect(() => {
     geojsonRef.current = geojson;
   }, [geojson]);
+
+  useEffect(() => {
+    fieldGeojsonRef.current = fieldGeojson;
+  }, [fieldGeojson]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -95,6 +112,8 @@ export function ActivityMap({ rows, selected, onSelect }: Props) {
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     map.on('load', () => {
+      addFieldLayers(map, fieldGeojsonRef.current);
+      setFieldLayerVisibility(map, showFieldsRef.current);
       renderHtmlMarkers(map, geojsonRef.current, markerRefs, rowsRef, selectedRef, onSelectRef);
       fitToFeatures(map, geojsonRef.current, hasFitBoundsRef);
     });
@@ -105,6 +124,14 @@ export function ActivityMap({ rows, selected, onSelect }: Props) {
       mapRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded()) return;
+    const fieldSource = map.getSource('fields') as maplibregl.GeoJSONSource | undefined;
+    if (fieldSource) fieldSource.setData(fieldGeojson);
+    setFieldLayerVisibility(map, showFields);
+  }, [fieldGeojson, showFields]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -134,10 +161,57 @@ export function ActivityMap({ rows, selected, onSelect }: Props) {
             <option value="date">Date</option>
           </select>
         </label>
+        <label className="map-control">
+          <input
+            type="checkbox"
+            className="h-3.5 w-3.5 accent-accent"
+            checked={showFields}
+            onChange={(event) => setShowFields(event.target.checked)}
+          />
+          Fields
+        </label>
       </div>
       <MapLegend colorModel={colorModel} />
     </div>
   );
+}
+
+function addFieldLayers(
+  map: maplibregl.Map,
+  data: GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.MultiPolygon>
+) {
+  if (map.getSource('fields')) return;
+
+  map.addSource('fields', {
+    type: 'geojson',
+    data
+  });
+  map.addLayer({
+    id: 'field-fills',
+    type: 'fill',
+    source: 'fields',
+    paint: {
+      'fill-color': '#19352f',
+      'fill-opacity': 0.22
+    }
+  });
+  map.addLayer({
+    id: 'field-lines',
+    type: 'line',
+    source: 'fields',
+    paint: {
+      'line-color': '#36d399',
+      'line-opacity': 0.55,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.7, 9, 1.4, 12, 2]
+    }
+  });
+}
+
+function setFieldLayerVisibility(map: maplibregl.Map, visible: boolean) {
+  const visibility = visible ? 'visible' : 'none';
+  ['field-fills', 'field-lines'].forEach((layer) => {
+    if (map.getLayer(layer)) map.setLayoutProperty(layer, 'visibility', visibility);
+  });
 }
 
 function MapLegend({ colorModel }: { colorModel: ColorModel }) {
@@ -260,6 +334,82 @@ function renderHtmlMarkers(
 function clearMarkers(markerRefs: MutableRefObject<maplibregl.Marker[]>) {
   markerRefs.current.forEach((marker) => marker.remove());
   markerRefs.current = [];
+}
+
+function buildFieldGeojson(fields: FieldBoundary[]): GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.MultiPolygon> {
+  return {
+    type: 'FeatureCollection',
+    features: fields.flatMap((field) => {
+      const geometry = esriPolygonToGeojson(field.geometry);
+      if (!geometry) return [];
+      return [
+        {
+          type: 'Feature' as const,
+          properties: {
+            source_object_id: field.source_object_id,
+            field_name: field.field_name,
+            field_code: field.field_code,
+            district: field.district
+          },
+          geometry
+        }
+      ];
+    })
+  };
+}
+
+function esriPolygonToGeojson(geometry: unknown): GeoJSON.Polygon | GeoJSON.MultiPolygon | null {
+  if (!geometry || typeof geometry !== 'object' || !('rings' in geometry)) return null;
+  const rings = (geometry as { rings?: unknown }).rings;
+  if (!Array.isArray(rings) || rings.length === 0) return null;
+
+  const validRings = rings.filter(isLinearRing).map(simplifyRingForDisplay);
+  if (!validRings.length) return null;
+
+  if (validRings.length === 1) {
+    return {
+      type: 'Polygon',
+      coordinates: validRings
+    };
+  }
+
+  return {
+    type: 'MultiPolygon',
+    coordinates: validRings.map((ring) => [ring])
+  };
+}
+
+function isLinearRing(value: unknown): value is GeoJSON.Position[] {
+  return (
+    Array.isArray(value) &&
+    value.length >= 4 &&
+    value.every(
+      (point) =>
+        Array.isArray(point) &&
+        point.length >= 2 &&
+        typeof point[0] === 'number' &&
+        typeof point[1] === 'number' &&
+        point[0] >= -180 &&
+        point[0] <= 180 &&
+        point[1] >= -90 &&
+        point[1] <= 90
+    )
+  );
+}
+
+function simplifyRingForDisplay(ring: GeoJSON.Position[]) {
+  const maxPoints = 240;
+  if (ring.length <= maxPoints) return ring;
+
+  const step = Math.ceil(ring.length / maxPoints);
+  const simplified = ring.filter((_, index) => index % step === 0);
+  const first = simplified[0];
+  const last = simplified[simplified.length - 1];
+
+  if (first && last && (first[0] !== last[0] || first[1] !== last[1])) {
+    simplified.push(first);
+  }
+  return simplified;
 }
 
 function fitToFeatures(

@@ -35,7 +35,7 @@ Key fields:
 
 ## fields
 
-Oil and gas field administrative boundaries from `CalGEM/DOMS_Admin_Bounds/FeatureServer/0`.
+Oil and gas field administrative boundaries from `CalGEM/Admin_Bounds/MapServer/0`.
 
 Key fields:
 

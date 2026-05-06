@@ -28,7 +28,7 @@ def field_row(feature: dict) -> dict:
         "field_code": attrs.get("FIELD_CODE"),
         "district": attrs.get("District"),
         "district_label": attrs.get("District_Label"),
-        "area_acre": attrs.get("AREA_ACRE"),
+        "area_acre": int(round(attrs["AREA_ACRE"])) if attrs.get("AREA_ACRE") is not None else None,
         "geometry": feature.get("geometry"),
     }
 
