@@ -34,7 +34,7 @@ V1 is a working prototype with:
 - Supabase hosted Postgres database with public-read app tables/views.
 - Python ingest scripts for CalGEM ArcGIS REST services.
 - GitHub Actions workflow for weekly data refresh.
-- Cloudflare Pages deployment target for `ca-permits.ryweller.com`.
+- GitHub Pages deployment target for `permits.ryweller.com`.
 
 Depth and completion interval data are intentionally treated as a future enrichment step. V1 stores placeholder depth/target fields and links users to the official WellSTAR detail page when those values are not available in the public ArcGIS layers.
 
@@ -108,18 +108,26 @@ Add these repository secrets before enabling the weekly ingest workflow:
 
 The workflow at `.github/workflows/weekly-ingest.yml` runs weekly and can also be triggered manually from GitHub.
 
-## Cloudflare Pages
+## GitHub Pages Deployment
 
-Recommended Cloudflare Pages settings:
+This repo is configured to deploy the Vite app with GitHub Actions from `.github/workflows/deploy.yml`.
 
-- Framework preset: Vite
-- Build command: `npm run build`
-- Build output directory: `frontend/dist`
-- Environment variables:
-  - `VITE_SUPABASE_URL`
-  - `VITE_SUPABASE_ANON_KEY`
+- GitHub Pages source: `GitHub Actions`
+- Build command: `npm run build` from `frontend`
+- Published artifact: `frontend/dist`
+- Custom domain file: `frontend/public/CNAME`
+- Custom domain: `permits.ryweller.com`
 
-Connect `ca-permits.ryweller.com` after the first successful deploy. DNS is case-insensitive, so this also covers the requested `CA-permits.ryweller.com` presentation.
+For the DNS record, point the `permits` subdomain at GitHub Pages:
+
+```text
+Type: CNAME
+Name: permits
+Target: rockpyer.github.io
+Proxy: DNS only while GitHub issues the certificate
+```
+
+After GitHub Pages shows the DNS check passing and the certificate is issued, enable `Enforce HTTPS`.
 
 ## Design Direction
 

@@ -7,8 +7,8 @@ flowchart LR
   CalGEM["CalGEM ArcGIS REST"] --> Actions["GitHub Actions weekly ingest"]
   Actions --> Supabase["Supabase Postgres"]
   Supabase --> React["React + Vite frontend"]
-  React --> Cloudflare["Cloudflare Pages"]
-  Cloudflare --> Domain["ca-permits.ryweller.com"]
+  React --> Pages["GitHub Pages"]
+  Pages --> Domain["permits.ryweller.com"]
 ```
 
 ## Backend
@@ -32,4 +32,4 @@ The Supabase anon key is safe for frontend read access because RLS permits only 
 
 ## Deployment
 
-Cloudflare Pages serves static files from `frontend/dist`. GitHub Actions keeps Supabase refreshed weekly. No Render/Railway/FastAPI service is required for V1.
+GitHub Pages serves static files from `frontend/dist` through the custom domain `permits.ryweller.com`. GitHub Actions keeps Supabase refreshed weekly. No Render/Railway/FastAPI service is required for V1.
