@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import maplibregl from 'maplibre-gl';
-import { WORK_GROUP_LABELS, classifyWork, countBy, type WorkGroup } from '../lib/summary';
 import type { FieldBoundary, PermitActivity } from '../lib/types';
 
 type Props = {
@@ -10,7 +9,42 @@ type Props = {
   onSelect: (row: PermitActivity) => void;
 };
 
-type LegendType = 'permit_scope' | 'well_type' | 'operator' | 'date';
+type SymbolKey =
+  | 'dry_gas'
+  | 'gas'
+  | 'liquefied_gas'
+  | 'oil_gas'
+  | 'water_source'
+  | 'air_injection'
+  | 'gas_disposal'
+  | 'injection'
+  | 'pressure_maintenance'
+  | 'steamflood'
+  | 'water_disposal'
+  | 'waterflood'
+  | 'cyclic_steam'
+  | 'gas_storage'
+  | 'multi_purpose'
+  | 'core_hole'
+  | 'dry_hole'
+  | 'observation'
+  | 'unknown'
+  | 'gas_injection'
+  | 'stratigraphic';
+
+type ActivityKey = 'new_drill' | 'deepen' | 'sidetrack' | 'rework' | 'abandon' | 're_abandon' | 'other';
+
+type SymbolDefinition = {
+  key: SymbolKey;
+  label: string;
+  asset: string;
+};
+
+type ActivityDefinition = {
+  key: ActivityKey;
+  label: string;
+  color: string;
+};
 
 const MAP_STYLE = {
   version: 8,
@@ -25,65 +59,64 @@ const MAP_STYLE = {
   layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
 } as maplibregl.StyleSpecification;
 
-const GROUP_COLORS: Record<WorkGroup, string> = {
-  new_drill: '#36d399',
-  reentry: '#c084fc',
-  injection: '#60a5fa',
-  abandonment: '#ef6767'
-};
+const SYMBOL_DEFINITIONS: SymbolDefinition[] = [
+  { key: 'dry_gas', label: 'Dry Gas', asset: 'dry-gas.svg' },
+  { key: 'gas', label: 'Gas', asset: 'gas.svg' },
+  { key: 'liquefied_gas', label: 'Liquefied Gas', asset: 'liquefied-gas.svg' },
+  { key: 'oil_gas', label: 'Oil & Gas', asset: 'oil-gas.svg' },
+  { key: 'water_source', label: 'Water Source', asset: 'water-source.svg' },
+  { key: 'air_injection', label: 'Air Injection', asset: 'air-injection.svg' },
+  { key: 'gas_disposal', label: 'Gas Disposal', asset: 'gas-disposal.svg' },
+  { key: 'injection', label: 'Injection', asset: 'injection.svg' },
+  { key: 'pressure_maintenance', label: 'Pressure Maintenance', asset: 'pressure-maintenance.svg' },
+  { key: 'steamflood', label: 'Steamflood', asset: 'steamflood.svg' },
+  { key: 'water_disposal', label: 'Water Disposal', asset: 'water-disposal.svg' },
+  { key: 'waterflood', label: 'Waterflood', asset: 'waterflood.svg' },
+  { key: 'cyclic_steam', label: 'Cyclic Steam', asset: 'cyclic-steam.svg' },
+  { key: 'gas_storage', label: 'Gas Storage', asset: 'gas-storage.svg' },
+  { key: 'multi_purpose', label: 'Multi Purpose', asset: 'multi-purpose.svg' },
+  { key: 'core_hole', label: 'Core Hole', asset: 'core-hole.svg' },
+  { key: 'dry_hole', label: 'Dry Hole', asset: 'dry-hole.svg' },
+  { key: 'observation', label: 'Observation', asset: 'observation.svg' },
+  { key: 'unknown', label: 'Unknown', asset: 'unknown.svg' },
+  { key: 'gas_injection', label: 'Gas Injection', asset: 'gas-injection.svg' },
+  { key: 'stratigraphic', label: 'Stratigraphic', asset: 'stratigraphic.svg' }
+];
 
-const CATEGORY_COLORS = ['#36d399', '#60a5fa', '#c084fc', '#f5b84b', '#ef6767', '#2dd4bf', '#f472b6'];
+const ACTIVITY_DEFINITIONS: ActivityDefinition[] = [
+  { key: 'new_drill', label: 'New Drill', color: '#36d399' },
+  { key: 'deepen', label: 'Deepen', color: '#7dd3fc' },
+  { key: 'sidetrack', label: 'Sidetrack', color: '#c084fc' },
+  { key: 'rework', label: 'Rework', color: '#f5b84b' },
+  { key: 'abandon', label: 'Abandon', color: '#ef6767' },
+  { key: 're_abandon', label: 'Re-Abandon', color: '#fb7185' },
+  { key: 'other', label: 'Other', color: '#94a3b8' }
+];
+
+const ACTIVITY_BY_KEY = new Map(ACTIVITY_DEFINITIONS.map((definition) => [definition.key, definition]));
 
 export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
-  const [legendType, setLegendType] = useState<LegendType>('permit_scope');
   const [showFields, setShowFields] = useState(true);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const rowsRef = useRef<PermitActivity[]>(rows);
-  const selectedRef = useRef<PermitActivity | null>(selected);
   const onSelectRef = useRef(onSelect);
   const showFieldsRef = useRef(showFields);
   const hasFitBoundsRef = useRef(false);
-  const markerRefs = useRef<maplibregl.Marker[]>([]);
   const geojsonRef = useRef<GeoJSON.FeatureCollection<GeoJSON.Point>>({ type: 'FeatureCollection', features: [] });
   const fieldGeojsonRef = useRef<GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.MultiPolygon>>({
     type: 'FeatureCollection',
     features: []
   });
 
-  const colorModel = useMemo(() => buildColorModel(rows, legendType), [rows, legendType]);
-
-  const geojson = useMemo(
-    () => ({
-      type: 'FeatureCollection' as const,
-      features: rows
-        .filter((row) => isValidCaliforniaPoint(row))
-        .map((row) => ({
-          type: 'Feature' as const,
-          properties: {
-            source_key: row.source_key,
-            color: colorForRow(row, colorModel),
-            operator_name: row.operator_name,
-            field_name: row.field_name
-          },
-          geometry: {
-            type: 'Point' as const,
-            coordinates: [row.longitude as number, row.latitude as number]
-          }
-        }))
-    }),
-    [colorModel, rows]
-  );
-
+  const geojson = useMemo(() => buildPermitGeojson(rows, selected), [rows, selected]);
   const fieldGeojson = useMemo(() => buildFieldGeojson(fields), [fields]);
+  const activeSymbols = useMemo(() => activeSymbolDefinitions(rows), [rows]);
+  const activeActivities = useMemo(() => activeActivityDefinitions(rows), [rows]);
 
   useEffect(() => {
     rowsRef.current = rows;
   }, [rows]);
-
-  useEffect(() => {
-    selectedRef.current = selected;
-  }, [selected]);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -110,16 +143,30 @@ export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
       zoom: 5.6,
       attributionControl: false
     });
+
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
-    map.on('load', () => {
+    map.on('load', async () => {
+      await loadPermitSymbolImages(map);
       addFieldLayers(map, fieldGeojsonRef.current);
       setFieldLayerVisibility(map, showFieldsRef.current);
-      renderHtmlMarkers(map, geojsonRef.current, markerRefs, rowsRef, selectedRef, onSelectRef);
+      addPermitLayers(map, geojsonRef.current);
       fitToFeatures(map, geojsonRef.current, hasFitBoundsRef);
+      map.on('click', 'permit-symbols', (event) => {
+        const feature = event.features?.[0];
+        const key = String(feature?.properties?.source_key || '');
+        const row = rowsRef.current.find((item) => item.source_key === key);
+        if (row) onSelectRef.current(row);
+      });
+      map.on('mouseenter', 'permit-symbols', () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+      map.on('mouseleave', 'permit-symbols', () => {
+        map.getCanvas().style.cursor = '';
+      });
     });
     mapRef.current = map;
+
     return () => {
-      clearMarkers(markerRefs);
       map.remove();
       mapRef.current = null;
     };
@@ -136,9 +183,10 @@ export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map?.isStyleLoaded()) return;
-    renderHtmlMarkers(map, geojson, markerRefs, rowsRef, selectedRef, onSelectRef);
+    const permitSource = map.getSource('permits') as maplibregl.GeoJSONSource | undefined;
+    if (permitSource) permitSource.setData(geojson);
     fitToFeatures(map, geojson, hasFitBoundsRef);
-  }, [geojson, selected]);
+  }, [geojson]);
 
   useEffect(() => {
     if (!selected || !isValidCaliforniaPoint(selected) || !mapRef.current) return;
@@ -153,15 +201,6 @@ export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
       <div ref={containerRef} className="absolute inset-0" />
       <div className="absolute left-3 top-3 z-30 flex flex-wrap gap-2 border border-line bg-ink/90 p-2 text-xs text-slate-300">
         <label className="map-control">
-          Legend
-          <select value={legendType} onChange={(event) => setLegendType(event.target.value as LegendType)}>
-            <option value="permit_scope">Permit Scope</option>
-            <option value="well_type">Well Type</option>
-            <option value="operator">Operator</option>
-            <option value="date">Date</option>
-          </select>
-        </label>
-        <label className="map-control">
           <input
             type="checkbox"
             className="h-3.5 w-3.5 accent-accent"
@@ -171,7 +210,7 @@ export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
           Fields
         </label>
       </div>
-      <MapLegend colorModel={colorModel} />
+      <MapLegend symbols={activeSymbols} activities={activeActivities} />
     </div>
   );
 }
@@ -207,6 +246,45 @@ function addFieldLayers(
   });
 }
 
+function addPermitLayers(map: maplibregl.Map, data: GeoJSON.FeatureCollection<GeoJSON.Point>) {
+  if (!map.getSource('permits')) {
+    map.addSource('permits', {
+      type: 'geojson',
+      data
+    });
+  }
+
+  if (!map.getLayer('permit-selection-halo')) {
+    map.addLayer({
+      id: 'permit-selection-halo',
+      type: 'circle',
+      source: 'permits',
+      filter: ['==', ['get', 'selected'], true],
+      paint: {
+        'circle-radius': 17,
+        'circle-color': '#f8fafc',
+        'circle-opacity': 0.95,
+        'circle-stroke-color': '#07110f',
+        'circle-stroke-width': 3
+      }
+    });
+  }
+
+  if (!map.getLayer('permit-symbols')) {
+    map.addLayer({
+      id: 'permit-symbols',
+      type: 'symbol',
+      source: 'permits',
+      layout: {
+        'icon-image': ['get', 'icon'],
+        'icon-size': ['case', ['==', ['get', 'selected'], true], 0.46, 0.34],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true
+      }
+    });
+  }
+}
+
 function setFieldLayerVisibility(map: maplibregl.Map, visible: boolean) {
   const visibility = visible ? 'visible' : 'none';
   ['field-fills', 'field-lines'].forEach((layer) => {
@@ -214,126 +292,169 @@ function setFieldLayerVisibility(map: maplibregl.Map, visible: boolean) {
   });
 }
 
-function MapLegend({ colorModel }: { colorModel: ColorModel }) {
+function MapLegend({ symbols, activities }: { symbols: SymbolDefinition[]; activities: ActivityDefinition[] }) {
   return (
-    <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-30 max-w-[360px] border border-line bg-ink/90 px-3 py-2 text-xs text-slate-300 sm:right-auto">
-      <div className="mb-1 font-semibold uppercase tracking-wide text-slate-400">Map Legend</div>
-      {colorModel.type === 'date' ? (
-        <div className="space-y-1">
-          <div className="h-2 w-56 bg-gradient-to-r from-[#60a5fa] via-[#36d399] to-[#ef6767]" />
-          <div className="flex justify-between text-slate-400">
-            <span>{colorModel.minDate || 'Older'}</span>
-            <span>{colorModel.maxDate || 'Newer'}</span>
+    <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-30 max-h-[52%] max-w-[430px] overflow-auto border border-line bg-ink/90 px-3 py-2 text-xs text-slate-300 sm:right-auto">
+      <div className="mb-2 font-semibold uppercase tracking-wide text-slate-400">Map Legend</div>
+      <div className="grid gap-3 sm:grid-cols-[1fr_1fr]">
+        <div>
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Color = Work Activity</div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            {activities.map((item) => (
+              <span key={item.key} className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                {item.label}
+              </span>
+            ))}
           </div>
         </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-          {colorModel.legend.map((item) => (
-            <span key={item.label} className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-              {item.label}
-            </span>
-          ))}
+        <div>
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Shape = Well Type</div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            {symbols.map((item) => (
+              <span key={item.key} className="inline-flex items-center gap-1.5">
+                <span
+                  className="h-3.5 w-3.5 bg-slate-300"
+                  style={{
+                    WebkitMask: `url(/map-symbols/${item.asset}) center / contain no-repeat`,
+                    mask: `url(/map-symbols/${item.asset}) center / contain no-repeat`
+                  }}
+                />
+                {item.label}
+              </span>
+            ))}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
-type ColorModel =
-  | { type: 'date'; min: number; max: number; minDate: string | null; maxDate: string | null }
-  | { type: 'category'; field: 'permit_scope' | 'well_type' | 'operator'; colors: Map<string, string>; legend: LegendItem[] };
-
-type LegendItem = { label: string; color: string };
-
-function buildColorModel(rows: PermitActivity[], legendType: LegendType): ColorModel {
-  if (legendType === 'date') {
-    const dated = rows
-      .map((row) => row.notice_dated)
-      .filter((value): value is string => Boolean(value))
-      .sort((a, b) => a.localeCompare(b));
-    const maxDate = dated[dated.length - 1] || null;
-    return {
-      type: 'date',
-      min: dated[0] ? new Date(`${dated[0]}T00:00:00`).getTime() : 0,
-      max: maxDate ? new Date(`${maxDate}T00:00:00`).getTime() : 0,
-      minDate: dated[0] || null,
-      maxDate
-    };
-  }
-
-  if (legendType === 'permit_scope') {
-    const colors = new Map<string, string>(
-      (Object.keys(WORK_GROUP_LABELS) as WorkGroup[]).map((group) => [group, GROUP_COLORS[group]])
-    );
-    return {
-      type: 'category',
-      field: 'permit_scope',
-      colors,
-      legend: (Object.keys(WORK_GROUP_LABELS) as WorkGroup[]).map((group) => ({
-        label: WORK_GROUP_LABELS[group],
-        color: GROUP_COLORS[group]
-      }))
-    };
-  }
-
-  const key = legendType === 'well_type' ? 'well_type_label' : 'operator_name';
-  const top = countBy(rows, key, 6).map((item) => item.name);
-  const colors = new Map<string, string>(top.map((name, index) => [name, CATEGORY_COLORS[index % CATEGORY_COLORS.length]]));
-  colors.set('Other', '#94a3b8');
+function buildPermitGeojson(rows: PermitActivity[], selected: PermitActivity | null): GeoJSON.FeatureCollection<GeoJSON.Point> {
   return {
-    type: 'category',
-    field: legendType,
-    colors,
-    legend: [...top.map((name) => ({ label: truncateLabel(name, 24), color: colors.get(name) || '#94a3b8' })), { label: 'Other', color: '#94a3b8' }]
+    type: 'FeatureCollection',
+    features: rows
+      .filter((row) => isValidCaliforniaPoint(row))
+      .map((row) => {
+        const symbol = symbolKeyForWellType(row);
+        const workActivity = activityKeyForPermit(row);
+        const activity = ACTIVITY_BY_KEY.get(workActivity) || ACTIVITY_BY_KEY.get('other');
+        return {
+          type: 'Feature' as const,
+          properties: {
+            source_key: row.source_key,
+            symbol,
+            work_group: activity?.label || 'Other',
+            color: activity?.color || '#94a3b8',
+            icon: iconId(symbol, workActivity),
+            selected: selected?.source_key === row.source_key,
+            operator_name: row.operator_name,
+            field_name: row.field_name,
+            well_type_label: row.well_type_label
+          },
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [row.longitude as number, row.latitude as number]
+          }
+        };
+      })
   };
 }
 
-function colorForRow(row: PermitActivity, colorModel: ColorModel) {
-  if (colorModel.type === 'date') {
-    if (!row.notice_dated || colorModel.min === colorModel.max) return '#94a3b8';
-    const value = new Date(`${row.notice_dated}T00:00:00`).getTime();
-    const ratio = Math.max(0, Math.min(1, (value - colorModel.min) / (colorModel.max - colorModel.min)));
-    return interpolateColor('#60a5fa', '#ef6767', ratio);
-  }
-  if (colorModel.field === 'permit_scope') {
-    const group = classifyWork(row);
-    return (group && colorModel.colors.get(group)) || '#94a3b8';
-  }
-  const value = colorModel.field === 'well_type' ? row.well_type_label : row.operator_name;
-  return colorModel.colors.get(value || '') || colorModel.colors.get('Other') || '#94a3b8';
+function activeSymbolDefinitions(rows: PermitActivity[]) {
+  const present = new Set(rows.map(symbolKeyForWellType));
+  return SYMBOL_DEFINITIONS.filter((definition) => present.has(definition.key)).slice(0, 10);
 }
 
-function renderHtmlMarkers(
-  map: maplibregl.Map,
-  data: GeoJSON.FeatureCollection<GeoJSON.Point>,
-  markerRefs: MutableRefObject<maplibregl.Marker[]>,
-  rowsRef: MutableRefObject<PermitActivity[]>,
-  selectedRef: MutableRefObject<PermitActivity | null>,
-  onSelectRef: MutableRefObject<(row: PermitActivity) => void>
-) {
-  clearMarkers(markerRefs);
-  data.features.slice(0, 1000).forEach((feature) => {
-    const key = String(feature.properties?.source_key || '');
-    const row = rowsRef.current.find((item) => item.source_key === key);
-    const element = document.createElement('button');
-    element.type = 'button';
-    element.className = `permit-marker${selectedRef.current?.source_key === key ? ' selected' : ''}`;
-    element.style.backgroundColor = String(feature.properties?.color || '#94a3b8');
-    element.title = [row?.notice_type_label, row?.operator_name, row?.field_name].filter(Boolean).join(' - ');
-    element.addEventListener('click', () => {
-      if (row) onSelectRef.current(row);
-    });
-    const marker = new maplibregl.Marker({ element, anchor: 'center' })
-      .setLngLat(feature.geometry.coordinates as [number, number])
-      .addTo(map);
-    markerRefs.current.push(marker);
+function activeActivityDefinitions(rows: PermitActivity[]) {
+  const present = new Set(rows.map(activityKeyForPermit));
+  return ACTIVITY_DEFINITIONS.filter((definition) => present.has(definition.key));
+}
+
+async function loadPermitSymbolImages(map: maplibregl.Map) {
+  await Promise.all(
+    SYMBOL_DEFINITIONS.flatMap((symbol) =>
+      ACTIVITY_DEFINITIONS.map(async (activity) => {
+        const id = iconId(symbol.key, activity.key);
+        if (map.hasImage(id)) return;
+        const svg = await fetch(`/map-symbols/${symbol.asset}`).then((response) => response.text());
+        const imageData = await svgToImageData(svg.replace(/currentColor/g, activity.color));
+        map.addImage(id, imageData, { pixelRatio: 2 });
+      })
+    )
+  );
+}
+
+function svgToImageData(svg: string) {
+  return new Promise<ImageData>((resolve, reject) => {
+    const image = new Image();
+    const blob = new Blob([svg], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const context = canvas.getContext('2d');
+      if (!context) {
+        URL.revokeObjectURL(url);
+        reject(new Error('Unable to create map symbol canvas'));
+        return;
+      }
+      context.drawImage(image, 0, 0, 64, 64);
+      const imageData = context.getImageData(0, 0, 64, 64);
+      URL.revokeObjectURL(url);
+      resolve(imageData);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Unable to load map symbol SVG'));
+    };
+    image.src = url;
   });
 }
 
-function clearMarkers(markerRefs: MutableRefObject<maplibregl.Marker[]>) {
-  markerRefs.current.forEach((marker) => marker.remove());
-  markerRefs.current = [];
+function iconId(symbol: SymbolKey, activity: ActivityKey) {
+  return `${symbol}-${activity}`;
+}
+
+function symbolKeyForWellType(row: PermitActivity): SymbolKey {
+  const value = normalizeWellType(`${row.well_type_label || ''} ${row.well_type || ''}`);
+  if (value.includes('drygas')) return 'dry_gas';
+  if (value.includes('liquefiedgas')) return 'liquefied_gas';
+  if (value.includes('oilgas')) return 'oil_gas';
+  if (value.includes('watersource')) return 'water_source';
+  if (value.includes('airinjection')) return 'air_injection';
+  if (value.includes('gasdisposal')) return 'gas_disposal';
+  if (value.includes('pressuremaintenance')) return 'pressure_maintenance';
+  if (value.includes('steamflood')) return 'steamflood';
+  if (value.includes('waterdisposal')) return 'water_disposal';
+  if (value.includes('waterflood')) return 'waterflood';
+  if (value.includes('cyclicsteam')) return 'cyclic_steam';
+  if (value.includes('gasstorage')) return 'gas_storage';
+  if (value.includes('multipurpose')) return 'multi_purpose';
+  if (value.includes('corehole')) return 'core_hole';
+  if (value.includes('dryhole')) return 'dry_hole';
+  if (value.includes('observation')) return 'observation';
+  if (value.includes('gasinjection')) return 'gas_injection';
+  if (value.includes('stratigraphic')) return 'stratigraphic';
+  if (value.includes('injection')) return 'injection';
+  if (value.includes('gas')) return 'gas';
+  return 'unknown';
+}
+
+function normalizeWellType(value: string) {
+  return value.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
+}
+
+function activityKeyForPermit(row: PermitActivity): ActivityKey {
+  const noticeType = row.notice_type || row.notice_type_label || '';
+  if (noticeType.includes('Re-Abandon')) return 're_abandon';
+  if (noticeType.includes('Abandon')) return 'abandon';
+  if (noticeType.includes('New Drill')) return 'new_drill';
+  if (noticeType.includes('Deepen')) return 'deepen';
+  if (noticeType.includes('Sidetrack')) return 'sidetrack';
+  if (noticeType.includes('Rework')) return 'rework';
+  return 'other';
 }
 
 function buildFieldGeojson(fields: FieldBoundary[]): GeoJSON.FeatureCollection<GeoJSON.Polygon | GeoJSON.MultiPolygon> {
@@ -437,19 +558,4 @@ function isValidCaliforniaPoint(row: PermitActivity) {
       row.longitude >= -125 &&
       row.longitude <= -113
   );
-}
-
-function interpolateColor(start: string, end: string, ratio: number) {
-  const a = hexToRgb(start);
-  const b = hexToRgb(end);
-  const mixed = a.map((channel, index) => Math.round(channel + (b[index] - channel) * ratio));
-  return `rgb(${mixed[0]}, ${mixed[1]}, ${mixed[2]})`;
-}
-
-function hexToRgb(hex: string) {
-  return [1, 3, 5].map((start) => Number.parseInt(hex.slice(start, start + 2), 16));
-}
-
-function truncateLabel(value: string, max: number) {
-  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }

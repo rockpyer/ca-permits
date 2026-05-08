@@ -52,11 +52,10 @@ This roadmap keeps the product pointed toward an oilfield activity analysis term
 
 ## V2.5: Petroleum Cartography And Temporal Analysis
 
-- Modernized traditional oil and gas map symbols:
-  - Oil and gas wells.
-  - Injection wells.
-  - Abandonment / re-abandonment work.
+- Further refinements to modernized traditional oil and gas map symbols:
   - Directional indicators.
+  - Better symbol handling for ambiguous or missing well type labels.
+  - Optional clustering that preserves both well type shape and work activity color.
 - Temporal playback for permit activity.
 - Permit clustering that preserves work-scope meaning.
 - Field boundary simplification and visible-bounds loading for larger map workloads.

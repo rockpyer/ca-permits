@@ -12,7 +12,7 @@ The project is designed as an oilfield activity intelligence tool rather than a 
 - Default development-focused scope: New Drill, Deepen, and Sidetrack.
 - Rework, Abandon, and Re-Abandon records available as optional filters, but off by default.
 - Weekly permit trends grouped by New Drills, Reentries, Injection, and Abandonments.
-- Map-based activity view with configurable coloring by Permit Scope, Well Type, Operator, or Date.
+- Map-based activity view where symbol shape represents well type and color represents permit/work activity.
 - Shareable filter URLs for persistent operator, field, county, date, and permit-scope views.
 - Compact permit record table with CSV export and clickable WellSTAR detail links.
 - Operator analysis panels for field concentration and cumulative drilling activity.
