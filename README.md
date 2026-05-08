@@ -13,9 +13,12 @@ The project is designed as an oilfield activity intelligence tool rather than a 
 - Abandon and Re-Abandon records available as optional filters, but off by default.
 - Weekly permit trends grouped by New Drills, Reentries, Injection, and Abandonments.
 - Map-based activity view with configurable coloring by Permit Scope, Well Type, Operator, or Date.
-- Scrollable permit table with clickable WellSTAR detail links.
+- Shareable filter URLs for persistent operator, field, county, date, and permit-scope views.
+- Compact permit record table with CSV export and clickable WellSTAR detail links.
+- Operator analysis panels for field concentration and cumulative drilling activity.
 - Official WellSTAR detail links using normalized California API numbers.
 - WellFinder links where available.
+- Public metadata for search, social sharing, app icons, and large-card previews.
 
 ## Data Sources
 
@@ -37,6 +40,8 @@ V1 is a working prototype with:
 - GitHub Pages deployment target for `permits.ryweller.com`.
 
 Depth and completion interval data are intentionally treated as a future enrichment step. V1 stores placeholder depth/target fields and links users to the official WellSTAR detail page when those values are not available in the public ArcGIS layers.
+
+See [ROADMAP.md](ROADMAP.md) for the V1.1, V1.5, and V2 product direction.
 
 ## Repository Layout
 

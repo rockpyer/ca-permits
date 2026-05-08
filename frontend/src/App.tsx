@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Github, Loader2, MapPinned } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { CalendarDays, Github, Link as LinkIcon, Loader2, MapPinned } from 'lucide-react';
 import { ActivityMap } from './components/ActivityMap';
 import { DetailDrawer } from './components/DetailDrawer';
 import { FilterRail } from './components/FilterRail';
@@ -15,7 +15,8 @@ export function App() {
   const [rows, setRows] = useState<PermitActivity[]>([]);
   const [fields, setFields] = useState<FieldBoundary[]>([]);
   const [etlRuns, setEtlRuns] = useState<EtlRun[]>([]);
-  const [filters, setFilters] = useState<Filters>(() => defaultFilters());
+  const [filters, setFilters] = useState<Filters>(() => filtersFromUrl(defaultFilters()));
+  const urlDateRef = useRef(hasUrlDateFilters());
   const [selected, setSelected] = useState<PermitActivity | null>(null);
   const [loading, setLoading] = useState(hasSupabaseConfig);
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +24,16 @@ export function App() {
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 1023px)').matches : false
   );
   const [dateBounds, setDateBounds] = useState<{ minDate: string; maxDate: string }>({ minDate: '', maxDate: '' });
+  const [path, setPath] = useState(() => normalizedPath());
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setPath(normalizedPath());
+      setFilters(filtersFromUrl(defaultFilters(dateBounds)));
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [dateBounds]);
 
   useEffect(() => {
     if (!hasSupabaseConfig) return;
@@ -44,10 +55,15 @@ export function App() {
     if (!minDate && !maxDate) return;
     setFilters((current) => ({
       ...current,
-      startDate: minDate || current.startDate,
-      endDate: maxDate || current.endDate
+      startDate: urlDateRef.current ? current.startDate : minDate || current.startDate,
+      endDate: urlDateRef.current ? current.endDate : maxDate || current.endDate
     }));
   }, [dateBounds, rows]);
+
+  useEffect(() => {
+    if (path === '/about-methodology') return;
+    persistFiltersToUrl(filters, dateBounds);
+  }, [dateBounds, filters, path]);
 
   const filteredRows = useMemo(() => applyFilters(rows, filters), [rows, filters]);
   const lastRun = etlRuns[0];
@@ -57,6 +73,14 @@ export function App() {
     return (
       <Shell>
         <SetupState />
+      </Shell>
+    );
+  }
+
+  if (path === '/about-methodology') {
+    return (
+      <Shell>
+        <AboutMethodology onNavigateHome={() => navigateTo('/', setPath)} />
       </Shell>
     );
   }
@@ -91,6 +115,18 @@ export function App() {
                 <div className="flex items-center gap-2 text-slate-300">
                   <CalendarDays size={15} />
                   <span>Last Weekly Update: {weeklyUpdateDate ? formatDisplayDate(weeklyUpdateDate) : 'Pending'}</span>
+                  <a
+                    className="text-slate-500 transition hover:text-accent"
+                    href="/about-methodology"
+                    title="Source data and methodology"
+                    aria-label="Source data and methodology"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      navigateTo('/about-methodology', setPath);
+                    }}
+                  >
+                    <LinkIcon size={14} />
+                  </a>
                 </div>
                 <div className="mt-2 flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-500">
                   <span>By</span>
@@ -135,7 +171,16 @@ export function App() {
               </section>
               <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-xs text-slate-500">
                 <span>{filteredRows.length.toLocaleString()} filtered permits from {rows.length.toLocaleString()} loaded rows</span>
-                <span>{fields.length.toLocaleString()} field boundaries available for the field view roadmap</span>
+                <a
+                  className="text-slate-500 transition hover:text-accent"
+                  href="/about-methodology"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    navigateTo('/about-methodology', setPath);
+                  }}
+                >
+                  About / Methodology
+                </a>
               </footer>
             </div>
           )}
@@ -144,6 +189,74 @@ export function App() {
       <DetailDrawer row={selected} onClose={() => setSelected(null)} />
     </Shell>
   );
+}
+
+function normalizedPath() {
+  const pathname = window.location.pathname.replace(/\/$/, '') || '/';
+  return pathname === '/ca-permits' ? '/' : pathname;
+}
+
+function navigateTo(path: string, setPath: (path: string) => void) {
+  window.history.pushState({}, '', path);
+  setPath(path);
+  window.scrollTo({ top: 0 });
+}
+
+function hasUrlDateFilters() {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  return params.has('from') || params.has('to');
+}
+
+function filtersFromUrl(fallback: Filters): Filters {
+  if (typeof window === 'undefined') return fallback;
+  const params = new URLSearchParams(window.location.search);
+  const list = (key: string) => {
+    const repeated = params.getAll(key);
+    if (repeated.length) return repeated.map((value) => value.trim()).filter(Boolean);
+    return params.get(key)?.split(',').map((value) => value.trim()).filter(Boolean) || [];
+  };
+  return {
+    ...fallback,
+    noticeTypes: list('scope').length
+      ? list('scope').map((value) => (value.startsWith('NOI - ') ? value : `NOI - ${value}`))
+      : fallback.noticeTypes,
+    wellTypes: list('type'),
+    operators: list('operator'),
+    fields: list('field'),
+    counties: list('county'),
+    districts: list('district'),
+    wellStatuses: list('status'),
+    directional: (params.get('directional') as Filters['directional']) || fallback.directional,
+    startDate: params.get('from') || fallback.startDate,
+    endDate: params.get('to') || fallback.endDate
+  };
+}
+
+function persistFiltersToUrl(filters: Filters, dateBounds: { minDate: string; maxDate: string }) {
+  const defaults = defaultFilters(dateBounds);
+  const params = new URLSearchParams();
+  const setList = (key: string, values: string[]) => {
+    values.forEach((value) => params.append(key, value));
+  };
+  if (filters.noticeTypes.join('|') !== defaults.noticeTypes.join('|')) {
+    setList('scope', filters.noticeTypes.map((value) => value.replace('NOI - ', '')));
+  }
+  setList('type', filters.wellTypes);
+  setList('operator', filters.operators);
+  setList('field', filters.fields);
+  setList('county', filters.counties);
+  setList('district', filters.districts);
+  setList('status', filters.wellStatuses);
+  if (filters.directional !== 'all') params.set('directional', filters.directional);
+  if (filters.startDate && filters.startDate !== defaults.startDate) params.set('from', filters.startDate);
+  if (filters.endDate && filters.endDate !== defaults.endDate) params.set('to', filters.endDate);
+
+  const query = params.toString();
+  const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}`;
+  if (nextUrl !== `${window.location.pathname}${window.location.search}`) {
+    window.history.replaceState({}, '', nextUrl);
+  }
 }
 
 function formatDisplayDate(date: string) {
@@ -159,6 +272,101 @@ function Shell({ children }: { children: React.ReactNode }) {
         Skip to activity explorer
       </a>
       {children}
+    </div>
+  );
+}
+
+function AboutMethodology({ onNavigateHome }: { onNavigateHome: () => void }) {
+  return (
+    <main id="activity-content" className="min-h-screen bg-ink px-4 py-6 text-slate-200 sm:px-6 lg:px-10" aria-label="About and methodology">
+      <div className="mx-auto max-w-4xl">
+        <a
+          className="mb-8 inline-flex text-sm font-semibold uppercase tracking-wide text-slate-500 transition hover:text-accent"
+          href="/"
+          onClick={(event) => {
+            event.preventDefault();
+            onNavigateHome();
+          }}
+        >
+          Back to activity terminal
+        </a>
+        <header className="border-b border-line pb-6">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Version 1 methodology</p>
+          <h1 className="product-title max-w-3xl">
+            <span>About</span>
+            <span> / Methodology</span>
+          </h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
+            A public oilfield activity analysis terminal for California permit notices, WellSTAR well metadata, and CalGEM
+            field boundaries. V1 is built to make current activity easier to explore, not to replace official records.
+          </p>
+        </header>
+
+        <div className="mt-8 grid gap-6 text-sm leading-6 text-slate-300 md:grid-cols-2">
+          <MethodBlock title="What This Project Is">
+            The tracker groups public permit notices by operator, field, county, district, work scope, and well type. The first
+            audience is people trying to understand active development and modification patterns quickly.
+          </MethodBlock>
+          <MethodBlock title="Data Sources">
+            Phase one uses public CalGEM and WellSTAR ArcGIS services for notices, wells, and field boundaries. Official source
+            pages remain the system of record.
+            <SourceLinks />
+          </MethodBlock>
+          <MethodBlock title="What A Notice Means">
+            A notice describes a requested or approved activity such as new drilling, deepening, sidetracking, rework, or
+            abandonment. It should not be over-interpreted as a complete geologic or commercial signal.
+          </MethodBlock>
+          <MethodBlock title="V1 Limitations">
+            Depth, completion interval, formation, pool code, casing, and liner details are not fully exposed in the current open
+            layers. V1 links users to WellSTAR for those official well details.
+          </MethodBlock>
+          <MethodBlock title="Known Gaps">
+            API numbers can vary by format, well joins can lag new permit records, operator names can vary, and public services can
+            change without notice. Weekly validation checks are used to catch obvious source changes.
+          </MethodBlock>
+          <MethodBlock title="Update Cadence">
+            The ingest is designed to run weekly through GitHub Actions and write public-read records to Supabase. The app displays
+            the latest permit date available in the loaded dataset.
+          </MethodBlock>
+        </div>
+
+        <section className="mt-8 border-t border-line pt-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Future Enrichment Roadmap</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+            V2 should inspect whether WellSTAR detail pages expose stable public payloads before attempting any rendered-page
+            extraction. Target fields include bottom-hole depths, plugback depths, completion intervals, formation, pool code,
+            wellbore direction, casing summaries, and depth datum.
+          </p>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function MethodBlock({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="border-t border-line pt-4">
+      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{title}</h2>
+      <div>{children}</div>
+    </section>
+  );
+}
+
+function SourceLinks() {
+  return (
+    <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-wide">
+      <a className="text-slate-500 transition hover:text-accent" href="https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Notices/MapServer/1" target="_blank" rel="noreferrer">
+        Notices
+      </a>
+      <a className="text-slate-500 transition hover:text-accent" href="https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Wells/MapServer/0" target="_blank" rel="noreferrer">
+        Wells
+      </a>
+      <a className="text-slate-500 transition hover:text-accent" href="https://gis.conservation.ca.gov/server/rest/services/CalGEM/Admin_Bounds/MapServer/0" target="_blank" rel="noreferrer">
+        Fields
+      </a>
+      <a className="text-slate-500 transition hover:text-accent" href="https://conservation.ca.gov/calgem/Pages/permits.aspx" target="_blank" rel="noreferrer">
+        CalGEM
+      </a>
     </div>
   );
 }

@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis
 } from 'recharts';
-import { countBy, operatorWeeklyTrend, stackKeys, stackedMatrix, truncateLabel } from '../lib/summary';
+import { countBy, operatorDrillingActivity, operatorWeeklyTrend, stackKeys, stackedMatrix, truncateLabel } from '../lib/summary';
 import type { PermitActivity } from '../lib/types';
 
 const STACK_COLORS = ['#36d399', '#60a5fa', '#c084fc', '#f5b84b', '#ef6767', '#94a3b8'];
@@ -20,20 +20,22 @@ export function RankingPanels({ rows }: { rows: PermitActivity[] }) {
   const operatorByField = stackedMatrix(rows, 'operator_name', 'field_name', 8, 5);
   const operatorTrend = operatorWeeklyTrend(rows, 5, 26);
   const trendOperators = countBy(rows, 'operator_name', 5).map((item) => item.name);
+  const drillingActivity = operatorDrillingActivity(rows, 10);
 
   return (
     <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-      <StackedBarPanel
-        title="Fields By Operator"
-        subtitle="Current-year permits in the top fields, stacked by operator."
-        data={fieldByOperator}
-      />
       <StackedBarPanel
         title="Operators By Field"
         subtitle="Current-year permits by top operator, stacked by field."
         data={operatorByField}
         truncateAxis
       />
+      <StackedBarPanel
+        title="Fields By Operator"
+        subtitle="Current-year permits in the top fields, stacked by operator."
+        data={fieldByOperator}
+      />
+      <OperatorActivityPanel data={drillingActivity} />
       <OperatorTrendPanel data={operatorTrend} operators={trendOperators} />
     </section>
   );
@@ -76,6 +78,46 @@ function StackedBarPanel({
           {keys.map((key, index) => (
             <Bar key={key} dataKey={key} stackId="total" fill={STACK_COLORS[index % STACK_COLORS.length]} />
           ))}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function OperatorActivityPanel({
+  data
+}: {
+  data: Array<{ name: string; new_drill: number; deepen: number; sidetrack: number; total: number }>;
+}) {
+  return (
+    <div className="h-[390px] border border-line bg-panel/60 p-3 xl:col-span-2">
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+            Cumulative Operator Drilling Activity
+          </h2>
+          <p className="text-xs text-slate-500">Current-year new drill, deepen, and sidetrack notices only.</p>
+        </div>
+        <div className="text-[11px] uppercase tracking-wide text-slate-500">Workovers and abandonments excluded</div>
+      </div>
+      <ResponsiveContainer width="100%" height="84%">
+        <BarChart data={data} layout="vertical" margin={{ top: 4, right: 28, bottom: 0, left: 20 }}>
+          <CartesianGrid stroke="#20312e" horizontal={false} />
+          <XAxis type="number" allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+          <YAxis
+            type="category"
+            dataKey="name"
+            width={142}
+            tick={{ fill: '#cbd5e1', fontSize: 11 }}
+            tickFormatter={(value) => truncateLabel(String(value), 16)}
+            tickLine={false}
+            axisLine={false}
+          />
+          <Tooltip contentStyle={{ background: '#0d1917', border: '1px solid #20312e', color: '#e2e8f0' }} />
+          <Legend wrapperStyle={{ color: '#94a3b8', fontSize: 11 }} />
+          <Bar dataKey="new_drill" name="New Drill" stackId="total" fill="#36d399" />
+          <Bar dataKey="deepen" name="Deepen" stackId="total" fill="#7dd3fc" />
+          <Bar dataKey="sidetrack" name="Sidetrack" stackId="total" fill="#c084fc" />
         </BarChart>
       </ResponsiveContainer>
     </div>

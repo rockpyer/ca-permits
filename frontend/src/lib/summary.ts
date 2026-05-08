@@ -138,6 +138,33 @@ export function operatorWeeklyTrend(rows: PermitActivity[], operatorLimit = 5, w
     .slice(-weeks);
 }
 
+export function operatorDrillingActivity(rows: PermitActivity[], operatorLimit = 10) {
+  const currentYearRows = rows.filter(isCurrentYear);
+  const counts = new Map<string, { name: string; new_drill: number; deepen: number; sidetrack: number; total: number }>();
+
+  currentYearRows.forEach((row) => {
+    if (!row.operator_name || !['NOI - New Drill', 'NOI - Deepen', 'NOI - Sidetrack'].includes(row.notice_type || '')) {
+      return;
+    }
+    const entry = counts.get(row.operator_name) || {
+      name: row.operator_name,
+      new_drill: 0,
+      deepen: 0,
+      sidetrack: 0,
+      total: 0
+    };
+    if (row.notice_type === 'NOI - New Drill') entry.new_drill += 1;
+    if (row.notice_type === 'NOI - Deepen') entry.deepen += 1;
+    if (row.notice_type === 'NOI - Sidetrack') entry.sidetrack += 1;
+    entry.total += 1;
+    counts.set(row.operator_name, entry);
+  });
+
+  return Array.from(counts.values())
+    .sort((a, b) => b.total - a.total)
+    .slice(0, operatorLimit);
+}
+
 export function truncateLabel(value: string, max = 13) {
   return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
