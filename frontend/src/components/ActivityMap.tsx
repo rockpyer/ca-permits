@@ -210,7 +210,8 @@ export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
           Fields
         </label>
       </div>
-      <MapLegend symbols={activeSymbols} activities={activeActivities} />
+      <WorkColorStrip activities={activeActivities} />
+      <MapLegend symbols={activeSymbols} />
     </div>
   );
 }
@@ -270,6 +271,22 @@ function addPermitLayers(map: maplibregl.Map, data: GeoJSON.FeatureCollection<Ge
     });
   }
 
+  if (!map.getLayer('permit-symbol-backplates')) {
+    map.addLayer({
+      id: 'permit-symbol-backplates',
+      type: 'circle',
+      source: 'permits',
+      paint: {
+        'circle-radius': ['case', ['==', ['get', 'selected'], true], 20, 13],
+        'circle-color': '#07110f',
+        'circle-opacity': 0.92,
+        'circle-stroke-color': ['case', ['==', ['get', 'selected'], true], '#f8fafc', '#dbeafe'],
+        'circle-stroke-opacity': ['case', ['==', ['get', 'selected'], true], 1, 0.7],
+        'circle-stroke-width': ['case', ['==', ['get', 'selected'], true], 3, 1.5]
+      }
+    });
+  }
+
   if (!map.getLayer('permit-symbols')) {
     map.addLayer({
       id: 'permit-symbols',
@@ -277,7 +294,7 @@ function addPermitLayers(map: maplibregl.Map, data: GeoJSON.FeatureCollection<Ge
       source: 'permits',
       layout: {
         'icon-image': ['get', 'icon'],
-        'icon-size': ['case', ['==', ['get', 'selected'], true], 0.46, 0.34],
+        'icon-size': ['case', ['==', ['get', 'selected'], true], 0.64, 0.48],
         'icon-allow-overlap': true,
         'icon-ignore-placement': true
       }
@@ -292,39 +309,36 @@ function setFieldLayerVisibility(map: maplibregl.Map, visible: boolean) {
   });
 }
 
-function MapLegend({ symbols, activities }: { symbols: SymbolDefinition[]; activities: ActivityDefinition[] }) {
+function WorkColorStrip({ activities }: { activities: ActivityDefinition[] }) {
   return (
-    <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-30 max-h-[52%] max-w-[430px] overflow-auto border border-line bg-ink/90 px-3 py-2 text-xs text-slate-300 sm:right-auto">
-      <div className="mb-2 font-semibold uppercase tracking-wide text-slate-400">Map Legend</div>
-      <div className="grid gap-3 sm:grid-cols-[1fr_1fr]">
-        <div>
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Color = Work Activity</div>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-            {activities.map((item) => (
-              <span key={item.key} className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                {item.label}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div>
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Shape = Well Type</div>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-            {symbols.map((item) => (
-              <span key={item.key} className="inline-flex items-center gap-1.5">
-                <span
-                  className="h-3.5 w-3.5 bg-slate-300"
-                  style={{
-                    WebkitMask: `url(/map-symbols/${item.asset}) center / contain no-repeat`,
-                    mask: `url(/map-symbols/${item.asset}) center / contain no-repeat`
-                  }}
-                />
-                {item.label}
-              </span>
-            ))}
-          </div>
-        </div>
+    <div className="pointer-events-none absolute right-14 top-3 z-30 hidden max-w-[58%] flex-wrap gap-1.5 border border-line bg-ink/90 px-2 py-1.5 text-[11px] text-slate-300 md:flex">
+      {activities.map((item) => (
+        <span key={item.key} className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+          {item.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function MapLegend({ symbols }: { symbols: SymbolDefinition[] }) {
+  return (
+    <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-30 max-h-[36%] max-w-[310px] overflow-auto border border-line bg-ink/90 px-3 py-2 text-xs text-slate-300 sm:right-auto">
+      <div className="mb-2 font-semibold uppercase tracking-wide text-slate-400">Well Type Symbols</div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+        {symbols.map((item) => (
+          <span key={item.key} className="inline-flex items-center gap-1.5">
+            <span
+              className="h-4 w-4 bg-slate-300"
+              style={{
+                WebkitMask: `url(/map-symbols/${item.asset}) center / contain no-repeat`,
+                mask: `url(/map-symbols/${item.asset}) center / contain no-repeat`
+              }}
+            />
+            {item.label}
+          </span>
+        ))}
       </div>
     </div>
   );
