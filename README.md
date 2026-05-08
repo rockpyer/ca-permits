@@ -9,8 +9,8 @@ The project is designed as an oilfield activity intelligence tool rather than a 
 ## What It Shows
 
 - Current permit activity by operator, field, county, district, well type, and notice type.
-- Default development-focused scope: New Drill, Deepen, Sidetrack, and Rework.
-- Abandon and Re-Abandon records available as optional filters, but off by default.
+- Default development-focused scope: New Drill, Deepen, and Sidetrack.
+- Rework, Abandon, and Re-Abandon records available as optional filters, but off by default.
 - Weekly permit trends grouped by New Drills, Reentries, Injection, and Abandonments.
 - Map-based activity view with configurable coloring by Permit Scope, Well Type, Operator, or Date.
 - Shareable filter URLs for persistent operator, field, county, date, and permit-scope views.

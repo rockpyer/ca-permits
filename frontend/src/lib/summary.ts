@@ -138,12 +138,55 @@ export function operatorWeeklyTrend(rows: PermitActivity[], operatorLimit = 5, w
     .slice(-weeks);
 }
 
+export function operatorCumulativeDrillingTrend(rows: PermitActivity[], operatorLimit = 5, weeks = 52) {
+  const currentYearRows = rows.filter(
+    (row) => isCurrentYear(row) && row.operator_name && isDrillingActivityNotice(row)
+  );
+  const operatorTotals = new Map<string, number>();
+
+  currentYearRows.forEach((row) => {
+    operatorTotals.set(row.operator_name as string, (operatorTotals.get(row.operator_name as string) || 0) + 1);
+  });
+
+  const operators = Array.from(operatorTotals.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, operatorLimit)
+    .map(([operator]) => operator);
+
+  const weeksInScope = Array.from(
+    new Set(
+      currentYearRows
+        .filter((row) => row.notice_dated && operators.includes(row.operator_name as string))
+        .map((row) => weekStart(row.notice_dated as string))
+    )
+  )
+    .sort((a, b) => a.localeCompare(b))
+    .slice(-weeks);
+
+  const cumulative = new Map<string, number>(operators.map((operator) => [operator, 0]));
+  const data = weeksInScope.map((week) => {
+    const entry: Record<string, string | number> = { week };
+    currentYearRows.forEach((row) => {
+      if (!row.notice_dated || !row.operator_name || !operators.includes(row.operator_name)) return;
+      if (weekStart(row.notice_dated) === week) {
+        cumulative.set(row.operator_name, (cumulative.get(row.operator_name) || 0) + 1);
+      }
+    });
+    operators.forEach((operator) => {
+      entry[operator] = cumulative.get(operator) || 0;
+    });
+    return entry;
+  });
+
+  return { data, operators };
+}
+
 export function operatorDrillingActivity(rows: PermitActivity[], operatorLimit = 10) {
   const currentYearRows = rows.filter(isCurrentYear);
   const counts = new Map<string, { name: string; new_drill: number; deepen: number; sidetrack: number; total: number }>();
 
   currentYearRows.forEach((row) => {
-    if (!row.operator_name || !['NOI - New Drill', 'NOI - Deepen', 'NOI - Sidetrack'].includes(row.notice_type || '')) {
+    if (!row.operator_name || !isDrillingActivityNotice(row)) {
       return;
     }
     const entry = counts.get(row.operator_name) || {
@@ -163,6 +206,10 @@ export function operatorDrillingActivity(rows: PermitActivity[], operatorLimit =
   return Array.from(counts.values())
     .sort((a, b) => b.total - a.total)
     .slice(0, operatorLimit);
+}
+
+function isDrillingActivityNotice(row: PermitActivity) {
+  return ['NOI - New Drill', 'NOI - Deepen', 'NOI - Sidetrack'].includes(row.notice_type || '');
 }
 
 export function truncateLabel(value: string, max = 13) {

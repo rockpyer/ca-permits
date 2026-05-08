@@ -10,7 +10,13 @@ import {
   XAxis,
   YAxis
 } from 'recharts';
-import { countBy, operatorDrillingActivity, operatorWeeklyTrend, stackKeys, stackedMatrix, truncateLabel } from '../lib/summary';
+import {
+  operatorCumulativeDrillingTrend,
+  operatorDrillingActivity,
+  stackKeys,
+  stackedMatrix,
+  truncateLabel
+} from '../lib/summary';
 import type { PermitActivity } from '../lib/types';
 
 const STACK_COLORS = ['#36d399', '#60a5fa', '#c084fc', '#f5b84b', '#ef6767', '#94a3b8'];
@@ -18,8 +24,7 @@ const STACK_COLORS = ['#36d399', '#60a5fa', '#c084fc', '#f5b84b', '#ef6767', '#9
 export function RankingPanels({ rows }: { rows: PermitActivity[] }) {
   const fieldByOperator = stackedMatrix(rows, 'field_name', 'operator_name', 8, 5);
   const operatorByField = stackedMatrix(rows, 'operator_name', 'field_name', 8, 5);
-  const operatorTrend = operatorWeeklyTrend(rows, 5, 26);
-  const trendOperators = countBy(rows, 'operator_name', 5).map((item) => item.name);
+  const cumulativeTrend = operatorCumulativeDrillingTrend(rows, 5, 52);
   const drillingActivity = operatorDrillingActivity(rows, 10);
 
   return (
@@ -36,7 +41,7 @@ export function RankingPanels({ rows }: { rows: PermitActivity[] }) {
         data={fieldByOperator}
       />
       <OperatorActivityPanel data={drillingActivity} />
-      <OperatorTrendPanel data={operatorTrend} operators={trendOperators} />
+      <OperatorTrendPanel data={cumulativeTrend.data} operators={cumulativeTrend.operators} />
     </section>
   );
 }
@@ -94,7 +99,7 @@ function OperatorActivityPanel({
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
-            Cumulative Operator Drilling Activity
+            Operator Drilling Mix
           </h2>
           <p className="text-xs text-slate-500">Current-year new drill, deepen, and sidetrack notices only.</p>
         </div>
@@ -128,8 +133,12 @@ function OperatorTrendPanel({ data, operators }: { data: Record<string, string |
   return (
     <div className="h-[340px] border border-line bg-panel/60 p-3 xl:col-span-2">
       <div className="mb-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Operator Permit Rate</h2>
-        <p className="text-xs text-slate-500">Weekly new permit count for the top current operators.</p>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+          Cumulative Operator Drilling Activity
+        </h2>
+        <p className="text-xs text-slate-500">
+          Running current-year total by operator for New Drill, Deepen, and Sidetrack notices.
+        </p>
       </div>
       <ResponsiveContainer width="100%" height="84%">
         <LineChart data={data}>
