@@ -1,7 +1,15 @@
 import { PanelLeftClose, PanelLeftOpen, RotateCcw } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { ALL_NOTICE_TYPES } from '../lib/constants';
 import { defaultFilters, toggleListValue, uniqueValues } from '../lib/filters';
+import {
+  FUNCTIONAL_TYPE_GROUPS,
+  WORK_ACTIVITY_GROUPS,
+  functionalTypeLabel,
+  workActivityColor,
+  workActivityLabel,
+  type WorkActivityGroup,
+  type FunctionalTypeGroup
+} from '../lib/grouping';
 import type { Filters, PermitActivity } from '../lib/types';
 
 type Props = {
@@ -50,21 +58,28 @@ export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedCh
       </div>
 
       {!collapsed && <div className="max-h-[68vh] space-y-2 overflow-y-auto pr-1 lg:max-h-none">
-        <FilterSection title="Permit Scope" defaultOpen>
+        <FilterSection title="Work Activity" defaultOpen>
           <FilterGroup
-            options={ALL_NOTICE_TYPES}
-            selected={filters.noticeTypes}
-            onToggle={(value) => onChange({ ...filters, noticeTypes: toggleListValue(filters.noticeTypes, value) })}
+            options={WORK_ACTIVITY_GROUPS.map((item) => item.key)}
+            selected={filters.workActivities}
+            labelFor={(value) => workActivityLabel(value as WorkActivityGroup)}
+            colorFor={(value) => workActivityColor(value as WorkActivityGroup)}
+            onToggle={(value) => onChange({ ...filters, workActivities: toggleListValue(filters.workActivities, value) })}
+          />
+        </FilterSection>
+
+        <FilterSection title="Functional Type" defaultOpen>
+          <FilterGroup
+            options={FUNCTIONAL_TYPE_GROUPS.map((item) => item.key)}
+            selected={filters.functionalTypes}
+            labelFor={(value) => functionalTypeLabel(value as FunctionalTypeGroup)}
+            onToggle={(value) =>
+              onChange({ ...filters, functionalTypes: toggleListValue(filters.functionalTypes, value) })
+            }
           />
         </FilterSection>
 
         <FilterSection title="Well And Geography" defaultOpen>
-          <InlineSelect
-            label="Type"
-            options={uniqueValues(rows, 'well_type_label')}
-            value={filters.wellTypes[0] || ''}
-            onChange={(value) => onChange({ ...filters, wellTypes: value ? [value] : [] })}
-          />
           <InlineSelect
             label="Operator"
             options={uniqueValues(rows, 'operator_name')}
@@ -145,10 +160,14 @@ function FilterSection({ title, defaultOpen, children }: { title: string; defaul
 function FilterGroup({
   options,
   selected,
+  labelFor,
+  colorFor,
   onToggle
 }: {
   options: string[];
   selected: string[];
+  labelFor?: (value: string) => string;
+  colorFor?: (value: string) => string;
   onToggle: (value: string) => void;
 }) {
   return (
@@ -161,18 +180,11 @@ function FilterGroup({
             checked={selected.includes(option)}
             onChange={() => onToggle(option)}
           />
-          <span style={{ color: noticeTypeColor(option) }}>{option.replace('NOI - ', '')}</span>
+          <span style={{ color: colorFor?.(option) }}>{labelFor?.(option) || option}</span>
         </label>
       ))}
     </div>
   );
-}
-
-function noticeTypeColor(option: string) {
-  if (option.includes('New Drill')) return '#36d399';
-  if (option.includes('Deepen') || option.includes('Sidetrack') || option.includes('Rework')) return '#c084fc';
-  if (option.includes('Abandon')) return '#ef6767';
-  return '#94a3b8';
 }
 
 function InlineSelect({

@@ -1,4 +1,4 @@
-import { DEVELOPMENT_NOTICE_TYPES } from './constants';
+import { DEFAULT_WORK_ACTIVITY_GROUPS, functionalTypeGroup, workActivityGroup } from './grouping';
 import type { Filters, PermitActivity } from './types';
 
 const DEFAULT_START_DATE = '2025-12-01';
@@ -7,8 +7,8 @@ export function defaultFilters(bounds?: { minDate?: string; maxDate?: string }):
   const end = new Date();
   const boundedMinDate = latestDate(bounds?.minDate || '', DEFAULT_START_DATE);
   return {
-    noticeTypes: [...DEVELOPMENT_NOTICE_TYPES],
-    wellTypes: [],
+    workActivities: [...DEFAULT_WORK_ACTIVITY_GROUPS],
+    functionalTypes: [],
     operators: [],
     fields: [],
     counties: [],
@@ -28,10 +28,10 @@ export function uniqueValues(rows: PermitActivity[], key: keyof PermitActivity):
 
 export function applyFilters(rows: PermitActivity[], filters: Filters): PermitActivity[] {
   return rows.filter((row) => {
-    if (filters.noticeTypes.length && (!row.notice_type || !filters.noticeTypes.includes(row.notice_type))) {
+    if (filters.workActivities.length && !filters.workActivities.includes(workActivityGroup(row))) {
       return false;
     }
-    if (filters.wellTypes.length && (!row.well_type_label || !filters.wellTypes.includes(row.well_type_label))) {
+    if (filters.functionalTypes.length && !filters.functionalTypes.includes(functionalTypeGroup(row))) {
       return false;
     }
     if (filters.operators.length && (!row.operator_name || !filters.operators.includes(row.operator_name))) {
