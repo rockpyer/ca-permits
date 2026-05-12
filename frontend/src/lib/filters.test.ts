@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { ABANDONMENT_NOTICE_TYPES, DEVELOPMENT_NOTICE_TYPES } from './constants';
 import { applyFilters, defaultFilters, toggleListValue } from './filters';
 import type { PermitActivity } from './types';
 
@@ -48,10 +47,10 @@ const baseRow: PermitActivity = {
 };
 
 describe('filters', () => {
-  it('defaults to development notice types only', () => {
+  it('defaults to New Drills and Existing work activity only', () => {
     const filters = defaultFilters();
-    expect(filters.noticeTypes).toEqual(DEVELOPMENT_NOTICE_TYPES);
-    expect(filters.noticeTypes).not.toContain(ABANDONMENT_NOTICE_TYPES[0]);
+    expect(filters.workActivities).toEqual(['new_drills', 'existing']);
+    expect(filters.workActivities).not.toContain('abandonment');
   });
 
   it('filters out abandonment unless toggled on', () => {
@@ -59,8 +58,8 @@ describe('filters', () => {
     expect(applyFilters([baseRow, abandonment], defaultFilters())).toEqual([baseRow]);
   });
 
-  it('toggles notice values', () => {
-    expect(toggleListValue(['NOI - New Drill'], 'NOI - New Drill')).toEqual([]);
-    expect(toggleListValue([], 'NOI - Abandon')).toEqual(['NOI - Abandon']);
+  it('toggles grouped filter values', () => {
+    expect(toggleListValue(['new_drills'], 'new_drills')).toEqual([]);
+    expect(toggleListValue([], 'abandonment')).toEqual(['abandonment']);
   });
 });

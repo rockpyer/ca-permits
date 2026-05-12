@@ -1,5 +1,13 @@
 import { ExternalLink, X } from 'lucide-react';
 import type { ReactNode } from 'react';
+import {
+  functionalTypeGroup,
+  functionalTypeLabel,
+  noticeType,
+  sourceType,
+  workActivityGroup,
+  workActivityLabel
+} from '../lib/grouping';
 import type { PermitActivity } from '../lib/types';
 
 type Props = {
@@ -38,7 +46,8 @@ export function DetailDrawer({ row, onClose }: Props) {
               )
             ],
             ['Permit', row.notice_permit_number],
-            ['Notice Type', row.notice_type_label || row.notice_type],
+            ['Work Activity', workActivityLabel(workActivityGroup(row))],
+            ['Activity Detail', noticeType(row)],
             ['Status', row.notice_status],
             ['Dated', row.notice_dated],
             ['Determination', row.notice_date_determination]
@@ -49,7 +58,8 @@ export function DetailDrawer({ row, onClose }: Props) {
           rows={[
             ['Lease', row.lease_name],
             ['Well Number', row.well_number],
-            ['Well Type', row.well_type_label || row.well_type],
+            ['Functional Type', functionalTypeLabel(functionalTypeGroup(row))],
+            ['Source Type', sourceType(row)],
             ['Well Status', row.well_status],
             ['Spud Date', row.spud_date],
             ['Directional', row.is_directionally_drilled]

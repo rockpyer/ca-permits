@@ -7,13 +7,15 @@ import {
   XAxis,
   YAxis
 } from 'recharts';
+import { CompactChartTooltip } from './CompactChartTooltip';
 import {
-  WORK_GROUP_LABELS,
+  FUNCTIONAL_TYPE_GROUPS,
+  WORK_ACTIVITY_GROUPS,
+  functionalTypeCounts,
   isCurrentYear,
   recentCount,
   weeklyGroupedTrend,
-  workGroupCounts,
-  type WorkGroup
+  workActivityCounts
 } from '../lib/summary';
 import type { PermitActivity } from '../lib/types';
 
@@ -21,28 +23,29 @@ type Props = {
   rows: PermitActivity[];
 };
 
-const GROUP_COLORS: Record<WorkGroup, string> = {
-  new_drill: '#36d399',
-  reentry: '#c084fc',
-  injection: '#60a5fa',
-  abandonment: '#ef6767'
-};
-
 export function SummaryCards({ rows }: Props) {
   const currentYearRows = rows.filter(isCurrentYear);
-  const groupCounts = workGroupCounts(currentYearRows);
+  const groupCounts = workActivityCounts(currentYearRows);
+  const typeCounts = functionalTypeCounts(currentYearRows);
   const trend = weeklyGroupedTrend(rows, 52);
   const operatorCount = new Set(currentYearRows.map((row) => row.operator_name).filter(Boolean)).size;
 
   return (
     <section className="space-y-3">
       <div className="border-y border-line py-3">
-        <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7">
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Well Activity</div>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
           <Stat label="YTD permits" value={currentYearRows.length} />
           <Stat label="Last 4 weeks" value={recentCount(rows, 28)} />
           <Stat label="Operators YTD" value={operatorCount} />
-          {(Object.keys(WORK_GROUP_LABELS) as WorkGroup[]).map((group) => (
-            <Stat key={group} label={WORK_GROUP_LABELS[group]} value={groupCounts[group]} color={GROUP_COLORS[group]} />
+          {WORK_ACTIVITY_GROUPS.map((group) => (
+            <Stat key={group.key} label={group.label} value={groupCounts[group.key]} color={group.color} />
+          ))}
+        </div>
+        <div className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Well Type / Functional Type</div>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3 md:grid-cols-5">
+          {FUNCTIONAL_TYPE_GROUPS.map((group) => (
+            <Stat key={group.key} label={group.label} value={typeCounts[group.key]} />
           ))}
         </div>
       </div>
@@ -51,13 +54,13 @@ export function SummaryCards({ rows }: Props) {
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Weekly Permit Trend</h2>
-            <p className="text-xs text-slate-500">Grouped by work type, point-to-point over the last 52 weeks.</p>
+            <p className="text-xs text-slate-500">Grouped by work activity, point-to-point over the last 52 weeks.</p>
           </div>
           <div className="flex flex-wrap gap-3 text-xs text-slate-400">
-            {(Object.keys(WORK_GROUP_LABELS) as WorkGroup[]).map((group) => (
-              <span key={group} className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5" style={{ backgroundColor: GROUP_COLORS[group] }} />
-                {WORK_GROUP_LABELS[group]}
+            {WORK_ACTIVITY_GROUPS.map((group) => (
+              <span key={group.key} className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5" style={{ backgroundColor: group.color }} />
+                {group.label}
               </span>
             ))}
           </div>
@@ -73,14 +76,14 @@ export function SummaryCards({ rows }: Props) {
               minTickGap={24}
             />
             <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} />
-            <Tooltip contentStyle={{ background: '#0d1917', border: '1px solid #20312e', color: '#e2e8f0' }} />
-            {(Object.keys(WORK_GROUP_LABELS) as WorkGroup[]).map((group) => (
+            <Tooltip content={<CompactChartTooltip />} cursor={{ stroke: '#94a3b8', strokeOpacity: 0.25 }} />
+            {WORK_ACTIVITY_GROUPS.map((group) => (
               <Line
-                key={group}
+                key={group.key}
                 type="linear"
-                dataKey={group}
-                name={WORK_GROUP_LABELS[group]}
-                stroke={GROUP_COLORS[group]}
+                dataKey={group.key}
+                name={group.label}
+                stroke={group.color}
                 strokeWidth={2}
                 dot={{ r: 2 }}
                 activeDot={{ r: 4 }}

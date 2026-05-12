@@ -1,6 +1,14 @@
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
 import { ChevronDown, ChevronUp, Download } from 'lucide-react';
 import { useState } from 'react';
+import {
+  functionalTypeGroup,
+  functionalTypeLabel,
+  noticeType,
+  sourceType,
+  workActivityGroup,
+  workActivityLabel
+} from '../lib/grouping';
 import type { PermitActivity } from '../lib/types';
 
 type Props = {
@@ -11,11 +19,29 @@ type Props = {
 
 const columns: ColumnDef<PermitActivity>[] = [
   { accessorKey: 'notice_dated', header: 'Date' },
-  { accessorKey: 'notice_type_label', header: 'Work' },
+  {
+    id: 'work_activity',
+    header: 'Work Activity',
+    cell: ({ row }) => workActivityLabel(workActivityGroup(row.original))
+  },
+  {
+    id: 'activity_detail',
+    header: 'Activity Detail',
+    cell: ({ row }) => noticeType(row.original)
+  },
+  {
+    id: 'functional_type',
+    header: 'Functional Type',
+    cell: ({ row }) => functionalTypeLabel(functionalTypeGroup(row.original))
+  },
+  {
+    id: 'source_type',
+    header: 'Source Type',
+    cell: ({ row }) => sourceType(row.original)
+  },
   { accessorKey: 'operator_name', header: 'Operator' },
   { accessorKey: 'field_name', header: 'Field' },
   { accessorKey: 'county', header: 'County' },
-  { accessorKey: 'well_type_label', header: 'Type' },
   {
     accessorKey: 'api_display',
     header: 'API',
@@ -96,25 +122,27 @@ export function PermitTable({ rows, selected, onSelect }: Props) {
 }
 
 function exportCsv(rows: PermitActivity[]) {
-  const headers: Array<[string, keyof PermitActivity]> = [
-    ['notice_date', 'notice_dated'],
-    ['notice_type', 'notice_type_label'],
-    ['operator', 'operator_name'],
-    ['field', 'field_name'],
-    ['county', 'county'],
-    ['district', 'district'],
-    ['well_type', 'well_type_label'],
-    ['well_status', 'well_status'],
-    ['api', 'api_10'],
-    ['permit_number', 'notice_permit_number'],
-    ['latitude', 'latitude'],
-    ['longitude', 'longitude'],
-    ['wellstar_url', 'wellstar_url'],
-    ['wellfinder_url', 'wellfinder_url']
+  const headers: Array<[string, (row: PermitActivity) => unknown]> = [
+    ['notice_date', (row) => row.notice_dated],
+    ['work_activity', (row) => workActivityLabel(workActivityGroup(row))],
+    ['activity_detail', (row) => noticeType(row)],
+    ['functional_type', (row) => functionalTypeLabel(functionalTypeGroup(row))],
+    ['source_type', (row) => sourceType(row)],
+    ['operator', (row) => row.operator_name],
+    ['field', (row) => row.field_name],
+    ['county', (row) => row.county],
+    ['district', (row) => row.district],
+    ['well_status', (row) => row.well_status],
+    ['api', (row) => row.api_10],
+    ['permit_number', (row) => row.notice_permit_number],
+    ['latitude', (row) => row.latitude],
+    ['longitude', (row) => row.longitude],
+    ['wellstar_url', (row) => row.wellstar_url],
+    ['wellfinder_url', (row) => row.wellfinder_url]
   ];
   const csv = [
     headers.map(([label]) => label).join(','),
-    ...rows.map((row) => headers.map(([, key]) => csvCell(row[key])).join(','))
+    ...rows.map((row) => headers.map(([, getter]) => csvCell(getter(row))).join(','))
   ].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);

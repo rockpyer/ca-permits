@@ -1,13 +1,12 @@
 import type { PermitActivity } from './types';
-
-export type WorkGroup = 'new_drill' | 'reentry' | 'injection' | 'abandonment';
-
-export const WORK_GROUP_LABELS: Record<WorkGroup, string> = {
-  new_drill: 'New Drills',
-  reentry: 'Reentries',
-  injection: 'Injection',
-  abandonment: 'Abandonments'
-};
+import {
+  FUNCTIONAL_TYPE_GROUPS,
+  WORK_ACTIVITY_GROUPS,
+  functionalTypeGroup,
+  workActivityGroup,
+  type FunctionalTypeGroup,
+  type WorkActivityGroup
+} from './grouping';
 
 export function countBy(rows: PermitActivity[], key: keyof PermitActivity, limit = 8) {
   const counts = new Map<string, number>();
@@ -23,48 +22,25 @@ export function countBy(rows: PermitActivity[], key: keyof PermitActivity, limit
     .slice(0, limit);
 }
 
-export function classifyWork(row: PermitActivity): WorkGroup | null {
-  const noticeType = row.notice_type || '';
-  const wellType = `${row.well_type || ''} ${row.well_type_label || ''}`.toLowerCase();
-  if (noticeType.includes('Abandon')) return 'abandonment';
-  if (noticeType.includes('New Drill')) return 'new_drill';
-  if (
-    wellType.includes('inject') ||
-    wellType.includes('water disposal') ||
-    wellType.includes('waterflood') ||
-    wellType.includes('water flood') ||
-    wellType.includes('steamflood') ||
-    wellType.includes('steam flood') ||
-    wellType.includes('gas disposal') ||
-    wellType.includes('pressure maintenance')
-  ) {
-    return 'injection';
-  }
-  if (['NOI - Deepen', 'NOI - Sidetrack', 'NOI - Rework'].includes(noticeType)) return 'reentry';
-  return null;
-}
-
 export function isCurrentYear(row: PermitActivity) {
   return row.notice_dated?.startsWith(String(new Date().getFullYear())) || false;
 }
 
 export function weeklyGroupedTrend(rows: PermitActivity[], weeks = 52) {
-  const buckets = new Map<string, Record<WorkGroup, number> & { week: string; total: number }>();
+  const buckets = new Map<string, Record<WorkActivityGroup, number> & { week: string; total: number }>();
   rows.forEach((row) => {
     if (!row.notice_dated) return;
-    const group = classifyWork(row);
-    if (!group) return;
+    const group = workActivityGroup(row);
     const week = weekStart(row.notice_dated);
     const bucket =
       buckets.get(week) ||
       ({
         week,
         total: 0,
-        new_drill: 0,
-        reentry: 0,
-        injection: 0,
+        new_drills: 0,
+        existing: 0,
         abandonment: 0
-      } as Record<WorkGroup, number> & { week: string; total: number });
+      } as Record<WorkActivityGroup, number> & { week: string; total: number });
     bucket[group] += 1;
     bucket.total += 1;
     buckets.set(week, bucket);
@@ -82,13 +58,28 @@ export function recentCount(rows: PermitActivity[], days: number) {
 }
 
 export function workGroupCounts(rows: PermitActivity[]) {
+  return workActivityCounts(rows);
+}
+
+export function workActivityCounts(rows: PermitActivity[]) {
   return rows.reduce(
     (acc, row) => {
-      const group = classifyWork(row);
-      if (group) acc[group] += 1;
+      const group = workActivityGroup(row);
+      acc[group] += 1;
       return acc;
     },
-    { new_drill: 0, reentry: 0, injection: 0, abandonment: 0 } as Record<WorkGroup, number>
+    { new_drills: 0, existing: 0, abandonment: 0 } as Record<WorkActivityGroup, number>
+  );
+}
+
+export function functionalTypeCounts(rows: PermitActivity[]) {
+  return rows.reduce(
+    (acc, row) => {
+      const group = functionalTypeGroup(row);
+      acc[group] += 1;
+      return acc;
+    },
+    { producer: 0, thermal_producer: 0, injector: 0, observation: 0, other: 0 } as Record<FunctionalTypeGroup, number>
   );
 }
 
@@ -162,8 +153,12 @@ export function operatorWeeklyTrend(rows: PermitActivity[], operatorLimit = 5, w
 }
 
 export function operatorCumulativeDrillingTrend(rows: PermitActivity[], operatorLimit = 5, weeks = 52) {
+  return operatorCumulativeWorkActivityTrend(rows, operatorLimit, weeks);
+}
+
+export function operatorCumulativeWorkActivityTrend(rows: PermitActivity[], operatorLimit = 5, weeks = 52) {
   const currentYearRows = rows.filter(
-    (row) => isCurrentYear(row) && row.operator_name && isDrillingActivityNotice(row)
+    (row) => isCurrentYear(row) && row.operator_name && workActivityGroup(row) !== 'abandonment'
   );
   const operatorTotals = new Map<string, number>();
 
@@ -234,6 +229,8 @@ export function operatorDrillingActivity(rows: PermitActivity[], operatorLimit =
 function isDrillingActivityNotice(row: PermitActivity) {
   return ['NOI - New Drill', 'NOI - Deepen', 'NOI - Sidetrack'].includes(row.notice_type || '');
 }
+
+export { FUNCTIONAL_TYPE_GROUPS, WORK_ACTIVITY_GROUPS };
 
 export function truncateLabel(value: string, max = 13) {
   return value.length > max ? `${value.slice(0, max - 1)}…` : value;

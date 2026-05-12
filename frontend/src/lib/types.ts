@@ -62,8 +62,8 @@ export type EtlRun = {
 };
 
 export type Filters = {
-  noticeTypes: string[];
-  wellTypes: string[];
+  workActivities: string[];
+  functionalTypes: string[];
   operators: string[];
   fields: string[];
   counties: string[];

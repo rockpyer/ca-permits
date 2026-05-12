@@ -8,6 +8,7 @@ import { RankingPanels } from './components/RankingPanels';
 import { SummaryCards } from './components/SummaryCards';
 import { loadEtlRuns, loadFields, loadPermitActivity, loadPermitDateBounds } from './lib/data';
 import { applyFilters, dateRangeForRows, defaultFilters } from './lib/filters';
+import { type FunctionalTypeGroup, type WorkActivityGroup } from './lib/grouping';
 import { hasSupabaseConfig } from './lib/supabase';
 import type { EtlRun, FieldBoundary, Filters, PermitActivity } from './lib/types';
 
@@ -218,10 +219,8 @@ function filtersFromUrl(fallback: Filters): Filters {
   };
   return {
     ...fallback,
-    noticeTypes: list('scope').length
-      ? list('scope').map((value) => (value.startsWith('NOI - ') ? value : `NOI - ${value}`))
-      : fallback.noticeTypes,
-    wellTypes: list('type'),
+    workActivities: resolveWorkActivityParams(list('work').length ? list('work') : list('scope'), fallback.workActivities),
+    functionalTypes: resolveFunctionalTypeParams(list('functional_type').length ? list('functional_type') : list('type')),
     operators: list('operator'),
     fields: list('field'),
     counties: list('county'),
@@ -239,10 +238,10 @@ function persistFiltersToUrl(filters: Filters, dateBounds: { minDate: string; ma
   const setList = (key: string, values: string[]) => {
     values.forEach((value) => params.append(key, value));
   };
-  if (filters.noticeTypes.join('|') !== defaults.noticeTypes.join('|')) {
-    setList('scope', filters.noticeTypes.map((value) => value.replace('NOI - ', '')));
+  if (filters.workActivities.join('|') !== defaults.workActivities.join('|')) {
+    setList('work', filters.workActivities);
   }
-  setList('type', filters.wellTypes);
+  setList('functional_type', filters.functionalTypes);
   setList('operator', filters.operators);
   setList('field', filters.fields);
   setList('county', filters.counties);
@@ -257,6 +256,33 @@ function persistFiltersToUrl(filters: Filters, dateBounds: { minDate: string; ma
   if (nextUrl !== `${window.location.pathname}${window.location.search}`) {
     window.history.replaceState({}, '', nextUrl);
   }
+}
+
+function resolveWorkActivityParams(values: string[], fallback: string[]) {
+  if (!values.length) return fallback;
+  const resolved = new Set<WorkActivityGroup>();
+  values.forEach((value) => {
+    const normalized = value.toLowerCase().replace(/^noi - /, '').replace(/[^a-z]/g, '');
+    if (normalized === 'newdrill' || normalized === 'newdrills') resolved.add('new_drills');
+    if (['deepen', 'sidetrack', 'rework', 'existing'].includes(normalized)) resolved.add('existing');
+    if (['abandon', 'reabandon', 'abandonment'].includes(normalized)) resolved.add('abandonment');
+  });
+  return resolved.size ? Array.from(resolved) : fallback;
+}
+
+function resolveFunctionalTypeParams(values: string[]) {
+  const resolved = new Set<FunctionalTypeGroup>();
+  values.forEach((value) => {
+    const normalized = value.toLowerCase().replace(/[^a-z]/g, '');
+    if (['producer', 'oilandgas'].includes(normalized)) resolved.add('producer');
+    if (['thermalproducer', 'cyclicsteam'].includes(normalized)) resolved.add('thermal_producer');
+    if (['injector', 'steamflood', 'waterflood', 'waterdisposal', 'gasdisposal'].includes(normalized)) resolved.add('injector');
+    if (normalized === 'observation') resolved.add('observation');
+    if (['other', 'drygas', 'gasstorage', 'watersource', 'dryhole', 'multipurpose', 'unknown'].includes(normalized)) {
+      resolved.add('other');
+    }
+  });
+  return Array.from(resolved);
 }
 
 function formatDisplayDate(date: string) {
