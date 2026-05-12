@@ -230,7 +230,7 @@ function OperatorTrendPanel({ data, operators }: { data: Record<string, string |
           Cumulative Operator Work Activity
         </h2>
         <p className="text-xs text-slate-500">
-          Running current-year total by operator for New Drills and Existing work activity.
+          Running current-year total by operator for New Drill and Existing work activity.
         </p>
       </div>
       <ResponsiveContainer width="100%" height="84%">

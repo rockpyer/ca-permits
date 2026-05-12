@@ -4,7 +4,7 @@ export type WorkActivityGroup = 'new_drills' | 'existing' | 'abandonment';
 export type FunctionalTypeGroup = 'producer' | 'thermal_producer' | 'injector' | 'observation' | 'other';
 
 export const WORK_ACTIVITY_GROUPS: Array<{ key: WorkActivityGroup; label: string; color: string }> = [
-  { key: 'new_drills', label: 'New Drills', color: '#36d399' },
+  { key: 'new_drills', label: 'New Drill', color: '#36d399' },
   { key: 'existing', label: 'Existing', color: '#c084fc' },
   { key: 'abandonment', label: 'Abandonment', color: '#ef6767' }
 ];

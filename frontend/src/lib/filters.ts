@@ -1,7 +1,7 @@
 import { DEFAULT_WORK_ACTIVITY_GROUPS, functionalTypeGroup, workActivityGroup } from './grouping';
 import type { Filters, PermitActivity } from './types';
 
-const DEFAULT_START_DATE = '2025-12-01';
+const DEFAULT_START_DATE = '2026-01-01';
 
 export function defaultFilters(bounds?: { minDate?: string; maxDate?: string }): Filters {
   const end = new Date();

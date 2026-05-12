@@ -57,6 +57,34 @@ export function recentCount(rows: PermitActivity[], days: number) {
   return rows.filter((row) => row.notice_dated && row.notice_dated >= cutoffText).length;
 }
 
+export function latestNoticeDate(rows: PermitActivity[]) {
+  return rows
+    .map((row) => row.notice_dated)
+    .filter((date): date is string => Boolean(date))
+    .sort((a, b) => b.localeCompare(a))[0];
+}
+
+export function countInDateWindow(rows: PermitActivity[], startDate: string, endDate: string) {
+  return rows.filter((row) => row.notice_dated && row.notice_dated >= startDate && row.notice_dated <= endDate).length;
+}
+
+export function shiftDate(dateText: string, days: number) {
+  const date = new Date(`${dateText}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+export function fourWeekDelta(rows: PermitActivity[]) {
+  const endDate = latestNoticeDate(rows);
+  if (!endDate) return { current: 0, previous: 0, delta: 0 };
+  const currentStart = shiftDate(endDate, -27);
+  const previousEnd = shiftDate(currentStart, -1);
+  const previousStart = shiftDate(previousEnd, -27);
+  const current = countInDateWindow(rows, currentStart, endDate);
+  const previous = countInDateWindow(rows, previousStart, previousEnd);
+  return { current, previous, delta: current - previous };
+}
+
 export function workGroupCounts(rows: PermitActivity[]) {
   return workActivityCounts(rows);
 }

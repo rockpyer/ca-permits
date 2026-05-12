@@ -23,8 +23,8 @@ type Props = {
 
 export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedChange, onChange }: Props) {
   return (
-    <aside className="flex min-h-0 flex-col border-b border-line bg-ink p-3 lg:h-full lg:border-b-0 lg:border-r">
-      <div className="mb-3 flex items-center justify-between">
+    <aside className="flex min-h-0 flex-col border-b border-line bg-ink p-2.5 lg:h-full lg:border-b-0 lg:border-r">
+      <div className="mb-2 flex items-center justify-between">
         {!collapsed && (
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wide text-white">Filters</h2>
@@ -47,7 +47,7 @@ export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedCh
             <RotateCcw size={16} />
           </button>
           <button
-            className="icon-button"
+            className="icon-button border-slate-500 bg-panel/80"
             title={collapsed ? 'Expand filters' : 'Collapse filters'}
             onClick={() => onCollapsedChange(!collapsed)}
             type="button"
@@ -106,7 +106,11 @@ export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedCh
           />
         </FilterSection>
 
-        <FilterSection title="Date Range" defaultOpen>
+        <FilterSection
+          title="Date Range"
+          defaultOpen
+          actions={<DateRangeChips filters={filters} dateBounds={dateBounds} onChange={onChange} />}
+        >
           <InlineInput
             label="From"
             value={filters.startDate}
@@ -146,13 +150,24 @@ export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedCh
   );
 }
 
-function FilterSection({ title, defaultOpen, children }: { title: string; defaultOpen?: boolean; children: ReactNode }) {
+function FilterSection({
+  title,
+  defaultOpen,
+  actions,
+  children
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <details className="border border-line bg-panel/30" open={defaultOpen}>
-      <summary className="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-        {title}
+      <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+        <span>{title}</span>
+        {actions && <span onClick={(event) => event.preventDefault()}>{actions}</span>}
       </summary>
-      <div className="space-y-2 border-t border-line p-2">{children}</div>
+      <div className="space-y-1.5 border-t border-line p-2">{children}</div>
     </details>
   );
 }
@@ -171,9 +186,9 @@ function FilterGroup({
   onToggle: (value: string) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2">
+    <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 sm:grid-cols-3 lg:grid-cols-2">
       {options.map((option) => (
-        <label key={option} className="flex items-center gap-2 text-sm text-slate-200">
+        <label key={option} className="flex items-center gap-1.5 text-sm text-slate-200">
           <input
             type="checkbox"
             className="h-4 w-4 accent-accent"
@@ -184,6 +199,52 @@ function FilterGroup({
         </label>
       ))}
     </div>
+  );
+}
+
+function DateRangeChips({
+  filters,
+  dateBounds,
+  onChange
+}: {
+  filters: Filters;
+  dateBounds: { minDate: string; maxDate: string };
+  onChange: (filters: Filters) => void;
+}) {
+  const setQuickRange = (days: number | 'all') => {
+    if (!dateBounds.maxDate) return;
+    if (days === 'all') {
+      onChange({ ...filters, startDate: dateBounds.minDate, endDate: dateBounds.maxDate });
+      return;
+    }
+    const startDate = shiftDate(dateBounds.maxDate, -(days - 1));
+    onChange({
+      ...filters,
+      startDate: dateBounds.minDate && startDate < dateBounds.minDate ? dateBounds.minDate : startDate,
+      endDate: dateBounds.maxDate
+    });
+  };
+
+  return (
+    <span className="inline-flex gap-1 normal-case tracking-normal">
+      {[30, 60, 90].map((days) => (
+        <button
+          key={days}
+          className="border border-line bg-ink px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 hover:border-accent hover:text-white"
+          type="button"
+          onClick={() => setQuickRange(days)}
+        >
+          {days}D
+        </button>
+      ))}
+      <button
+        className="border border-line bg-ink px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 hover:border-accent hover:text-white"
+        type="button"
+        onClick={() => setQuickRange('all')}
+      >
+        All
+      </button>
+    </span>
   );
 }
 
@@ -215,6 +276,12 @@ function InlineSelect({
       </select>
     </label>
   );
+}
+
+function shiftDate(dateText: string, days: number) {
+  const date = new Date(`${dateText}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 function InlineInput({

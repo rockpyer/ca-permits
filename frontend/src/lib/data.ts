@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import type { EtlRun, FieldBoundary, PermitActivity } from './types';
 
-const DEFAULT_MIN_PERMIT_DATE = '2025-12-01';
+const DEFAULT_MIN_PERMIT_DATE = '2026-01-01';
 
 export async function loadPermitActivity(): Promise<PermitActivity[]> {
   const { data, error } = await supabase
