@@ -1,6 +1,8 @@
 import { supabase } from './supabase';
 import type { EtlRun, FieldBoundary, PermitActivity } from './types';
 
+const DEFAULT_MIN_PERMIT_DATE = '2025-12-01';
+
 export async function loadPermitActivity(): Promise<PermitActivity[]> {
   const { data, error } = await supabase
     .from('permit_activity')
@@ -32,9 +34,15 @@ export async function loadPermitDateBounds(): Promise<{ minDate: string; maxDate
   if (newestError) throw newestError;
 
   return {
-    minDate: oldest?.[0]?.notice_dated || '',
+    minDate: latestDate(oldest?.[0]?.notice_dated || '', DEFAULT_MIN_PERMIT_DATE),
     maxDate: newest?.[0]?.notice_dated || ''
   };
+}
+
+function latestDate(a: string, b: string) {
+  if (!a) return b;
+  if (!b) return a;
+  return a > b ? a : b;
 }
 
 export async function loadFields(): Promise<FieldBoundary[]> {

@@ -116,6 +116,29 @@ export function stackedMatrix(
   });
 }
 
+export function categoricalStackedMatrix(
+  rows: PermitActivity[],
+  primaryKey: keyof PermitActivity,
+  stackKey: keyof PermitActivity,
+  primaryLimit = 10,
+  stackLimit = 12
+) {
+  const primaries = countBy(rows, primaryKey, primaryLimit).map((item) => item.name);
+  const stacks = countBy(rows, stackKey, stackLimit).map((item) => item.name);
+
+  return primaries.map((primary) => {
+    const entry: Record<string, string | number> = { name: primary };
+    stacks.forEach((stack) => {
+      entry[stack] = rows.filter((row) => row[primaryKey] === primary && row[stackKey] === stack).length;
+    });
+    const other = rows.filter(
+      (row) => row[primaryKey] === primary && typeof row[stackKey] === 'string' && !stacks.includes(row[stackKey])
+    ).length;
+    if (other) entry.Other = other;
+    return entry;
+  });
+}
+
 export function stackKeys(data: Record<string, string | number>[]) {
   return Array.from(new Set(data.flatMap((row) => Object.keys(row).filter((key) => key !== 'name'))));
 }

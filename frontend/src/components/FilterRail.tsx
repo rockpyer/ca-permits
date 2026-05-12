@@ -161,11 +161,18 @@ function FilterGroup({
             checked={selected.includes(option)}
             onChange={() => onToggle(option)}
           />
-          <span>{option.replace('NOI - ', '')}</span>
+          <span style={{ color: noticeTypeColor(option) }}>{option.replace('NOI - ', '')}</span>
         </label>
       ))}
     </div>
   );
+}
+
+function noticeTypeColor(option: string) {
+  if (option.includes('New Drill')) return '#36d399';
+  if (option.includes('Deepen') || option.includes('Sidetrack') || option.includes('Rework')) return '#c084fc';
+  if (option.includes('Abandon')) return '#ef6767';
+  return '#94a3b8';
 }
 
 function InlineSelect({

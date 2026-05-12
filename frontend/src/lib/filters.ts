@@ -1,10 +1,11 @@
 import { DEVELOPMENT_NOTICE_TYPES } from './constants';
 import type { Filters, PermitActivity } from './types';
 
+const DEFAULT_START_DATE = '2025-12-01';
+
 export function defaultFilters(bounds?: { minDate?: string; maxDate?: string }): Filters {
   const end = new Date();
-  const start = new Date();
-  start.setFullYear(end.getFullYear() - 1);
+  const boundedMinDate = latestDate(bounds?.minDate || '', DEFAULT_START_DATE);
   return {
     noticeTypes: [...DEVELOPMENT_NOTICE_TYPES],
     wellTypes: [],
@@ -14,7 +15,7 @@ export function defaultFilters(bounds?: { minDate?: string; maxDate?: string }):
     districts: [],
     wellStatuses: [],
     directional: 'all',
-    startDate: bounds?.minDate || start.toISOString().slice(0, 10),
+    startDate: boundedMinDate,
     endDate: bounds?.maxDate || end.toISOString().slice(0, 10)
   };
 }
@@ -73,7 +74,13 @@ export function dateRangeForRows(rows: PermitActivity[]) {
     .filter((date): date is string => Boolean(date))
     .sort((a, b) => a.localeCompare(b));
   return {
-    minDate: dates[0] || '',
+    minDate: latestDate(dates[0] || '', DEFAULT_START_DATE),
     maxDate: dates[dates.length - 1] || ''
   };
+}
+
+function latestDate(a: string, b: string) {
+  if (!a) return b;
+  if (!b) return a;
+  return a > b ? a : b;
 }
