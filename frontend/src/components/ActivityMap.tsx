@@ -156,7 +156,7 @@ export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
   }, [selected]);
 
   return (
-    <div className="relative h-[420px] min-h-[360px] overflow-hidden border border-line bg-panel sm:h-[460px] xl:h-[590px]">
+    <div className="relative h-[460px] min-h-[380px] overflow-hidden border border-line bg-panel sm:h-[520px] xl:h-[660px]">
       <div ref={containerRef} className="absolute inset-0" />
       <div className="absolute left-3 top-3 z-30 flex flex-wrap gap-2 border border-line bg-ink/90 p-2 text-xs text-slate-300">
         <label className="map-control">

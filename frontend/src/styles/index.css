@@ -96,7 +96,7 @@ input {
 }
 
 .filter-row {
-  @apply grid grid-cols-[72px_1fr] items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500;
+  @apply grid grid-cols-[64px_1fr] items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500;
 }
 
 .maplibregl-control-container .maplibregl-ctrl {

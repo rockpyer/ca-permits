@@ -5,10 +5,17 @@ import { DetailDrawer } from './components/DetailDrawer';
 import { FilterRail } from './components/FilterRail';
 import { PermitTable } from './components/PermitTable';
 import { RankingPanels } from './components/RankingPanels';
-import { SummaryCards } from './components/SummaryCards';
+import { ActivityNotes, ActivitySummaryStrip, FunctionalTypeMix, PermitMomentumPanel } from './components/SummaryCards';
 import { loadEtlRuns, loadFields, loadPermitActivity, loadPermitDateBounds } from './lib/data';
 import { applyFilters, dateRangeForRows, defaultFilters } from './lib/filters';
-import { type FunctionalTypeGroup, type WorkActivityGroup } from './lib/grouping';
+import {
+  FUNCTIONAL_TYPE_GROUPS,
+  WORK_ACTIVITY_GROUPS,
+  functionalTypeLabel,
+  workActivityLabel,
+  type FunctionalTypeGroup,
+  type WorkActivityGroup
+} from './lib/grouping';
 import { hasSupabaseConfig } from './lib/supabase';
 import type { EtlRun, FieldBoundary, Filters, PermitActivity } from './lib/types';
 
@@ -88,7 +95,7 @@ export function App() {
 
   return (
     <Shell>
-      <div className={`min-h-screen lg:grid lg:h-screen lg:min-h-0 ${filtersCollapsed ? 'lg:grid-cols-[56px_1fr]' : 'lg:grid-cols-[300px_1fr]'}`}>
+      <div className={`min-h-screen lg:grid lg:h-screen lg:min-h-0 ${filtersCollapsed ? 'lg:grid-cols-[56px_1fr]' : 'lg:grid-cols-[276px_1fr]'}`}>
         <FilterRail
           rows={rows}
           filters={filters}
@@ -161,14 +168,24 @@ export function App() {
           {!loading && !error && (
             <div className="space-y-4 p-3 sm:p-4">
               <section aria-label="Permit activity summary">
-                <SummaryCards rows={filteredRows} />
+                <ActivitySummaryStrip rows={filteredRows} />
               </section>
-              <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(520px,0.95fr)]" aria-label="Permit map and records">
+              <ActiveQuery filters={filters} dateBounds={dateBounds} />
+              <section aria-label="Permit activity map">
                 <ActivityMap rows={filteredRows} fields={fields} selected={selected} onSelect={setSelected} />
-                <PermitTable rows={filteredRows} selected={selected} onSelect={setSelected} />
+              </section>
+              <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,0.92fr)_360px]" aria-label="Permit momentum and activity notes">
+                <PermitMomentumPanel rows={filteredRows} />
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+                  <ActivityNotes rows={filteredRows} />
+                  <FunctionalTypeMix rows={filteredRows} />
+                </div>
               </section>
               <section aria-label="Operator and field trend analysis">
                 <RankingPanels rows={filteredRows} />
+              </section>
+              <section aria-label="Permit records">
+                <PermitTable rows={filteredRows} selected={selected} onSelect={setSelected} />
               </section>
               <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-xs text-slate-500">
                 <span>{filteredRows.length.toLocaleString()} filtered permits from {rows.length.toLocaleString()} loaded rows</span>
@@ -201,6 +218,35 @@ function navigateTo(path: string, setPath: (path: string) => void) {
   window.history.pushState({}, '', path);
   setPath(path);
   window.scrollTo({ top: 0 });
+}
+
+function ActiveQuery({ filters, dateBounds }: { filters: Filters; dateBounds: { minDate: string; maxDate: string } }) {
+  const work =
+    filters.workActivities.length === WORK_ACTIVITY_GROUPS.length
+      ? 'All work'
+      : filters.workActivities.map((value) => workActivityLabel(value as WorkActivityGroup)).join(' + ') || 'All work';
+  const type =
+    filters.functionalTypes.length && filters.functionalTypes.length !== FUNCTIONAL_TYPE_GROUPS.length
+      ? filters.functionalTypes.map((value) => functionalTypeLabel(value as FunctionalTypeGroup)).join(' + ')
+      : 'All functional types';
+  const operator = filters.operators[0] || 'All operators';
+  const field = filters.fields[0] || 'All fields';
+  const range = formatDateRange(filters.startDate || dateBounds.minDate, filters.endDate || dateBounds.maxDate);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 border border-line bg-panel/40 px-3 py-2 text-xs text-slate-400">
+      <span className="font-semibold uppercase tracking-wide text-slate-500">Active Query</span>
+      <span className="text-slate-300">{work}</span>
+      <span className="text-slate-600">/</span>
+      <span>{type}</span>
+      <span className="text-slate-600">/</span>
+      <span>{operator}</span>
+      <span className="text-slate-600">/</span>
+      <span>{field}</span>
+      <span className="text-slate-600">/</span>
+      <span>{range}</span>
+    </div>
+  );
 }
 
 function hasUrlDateFilters() {
@@ -286,6 +332,19 @@ function resolveFunctionalTypeParams(values: string[]) {
 }
 
 function formatDisplayDate(date: string) {
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(parsed);
+}
+
+function formatDateRange(startDate: string, endDate: string) {
+  if (!startDate && !endDate) return 'All dates';
+  if (!startDate) return `Through ${formatShortDate(endDate)}`;
+  if (!endDate) return `From ${formatShortDate(startDate)}`;
+  return `${formatShortDate(startDate)}-${formatShortDate(endDate)}`;
+}
+
+function formatShortDate(date: string) {
   const parsed = new Date(`${date}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return date;
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(parsed);

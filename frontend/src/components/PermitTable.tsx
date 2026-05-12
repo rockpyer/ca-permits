@@ -18,10 +18,14 @@ type Props = {
 };
 
 const columns: ColumnDef<PermitActivity>[] = [
-  { accessorKey: 'notice_dated', header: 'Date' },
+  {
+    accessorKey: 'notice_dated',
+    header: 'Date',
+    cell: ({ row }) => formatCompactDate(row.original.notice_dated)
+  },
   {
     id: 'work_activity',
-    header: 'Work Activity',
+    header: 'Work',
     cell: ({ row }) => workActivityLabel(workActivityGroup(row.original))
   },
   {
@@ -41,7 +45,6 @@ const columns: ColumnDef<PermitActivity>[] = [
   },
   { accessorKey: 'operator_name', header: 'Operator' },
   { accessorKey: 'field_name', header: 'Field' },
-  { accessorKey: 'county', header: 'County' },
   {
     accessorKey: 'api_display',
     header: 'API',
@@ -71,20 +74,22 @@ export function PermitTable({ rows, selected, onSelect }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-2">
         <div>
           <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-300">Permit Records</h2>
-          <p className="text-[11px] text-slate-500">{rows.length.toLocaleString()} filtered records</p>
+          <p className="text-[11px] text-slate-500">
+            {expanded ? `${rows.length.toLocaleString()} filtered records` : `Previewing ${Math.min(rows.length, 11).toLocaleString()} of ${rows.length.toLocaleString()} records`}
+          </p>
         </div>
         <div className="flex gap-2">
           <button className="button secondary-button h-8 px-2 text-xs" type="button" onClick={() => exportCsv(rows)}>
             <Download size={14} />
             CSV
           </button>
-          <button className="button secondary-button h-8 px-2 text-xs" type="button" onClick={() => setExpanded((value) => !value)}>
+          <button className="button h-8 px-3 text-xs" type="button" onClick={() => setExpanded((value) => !value)}>
             {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             {expanded ? 'Compact' : 'Expand'}
           </button>
         </div>
       </div>
-      <div className={`permit-table overflow-auto ${expanded ? 'max-h-[590px]' : 'max-h-[392px]'}`}>
+      <div className={`permit-table overflow-auto ${expanded ? 'max-h-[590px]' : 'max-h-[350px]'}`}>
         <table className="min-w-full text-left text-xs">
           <thead className="sticky top-0 z-10 bg-ink text-[10px] uppercase tracking-wide text-slate-400">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -158,4 +163,11 @@ function exportCsv(rows: PermitActivity[]) {
 function csvCell(value: unknown) {
   if (value === null || value === undefined) return '';
   return `"${String(value).replace(/"/g, '""')}"`;
+}
+
+function formatCompactDate(value: string | null) {
+  if (!value) return '—';
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
 }

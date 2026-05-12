@@ -47,10 +47,11 @@ const baseRow: PermitActivity = {
 };
 
 describe('filters', () => {
-  it('defaults to New Drills and Existing work activity only', () => {
+  it('defaults to New Drill and Existing work activity only', () => {
     const filters = defaultFilters();
     expect(filters.workActivities).toEqual(['new_drills', 'existing']);
     expect(filters.workActivities).not.toContain('abandonment');
+    expect(filters.startDate).toBe('2026-01-01');
   });
 
   it('filters out abandonment unless toggled on', () => {
