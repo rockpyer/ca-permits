@@ -99,6 +99,7 @@ export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
   const [showFields, setShowFields] = useState(true);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const hoverPopupRef = useRef<maplibregl.Popup | null>(null);
   const rowsRef = useRef<PermitActivity[]>(rows);
   const onSelectRef = useRef(onSelect);
   const showFieldsRef = useRef(showFields);
@@ -160,13 +161,31 @@ export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
       map.on('mouseenter', 'permit-symbols', () => {
         map.getCanvas().style.cursor = 'pointer';
       });
+      map.on('mousemove', 'permit-symbols', (event) => {
+        const feature = event.features?.[0];
+        const key = String(feature?.properties?.source_key || '');
+        const row = rowsRef.current.find((item) => item.source_key === key);
+        const coordinates = feature?.geometry.type === 'Point' ? (feature.geometry.coordinates as [number, number]) : null;
+        if (!row || !coordinates) return;
+        if (!hoverPopupRef.current) {
+          hoverPopupRef.current = new maplibregl.Popup({
+            closeButton: false,
+            closeOnClick: false,
+            offset: 16,
+            className: 'well-map-popup'
+          });
+        }
+        hoverPopupRef.current.setLngLat(coordinates).setHTML(renderTooltip(row)).addTo(map);
+      });
       map.on('mouseleave', 'permit-symbols', () => {
         map.getCanvas().style.cursor = '';
+        hoverPopupRef.current?.remove();
       });
     });
     mapRef.current = map;
 
     return () => {
+      hoverPopupRef.current?.remove();
       map.remove();
       mapRef.current = null;
     };
@@ -262,11 +281,11 @@ function addPermitLayers(map: maplibregl.Map, data: GeoJSON.FeatureCollection<Ge
       source: 'permits',
       filter: ['==', ['get', 'selected'], true],
       paint: {
-        'circle-radius': 17,
+        'circle-radius': 14,
         'circle-color': '#f8fafc',
-        'circle-opacity': 0.95,
+        'circle-opacity': 0.82,
         'circle-stroke-color': '#07110f',
-        'circle-stroke-width': 3
+        'circle-stroke-width': 2
       }
     });
   }
@@ -277,12 +296,12 @@ function addPermitLayers(map: maplibregl.Map, data: GeoJSON.FeatureCollection<Ge
       type: 'circle',
       source: 'permits',
       paint: {
-        'circle-radius': ['case', ['==', ['get', 'selected'], true], 20, 13],
+        'circle-radius': ['case', ['==', ['get', 'selected'], true], 14, 8],
         'circle-color': '#07110f',
-        'circle-opacity': 0.92,
+        'circle-opacity': ['case', ['==', ['get', 'selected'], true], 0.86, 0.62],
         'circle-stroke-color': ['case', ['==', ['get', 'selected'], true], '#f8fafc', '#dbeafe'],
         'circle-stroke-opacity': ['case', ['==', ['get', 'selected'], true], 1, 0.7],
-        'circle-stroke-width': ['case', ['==', ['get', 'selected'], true], 3, 1.5]
+        'circle-stroke-width': ['case', ['==', ['get', 'selected'], true], 2.5, 1]
       }
     });
   }
@@ -294,7 +313,7 @@ function addPermitLayers(map: maplibregl.Map, data: GeoJSON.FeatureCollection<Ge
       source: 'permits',
       layout: {
         'icon-image': ['get', 'icon'],
-        'icon-size': ['case', ['==', ['get', 'selected'], true], 0.64, 0.48],
+        'icon-size': ['case', ['==', ['get', 'selected'], true], 0.58, 0.44],
         'icon-allow-overlap': true,
         'icon-ignore-placement': true
       }
@@ -364,7 +383,9 @@ function buildPermitGeojson(rows: PermitActivity[], selected: PermitActivity | n
             selected: selected?.source_key === row.source_key,
             operator_name: row.operator_name,
             field_name: row.field_name,
-            well_type_label: row.well_type_label
+            well_type_label: row.well_type_label,
+            notice_type_label: row.notice_type_label,
+            api_10: row.api_10
           },
           geometry: {
             type: 'Point' as const,
@@ -429,6 +450,27 @@ function svgToImageData(svg: string) {
 
 function iconId(symbol: SymbolKey, activity: ActivityKey) {
   return `${symbol}-${activity}`;
+}
+
+function renderTooltip(row: PermitActivity) {
+  return `
+    <div class="well-map-popup__body">
+      <div class="well-map-popup__title">${escapeHtml(row.operator_name || 'Unknown operator')}</div>
+      <div>${escapeHtml(row.notice_type_label || row.notice_type || 'Unknown work')}</div>
+      <div>${escapeHtml(row.well_type_label || row.well_type || 'Unknown well type')}</div>
+      <div>${escapeHtml(row.field_name || 'Unknown field')}${row.county ? `, ${escapeHtml(row.county)}` : ''}</div>
+      <div class="well-map-popup__muted">API ${escapeHtml(row.api_display || row.api_10 || 'not available')}</div>
+    </div>
+  `;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 function symbolKeyForWellType(row: PermitActivity): SymbolKey {
