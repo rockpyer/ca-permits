@@ -9,6 +9,7 @@ import {
   workActivityGroup,
   workActivityLabel
 } from '../lib/grouping';
+import { buildPermitCsv } from '../lib/csvExport';
 import type { PermitActivity } from '../lib/types';
 
 type Props = {
@@ -127,28 +128,7 @@ export function PermitTable({ rows, selected, onSelect }: Props) {
 }
 
 function exportCsv(rows: PermitActivity[]) {
-  const headers: Array<[string, (row: PermitActivity) => unknown]> = [
-    ['notice_date', (row) => row.notice_dated],
-    ['work_activity', (row) => workActivityLabel(workActivityGroup(row))],
-    ['activity_detail', (row) => noticeType(row)],
-    ['functional_type', (row) => functionalTypeLabel(functionalTypeGroup(row))],
-    ['source_type', (row) => sourceType(row)],
-    ['operator', (row) => row.operator_name],
-    ['field', (row) => row.field_name],
-    ['county', (row) => row.county],
-    ['district', (row) => row.district],
-    ['well_status', (row) => row.well_status],
-    ['api', (row) => row.api_10],
-    ['permit_number', (row) => row.notice_permit_number],
-    ['latitude', (row) => row.latitude],
-    ['longitude', (row) => row.longitude],
-    ['wellstar_url', (row) => row.wellstar_url],
-    ['wellfinder_url', (row) => row.wellfinder_url]
-  ];
-  const csv = [
-    headers.map(([label]) => label).join(','),
-    ...rows.map((row) => headers.map(([, getter]) => csvCell(getter(row))).join(','))
-  ].join('\n');
+  const csv = buildPermitCsv(rows);
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -158,11 +138,6 @@ function exportCsv(rows: PermitActivity[]) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-}
-
-function csvCell(value: unknown) {
-  if (value === null || value === undefined) return '';
-  return `"${String(value).replace(/"/g, '""')}"`;
 }
 
 function formatCompactDate(value: string | null) {
