@@ -409,14 +409,10 @@ function iconId(symbol: FunctionalTypeGroup, activity: WorkActivityGroup) {
 }
 
 function renderTooltip(row: PermitActivity) {
-  const workGroup = workActivityGroup(row);
-  const typeGroup = functionalTypeGroup(row);
   return `
     <div class="well-map-popup__body">
       <div class="well-map-popup__title">${escapeHtml(row.operator_name || 'Unknown operator')}</div>
-      <div><strong>Work Activity:</strong> ${escapeHtml(workActivityLabel(workGroup))}</div>
       <div><strong>Activity Detail:</strong> ${escapeHtml(noticeType(row))}</div>
-      <div><strong>Functional Type:</strong> ${escapeHtml(functionalTypeLabel(typeGroup))}</div>
       <div><strong>Source Type:</strong> ${escapeHtml(sourceType(row))}</div>
       <div>${escapeHtml(row.field_name || 'Unknown field')}${row.county ? `, ${escapeHtml(row.county)}` : ''}</div>
       <div class="well-map-popup__muted">API ${escapeHtml(row.api_display || row.api_10 || 'not available')}</div>
