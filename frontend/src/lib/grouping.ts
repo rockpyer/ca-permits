@@ -28,7 +28,7 @@ export function workActivityGroup(row: PermitActivity): WorkActivityGroup {
 
 export function functionalTypeGroup(row: PermitActivity): FunctionalTypeGroup {
   const sourceType = normalizeSourceType(row.well_type_label || row.well_type || '');
-  if (sourceType === 'oilandgas') return 'producer';
+  if (['oilandgas', 'drygas'].includes(sourceType)) return 'producer';
   if (sourceType === 'cyclicsteam') return 'thermal_producer';
   if (['steamflood', 'waterflood', 'waterdisposal', 'gasdisposal'].includes(sourceType)) return 'injector';
   if (sourceType === 'observation') return 'observation';

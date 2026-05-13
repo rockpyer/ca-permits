@@ -320,11 +320,11 @@ function resolveFunctionalTypeParams(values: string[]) {
   const resolved = new Set<FunctionalTypeGroup>();
   values.forEach((value) => {
     const normalized = value.toLowerCase().replace(/[^a-z]/g, '');
-    if (['producer', 'oilandgas'].includes(normalized)) resolved.add('producer');
+    if (['producer', 'oilandgas', 'drygas'].includes(normalized)) resolved.add('producer');
     if (['thermalproducer', 'cyclicsteam'].includes(normalized)) resolved.add('thermal_producer');
     if (['injector', 'steamflood', 'waterflood', 'waterdisposal', 'gasdisposal'].includes(normalized)) resolved.add('injector');
     if (normalized === 'observation') resolved.add('observation');
-    if (['other', 'drygas', 'gasstorage', 'watersource', 'dryhole', 'multipurpose', 'unknown'].includes(normalized)) {
+    if (['other', 'gasstorage', 'watersource', 'dryhole', 'multipurpose', 'unknown'].includes(normalized)) {
       resolved.add('other');
     }
   });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyFilters, defaultFilters, toggleListValue } from './filters';
+import { functionalTypeGroup } from './grouping';
 import type { PermitActivity } from './types';
 
 const baseRow: PermitActivity = {
@@ -62,5 +63,10 @@ describe('filters', () => {
   it('toggles grouped filter values', () => {
     expect(toggleListValue(['new_drills'], 'new_drills')).toEqual([]);
     expect(toggleListValue([], 'abandonment')).toEqual(['abandonment']);
+  });
+
+  it('groups Dry Gas wells as producers', () => {
+    const dryGas = { ...baseRow, well_type_label: 'Dry Gas' };
+    expect(functionalTypeGroup(dryGas)).toBe('producer');
   });
 });
