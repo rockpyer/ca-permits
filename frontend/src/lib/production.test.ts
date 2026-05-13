@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   annualThousandBarrelsToKbopd,
   estimateRequiredPermits,
+  kernNewDrillQuotaStats,
   monthlyDevelopmentPermitTrend,
+  productionPermitProjectionRows,
   recentAnnualizedDevelopmentPermits
 } from './production';
 import type { PermitActivity } from './types';
@@ -83,6 +85,38 @@ describe('production helpers', () => {
       annualized: 73,
       startDate: '2026-02-28',
       endDate: '2026-03-10'
+    });
+  });
+
+  it('calculates Kern new drill quota status from full-year pace', () => {
+    const rows = [
+      { ...baseRow, notice_dated: '2026-01-01', county: 'Kern', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' },
+      { ...baseRow, source_key: 'permit-2', source_object_id: 2, notice_dated: '2026-01-10', county: 'Kern County', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' },
+      { ...baseRow, source_key: 'permit-3', source_object_id: 3, notice_dated: '2026-01-10', county: 'Kern', notice_type: 'NOI - Rework', notice_type_label: 'Rework' },
+      { ...baseRow, source_key: 'permit-4', source_object_id: 4, notice_dated: '2026-01-10', county: 'Los Angeles', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' }
+    ];
+
+    expect(kernNewDrillQuotaStats(rows, 2000)).toMatchObject({
+      year: 2026,
+      ytdCount: 2,
+      projectedCount: 73,
+      ytdRemaining: 1998,
+      projectedRemaining: 1927
+    });
+  });
+
+  it('builds an oil production projection row with permit wedge data', () => {
+    const rows = [
+      { ...baseRow, notice_dated: '2026-01-01', county: 'Kern', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' },
+      { ...baseRow, source_key: 'permit-2', source_object_id: 2, notice_dated: '2026-01-10', county: 'Kern', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' }
+    ];
+    const projection = productionPermitProjectionRows(rows, 25);
+    const row2026 = projection.find((row) => row.year === 2026);
+
+    expect(row2026).toMatchObject({
+      projectedPermits: 73,
+      withPermitWedgeKbopd: expect.any(Number),
+      baselineKbopd: expect.any(Number)
     });
   });
 });

@@ -8,6 +8,7 @@ export type OilProductionYear = {
 
 export const EIA_CALIFORNIA_OIL_SOURCE =
   'https://www.eia.gov/dnav/pet/hist/LeafHandler.ashx?n=PET&s=MCRFPCA1&f=A';
+export const KERN_NEW_DRILL_ANNUAL_QUOTA = 2000;
 
 export const CALIFORNIA_OIL_PRODUCTION: OilProductionYear[] = [
   { year: 2016, oilThousandBarrels: 186079 },
@@ -103,9 +104,115 @@ export function estimateRequiredPermits(annualDeclineBopd: number, netBopdPerPer
   return Math.ceil(annualDeclineBopd / netBopdPerPermit);
 }
 
+export function kernNewDrillQuotaStats(rows: PermitActivity[], quota = KERN_NEW_DRILL_ANNUAL_QUOTA) {
+  const latest = latestPermitDate(rows);
+  const year = latest ? Number(latest.slice(0, 4)) : new Date().getFullYear();
+  const endDate = latest || `${year}-12-31`;
+  const yearStart = `${year}-01-01`;
+  const elapsedDays = Math.max(daysBetween(yearStart, endDate) + 1, 1);
+  const ytdCount = kernNewDrillRows(rows).filter(
+    (row) => row.notice_dated && row.notice_dated >= yearStart && row.notice_dated <= endDate
+  ).length;
+  const projectedCount = Math.round((ytdCount / elapsedDays) * daysInYear(year));
+
+  return {
+    year,
+    quota,
+    ytdCount,
+    projectedCount,
+    ytdRemaining: Math.max(quota - ytdCount, 0),
+    projectedRemaining: Math.max(quota - projectedCount, 0),
+    ytdUsedPct: quota ? Math.min((ytdCount / quota) * 100, 100) : 0,
+    projectedUsedPct: quota ? Math.min((projectedCount / quota) * 100, 100) : 0,
+    latestDate: latest,
+    elapsedDays
+  };
+}
+
+export function productionPermitProjectionRows(rows: PermitActivity[], netBopdPerPermit: number) {
+  const productionRows = productionChartRows();
+  const stats = oilProductionStats();
+  const quota = kernNewDrillQuotaStats(rows);
+  const annualPermitCounts = annualKernNewDrillCounts(rows);
+  const declineKbopd = stats.recentAnnualDeclineBopd / 1000;
+  const projectedPermitWedgeKbopd = (quota.projectedCount * netBopdPerPermit) / 1000;
+  const latestOil = stats.latest.oilKbopd;
+  const projectionYear = Math.max(quota.year, stats.latest.year + 1);
+
+  const historical = productionRows.map((row) => ({
+    year: row.year,
+    oilKbopd: row.oilKbopd,
+    baselineKbopd: null as number | null,
+    withPermitWedgeKbopd: null as number | null,
+    permitWedgeRange: null as [number, number] | null,
+    kernNewDrillPermits: annualPermitCounts.get(row.year) || null,
+    projectedPermits: null as number | null
+  }));
+
+  const firstBaseline = Math.max(latestOil - declineKbopd * (projectionYear - stats.latest.year), 0);
+  const secondBaseline = Math.max(firstBaseline - declineKbopd, 0);
+  const firstWithWedge = firstBaseline + projectedPermitWedgeKbopd;
+  const secondWithWedge = secondBaseline + projectedPermitWedgeKbopd;
+
+  return [
+    ...historical,
+    {
+      year: projectionYear,
+      oilKbopd: null,
+      baselineKbopd: roundOne(firstBaseline),
+      withPermitWedgeKbopd: roundOne(firstWithWedge),
+      permitWedgeRange: [roundOne(firstBaseline), roundOne(firstWithWedge)] as [number, number],
+      kernNewDrillPermits: annualPermitCounts.get(projectionYear) || null,
+      projectedPermits: quota.projectedCount
+    },
+    {
+      year: projectionYear + 1,
+      oilKbopd: null,
+      baselineKbopd: roundOne(secondBaseline),
+      withPermitWedgeKbopd: roundOne(secondWithWedge),
+      permitWedgeRange: [roundOne(secondBaseline), roundOne(secondWithWedge)] as [number, number],
+      kernNewDrillPermits: null,
+      projectedPermits: quota.projectedCount
+    }
+  ];
+}
+
+function kernNewDrillRows(rows: PermitActivity[]) {
+  return rows.filter((row) => normalizeCounty(row.county) === 'kern' && workActivityGroup(row) === 'new_drills');
+}
+
+function annualKernNewDrillCounts(rows: PermitActivity[]) {
+  const counts = new Map<number, number>();
+  kernNewDrillRows(rows).forEach((row) => {
+    if (!row.notice_dated) return;
+    const year = Number(row.notice_dated.slice(0, 4));
+    if (!Number.isFinite(year)) return;
+    counts.set(year, (counts.get(year) || 0) + 1);
+  });
+  return counts;
+}
+
 function latestPermitDate(rows: PermitActivity[]) {
   return rows
     .map((row) => row.notice_dated)
     .filter((date): date is string => Boolean(date))
     .sort((a, b) => b.localeCompare(a))[0];
+}
+
+function daysBetween(startDate: string, endDate: string) {
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  return Math.round((end.getTime() - start.getTime()) / 86400000);
+}
+
+function daysInYear(year: number) {
+  return new Date(year, 1, 29).getMonth() === 1 ? 366 : 365;
+}
+
+function roundOne(value: number) {
+  return Math.round(value * 10) / 10;
+}
+
+function normalizeCounty(value: string | null) {
+  return (value || '').toLowerCase().replace(/\s+county$/, '').trim();
 }

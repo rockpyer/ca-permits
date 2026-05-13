@@ -2,10 +2,10 @@ import { useMemo, useState } from 'react';
 import { ArrowLeft, ExternalLink, Gauge, SlidersHorizontal } from 'lucide-react';
 import {
   Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
+  ComposedChart,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -14,12 +14,14 @@ import {
   YAxis
 } from 'recharts';
 import { CompactChartTooltip } from './CompactChartTooltip';
+import { KernNewDrillQuotaGauge } from './SummaryCards';
 import { WORK_ACTIVITY_GROUPS } from '../lib/grouping';
 import {
   EIA_CALIFORNIA_OIL_SOURCE,
   estimateRequiredPermits,
   monthlyDevelopmentPermitTrend,
   oilProductionStats,
+  productionPermitProjectionRows,
   productionChartRows,
   recentAnnualizedDevelopmentPermits
 } from '../lib/production';
@@ -35,6 +37,7 @@ type ProductionPageProps = {
 export function ProductionPage({ rows, loading, error, onNavigateHome }: ProductionPageProps) {
   const [netBopdPerPermit, setNetBopdPerPermit] = useState(30);
   const productionRows = useMemo(() => productionChartRows(), []);
+  const projectionRows = useMemo(() => productionPermitProjectionRows(rows, netBopdPerPermit), [netBopdPerPermit, rows]);
   const stats = useMemo(() => oilProductionStats(), []);
   const monthlyPermits = useMemo(() => monthlyDevelopmentPermitTrend(rows, 36), [rows]);
   const recentPace = useMemo(() => recentAnnualizedDevelopmentPermits(rows, 90), [rows]);
@@ -101,6 +104,10 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
           />
         </section>
 
+        <div className="mt-5">
+          <KernNewDrillQuotaGauge rows={rows} />
+        </div>
+
         <section className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_440px]" aria-label="Production decline and offset model">
           <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
             <ChartPanel
@@ -109,25 +116,76 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
               className="lg:col-span-2 xl:col-span-1"
             >
               <ResponsiveContainer width="100%" height={290}>
-                <AreaChart data={productionRows}>
+                <ComposedChart data={projectionRows}>
                   <defs>
                     <linearGradient id="oilProductionFill" x1="0" x2="0" y1="0" y2="1">
                       <stop offset="5%" stopColor="#36d399" stopOpacity={0.45} />
                       <stop offset="95%" stopColor="#36d399" stopOpacity={0.04} />
                     </linearGradient>
+                    <linearGradient id="permitWedgeFill" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#60a5fa" stopOpacity={0.08} />
+                    </linearGradient>
                   </defs>
                   <CartesianGrid stroke="#20312e" vertical={false} />
                   <XAxis dataKey="year" tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
                   <YAxis
+                    yAxisId="oil"
                     width={54}
                     tick={{ fill: '#94a3b8', fontSize: 11 }}
                     tickLine={false}
                     axisLine={false}
                     label={{ value: 'kbopd', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 11 }}
                   />
+                  <YAxis
+                    yAxisId="permits"
+                    orientation="right"
+                    allowDecimals={false}
+                    tick={{ fill: '#94a3b8', fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
+                    label={{ value: 'permits/yr', angle: 90, position: 'insideRight', fill: '#64748b', fontSize: 11 }}
+                  />
                   <Tooltip content={<CompactChartTooltip />} cursor={{ stroke: '#94a3b8', strokeOpacity: 0.25 }} />
-                  <Area type="linear" dataKey="oilKbopd" name="Oil kbopd" stroke="#36d399" fill="url(#oilProductionFill)" strokeWidth={2.25} />
-                </AreaChart>
+                  <Area
+                    yAxisId="oil"
+                    type="linear"
+                    dataKey="oilKbopd"
+                    name="Actual oil kbopd"
+                    stroke="#36d399"
+                    fill="url(#oilProductionFill)"
+                    strokeWidth={2.25}
+                  />
+                  <Area
+                    yAxisId="oil"
+                    type="linear"
+                    dataKey="permitWedgeRange"
+                    name="Modeled new oil wedge"
+                    stroke="#60a5fa"
+                    fill="url(#permitWedgeFill)"
+                    strokeWidth={1.5}
+                  />
+                  <Line
+                    yAxisId="oil"
+                    type="linear"
+                    dataKey="baselineKbopd"
+                    name="Expected decline baseline"
+                    stroke="#ef6767"
+                    strokeDasharray="5 5"
+                    dot={{ r: 2 }}
+                  />
+                  <Line
+                    yAxisId="oil"
+                    type="linear"
+                    dataKey="withPermitWedgeKbopd"
+                    name="Oil with permit wedge"
+                    stroke="#60a5fa"
+                    strokeWidth={2}
+                    dot={{ r: 2 }}
+                  />
+                  <Bar yAxisId="permits" dataKey="kernNewDrillPermits" name="Kern New Drill permits" fill="#c084fc" opacity={0.55} />
+                  <Bar yAxisId="permits" dataKey="projectedPermits" name="Projected Kern New Drill permits" fill="#f5b84b" opacity={0.75} />
+                </ComposedChart>
               </ResponsiveContainer>
             </ChartPanel>
 
@@ -165,7 +223,7 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
                 className="w-full accent-accent"
                 type="range"
                 min="5"
-                max="150"
+                max="100"
                 step="5"
                 value={netBopdPerPermit}
                 onChange={(event) => setNetBopdPerPermit(Number(event.target.value))}

@@ -18,6 +18,7 @@ import {
   workActivityCounts
 } from '../lib/summary';
 import { workActivityGroup } from '../lib/grouping';
+import { kernNewDrillQuotaStats } from '../lib/production';
 import type { PermitActivity } from '../lib/types';
 
 type Props = {
@@ -154,6 +155,94 @@ export function ActivityNotes({ rows }: Props) {
       </div>
     </section>
   );
+}
+
+export function KernNewDrillQuotaGauge({ rows, compact = false }: Props & { compact?: boolean }) {
+  const quota = kernNewDrillQuotaStats(rows);
+
+  return (
+    <section className={`border border-line bg-panel/50 ${compact ? 'p-3' : 'p-4'}`} aria-label="Kern County new drill quota meter">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Kern New Drill Quota</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            New Drill notices only. Rework, deepen, sidetrack, and abandonment records are excluded from this meter.
+          </p>
+        </div>
+        <div className="text-right text-xs text-slate-500">
+          <div>{quota.year} quota</div>
+          <div className="font-semibold text-slate-300">{quota.quota.toLocaleString()} wells/year</div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <FuelMeter
+          label="YTD left"
+          value={quota.ytdRemaining}
+          usedPct={quota.ytdUsedPct}
+          subvalue={`${quota.ytdCount.toLocaleString()} used`}
+        />
+        <FuelMeter
+          label="Projected left"
+          value={quota.projectedRemaining}
+          usedPct={quota.projectedUsedPct}
+          subvalue={`${quota.projectedCount.toLocaleString()} projected at current rate`}
+          projected
+        />
+      </div>
+    </section>
+  );
+}
+
+function FuelMeter({
+  label,
+  value,
+  usedPct,
+  subvalue,
+  projected = false
+}: {
+  label: string;
+  value: number;
+  usedPct: number;
+  subvalue: string;
+  projected?: boolean;
+}) {
+  const pct = Math.max(0, Math.min(usedPct, 100));
+  const circumference = 132;
+  const dash = (pct / 100) * circumference;
+
+  return (
+    <div className="grid grid-cols-[90px_1fr] items-center gap-3 border border-line bg-ink/35 px-3 py-2">
+      <svg viewBox="0 0 120 72" className="h-[58px] w-[86px]" role="img" aria-label={`${label}: ${value} wells left`}>
+        <path d="M20 60 A40 40 0 0 1 100 60" fill="none" stroke="#20312e" strokeWidth="13" strokeLinecap="round" />
+        <path
+          d="M20 60 A40 40 0 0 1 100 60"
+          fill="none"
+          stroke={projected ? '#60a5fa' : '#36d399'}
+          strokeWidth="13"
+          strokeLinecap="round"
+          strokeDasharray={`${dash} ${circumference}`}
+        />
+        <line x1="60" y1="60" x2={needleX(pct)} y2={needleY(pct)} stroke="#e2e8f0" strokeWidth="3" strokeLinecap="round" />
+        <circle cx="60" cy="60" r="4" fill="#e2e8f0" />
+      </svg>
+      <div className="min-w-0">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
+        <div className="text-lg font-semibold text-white">{value.toLocaleString()}</div>
+        <div className="truncate text-xs text-slate-500">{subvalue}</div>
+      </div>
+    </div>
+  );
+}
+
+function needleX(percent: number) {
+  const angle = Math.PI - (Math.PI * percent) / 100;
+  return 60 + Math.cos(angle) * 30;
+}
+
+function needleY(percent: number) {
+  const angle = Math.PI - (Math.PI * percent) / 100;
+  return 60 - Math.sin(angle) * 30;
 }
 
 function Stat({ label, value, color, delta }: { label: string; value: number; color?: string; delta?: number }) {
