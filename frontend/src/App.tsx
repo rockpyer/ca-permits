@@ -4,6 +4,7 @@ import { ActivityMap } from './components/ActivityMap';
 import { DetailDrawer } from './components/DetailDrawer';
 import { FilterRail } from './components/FilterRail';
 import { PermitTable } from './components/PermitTable';
+import { ProductionPage } from './components/ProductionPage';
 import { RankingPanels } from './components/RankingPanels';
 import { ActivityNotes, ActivitySummaryStrip, FunctionalTypeMix, PermitMomentumPanel } from './components/SummaryCards';
 import { loadEtlRuns, loadFields, loadPermitActivity, loadPermitDateBounds } from './lib/data';
@@ -69,7 +70,7 @@ export function App() {
   }, [dateBounds, rows]);
 
   useEffect(() => {
-    if (path === '/about-methodology') return;
+    if (path === '/about-methodology' || path === '/prod') return;
     persistFiltersToUrl(filters, dateBounds);
   }, [dateBounds, filters, path]);
 
@@ -89,6 +90,14 @@ export function App() {
     return (
       <Shell>
         <AboutMethodology onNavigateHome={() => navigateTo('/', setPath)} />
+      </Shell>
+    );
+  }
+
+  if (path === '/prod') {
+    return (
+      <Shell>
+        <ProductionPage rows={rows} loading={loading} error={error} onNavigateHome={() => navigateTo('/', setPath)} />
       </Shell>
     );
   }
