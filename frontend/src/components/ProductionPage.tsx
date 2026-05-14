@@ -3,11 +3,9 @@ import { ArrowLeft, ExternalLink, Gauge, SlidersHorizontal } from 'lucide-react'
 import {
   Area,
   Bar,
-  BarChart,
   CartesianGrid,
   ComposedChart,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -15,14 +13,11 @@ import {
 } from 'recharts';
 import { CompactChartTooltip } from './CompactChartTooltip';
 import { KernNewDrillQuotaGauge } from './SummaryCards';
-import { WORK_ACTIVITY_GROUPS } from '../lib/grouping';
 import {
   EIA_CALIFORNIA_OIL_SOURCE,
   estimateRequiredPermits,
-  monthlyDevelopmentPermitTrend,
   oilProductionStats,
   productionPermitProjectionRows,
-  productionChartRows,
   recentAnnualizedDevelopmentPermits
 } from '../lib/production';
 import type { PermitActivity } from '../lib/types';
@@ -36,10 +31,8 @@ type ProductionPageProps = {
 
 export function ProductionPage({ rows, loading, error, onNavigateHome }: ProductionPageProps) {
   const [netBopdPerPermit, setNetBopdPerPermit] = useState(30);
-  const productionRows = useMemo(() => productionChartRows(), []);
   const projectionRows = useMemo(() => productionPermitProjectionRows(rows, netBopdPerPermit), [netBopdPerPermit, rows]);
   const stats = useMemo(() => oilProductionStats(), []);
-  const monthlyPermits = useMemo(() => monthlyDevelopmentPermitTrend(rows, 36), [rows]);
   const recentPace = useMemo(() => recentAnnualizedDevelopmentPermits(rows, 90), [rows]);
   const requiredPermits = estimateRequiredPermits(stats.recentAnnualDeclineBopd, netBopdPerPermit);
   const permitGap = recentPace.annualized - requiredPermits;
@@ -89,7 +82,7 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
         {loading && <div className="mt-6 border border-line bg-panel/50 p-4 text-sm text-slate-400">Loading permit supply...</div>}
         {error && <div className="mt-6 border border-danger bg-danger/10 p-4 text-sm text-red-200">{error}</div>}
 
-        <section className="mt-5 grid gap-3 border-y border-line py-3 text-sm md:grid-cols-4" aria-label="Production model context">
+        <section className="mt-5 grid gap-3 border-y border-line py-3 text-sm md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_300px]" aria-label="Production model context">
           <ModelStat label="2025 oil rate" value={`${formatNumber(stats.latest.oilKbopd)} kbopd`} />
           <ModelStat
             label="10-year decline"
@@ -102,20 +95,16 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
             value={`${formatNumber(recentPace.annualized)} permits/yr`}
             subvalue={recentPace.endDate ? `${formatShortDate(recentPace.startDate)}-${formatShortDate(recentPace.endDate)}` : 'pending permits'}
           />
+          <KernNewDrillQuotaGauge rows={rows} compact />
         </section>
 
-        <div className="mt-5">
-          <KernNewDrillQuotaGauge rows={rows} />
-        </div>
-
         <section className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_440px]" aria-label="Production decline and offset model">
-          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+          <div className="grid gap-4">
             <ChartPanel
               title="California Oil Production"
-              subtitle="Annual crude oil field production, EIA MCRFPCA1."
-              className="lg:col-span-2 xl:col-span-1"
+              subtitle="Actual oil production through 2025, then forked decline baseline versus a modeled New Drill permit wedge."
             >
-              <ResponsiveContainer width="100%" height={290}>
+              <ResponsiveContainer width="100%" height={420}>
                 <ComposedChart data={projectionRows}>
                   <defs>
                     <linearGradient id="oilProductionFill" x1="0" x2="0" y1="0" y2="1">
@@ -188,19 +177,6 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
                 </ComposedChart>
               </ResponsiveContainer>
             </ChartPanel>
-
-            <ChartPanel title="Recent Permit Supply" subtitle="Monthly New Drill and Existing permit notices in loaded WellSTAR data.">
-              <ResponsiveContainer width="100%" height={290}>
-                <BarChart data={monthlyPermits}>
-                  <CartesianGrid stroke="#20312e" vertical={false} />
-                  <XAxis dataKey="month" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} minTickGap={18} />
-                  <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
-                  <Tooltip content={<CompactChartTooltip />} cursor={{ fill: '#12201d' }} />
-                  <Bar dataKey="new_drills" name="New Drill" stackId="permits" fill={WORK_ACTIVITY_GROUPS[0].color} />
-                  <Bar dataKey="existing" name="Existing" stackId="permits" fill={WORK_ACTIVITY_GROUPS[1].color} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartPanel>
           </div>
 
           <section className="border border-line bg-panel/55 p-4" aria-label="Permit offset slider">
@@ -256,19 +232,7 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
           </section>
         </section>
 
-        <section className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]" aria-label="Recent production context">
-          <ChartPanel title="Last Four Oil Production Years" subtitle="Closer annual view for the most recent production data available.">
-            <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={productionRows.slice(-4)}>
-                <CartesianGrid stroke="#20312e" vertical={false} />
-                <XAxis dataKey="year" tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
-                <YAxis width={54} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} domain={['dataMin - 10', 'dataMax + 10']} />
-                <Tooltip content={<CompactChartTooltip />} cursor={{ stroke: '#94a3b8', strokeOpacity: 0.25 }} />
-                <Line type="linear" dataKey="oilKbopd" name="Oil kbopd" stroke="#36d399" strokeWidth={2.25} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </ChartPanel>
-
+        <section className="mt-4" aria-label="Production model guardrails">
           <section className="border border-line bg-panel/50 p-4">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Interpretation Guardrails</h2>
             <div className="mt-3 grid gap-3 text-sm leading-6 text-slate-400 md:grid-cols-2">

@@ -25,14 +25,14 @@ type Props = {
   rows: PermitActivity[];
 };
 
-export function ActivitySummaryStrip({ rows }: Props) {
+export function ActivitySummaryStrip({ rows, quotaRows = rows }: Props & { quotaRows?: PermitActivity[] }) {
   const counts = workActivityCounts(rows);
   const operatorCount = new Set(rows.map((row) => row.operator_name).filter(Boolean)).size;
   const totalDelta = fourWeekDelta(rows);
 
   return (
     <section className="border-y border-line py-2" aria-label="Activity context">
-      <div className="grid grid-cols-2 gap-x-5 gap-y-2 text-sm md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-x-5 gap-y-3 text-sm md:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))_260px]">
         <Stat label="Permits" value={rows.length} delta={totalDelta.delta} />
         {WORK_ACTIVITY_GROUPS.map((group) => (
           <Stat
@@ -44,6 +44,7 @@ export function ActivitySummaryStrip({ rows }: Props) {
           />
         ))}
         <Stat label="Operators" value={operatorCount} />
+        <KernNewDrillQuotaGauge rows={quotaRows} compact />
       </div>
     </section>
   );
@@ -159,90 +160,88 @@ export function ActivityNotes({ rows }: Props) {
 
 export function KernNewDrillQuotaGauge({ rows, compact = false }: Props & { compact?: boolean }) {
   const quota = kernNewDrillQuotaStats(rows);
+  const projectedMarker = Math.max(0, Math.min(quota.projectedUsedPct, 100));
 
   return (
-    <section className={`border border-line bg-panel/50 ${compact ? 'p-3' : 'p-4'}`} aria-label="Kern County new drill quota meter">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <section
+      className={`${compact ? 'border-l border-line pl-3' : 'border border-line bg-panel/50 p-4'}`}
+      aria-label="Kern County new drill quota meter"
+    >
+      <div className={`flex ${compact ? 'items-center gap-3' : 'flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'}`}>
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Kern New Drill Quota</h2>
-          <p className="mt-1 text-xs text-slate-500">
-            New Drill notices only. Rework, deepen, sidetrack, and abandonment records are excluded from this meter.
-          </p>
+          <h2 className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">Kern New Drill Quota</h2>
+          {!compact && (
+            <p className="mt-1 text-xs text-slate-500">
+              New Drill notices only. Rework, deepen, sidetrack, and abandonment records are excluded from this meter.
+            </p>
+          )}
+          {compact && <div className="mt-1 text-xs text-slate-500">{quota.year} / {quota.quota.toLocaleString()} wells</div>}
         </div>
-        <div className="text-right text-xs text-slate-500">
+        {!compact && <div className="text-right text-xs text-slate-500">
           <div>{quota.year} quota</div>
           <div className="font-semibold text-slate-300">{quota.quota.toLocaleString()} wells/year</div>
-        </div>
+        </div>}
       </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
-        <FuelMeter
-          label="YTD left"
-          value={quota.ytdRemaining}
-          usedPct={quota.ytdUsedPct}
-          subvalue={`${quota.ytdCount.toLocaleString()} used`}
-        />
-        <FuelMeter
-          label="Projected left"
-          value={quota.projectedRemaining}
-          usedPct={quota.projectedUsedPct}
-          subvalue={`${quota.projectedCount.toLocaleString()} projected at current rate`}
-          projected
-        />
+      <div className={`${compact ? 'mt-1 grid grid-cols-[76px_1fr] items-center gap-2' : 'mt-4 grid grid-cols-[92px_1fr] items-center gap-3 border border-line bg-ink/35 px-3 py-2'}`}>
+        <FuelGauge usedPct={quota.ytdUsedPct} projectedPct={projectedMarker} compact={compact} />
+        <div className="min-w-0">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">YTD left</div>
+              <div className={`${compact ? 'text-base' : 'text-lg'} font-semibold text-white`}>{quota.ytdRemaining.toLocaleString()}</div>
+              <div className="text-[11px] text-slate-500">{quota.ytdCount.toLocaleString()} used</div>
+            </div>
+            <div>
+              <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Projected left</div>
+              <div className={`${compact ? 'text-base' : 'text-lg'} font-semibold text-sky-300`}>{quota.projectedRemaining.toLocaleString()}</div>
+              <div className="truncate text-[11px] text-slate-500">{quota.projectedCount.toLocaleString()} proj.</div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
 }
 
-function FuelMeter({
-  label,
-  value,
-  usedPct,
-  subvalue,
-  projected = false
-}: {
-  label: string;
-  value: number;
-  usedPct: number;
-  subvalue: string;
-  projected?: boolean;
-}) {
+function FuelGauge({ usedPct, projectedPct, compact = false }: { usedPct: number; projectedPct: number; compact?: boolean }) {
   const pct = Math.max(0, Math.min(usedPct, 100));
+  const projected = Math.max(0, Math.min(projectedPct, 100));
   const circumference = 132;
   const dash = (pct / 100) * circumference;
+  const marker = {
+    x1: needleX(projected, 34),
+    y1: needleY(projected, 34),
+    x2: needleX(projected, 45),
+    y2: needleY(projected, 45)
+  };
 
   return (
-    <div className="grid grid-cols-[90px_1fr] items-center gap-3 border border-line bg-ink/35 px-3 py-2">
-      <svg viewBox="0 0 120 72" className="h-[58px] w-[86px]" role="img" aria-label={`${label}: ${value} wells left`}>
+      <svg viewBox="0 0 120 72" className={compact ? 'h-[48px] w-[72px]' : 'h-[58px] w-[86px]'} role="img" aria-label="Kern new drill quota gauge">
         <path d="M20 60 A40 40 0 0 1 100 60" fill="none" stroke="#20312e" strokeWidth="13" strokeLinecap="round" />
         <path
           d="M20 60 A40 40 0 0 1 100 60"
           fill="none"
-          stroke={projected ? '#60a5fa' : '#36d399'}
+          stroke="#36d399"
           strokeWidth="13"
           strokeLinecap="round"
           strokeDasharray={`${dash} ${circumference}`}
         />
-        <line x1="60" y1="60" x2={needleX(pct)} y2={needleY(pct)} stroke="#e2e8f0" strokeWidth="3" strokeLinecap="round" />
+        <line x1={marker.x1} y1={marker.y1} x2={marker.x2} y2={marker.y2} stroke="#60a5fa" strokeWidth="4" strokeLinecap="round" />
+        <line x1="60" y1="60" x2={needleX(pct, 30)} y2={needleY(pct, 30)} stroke="#e2e8f0" strokeWidth="3" strokeLinecap="round" />
         <circle cx="60" cy="60" r="4" fill="#e2e8f0" />
       </svg>
-      <div className="min-w-0">
-        <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
-        <div className="text-lg font-semibold text-white">{value.toLocaleString()}</div>
-        <div className="truncate text-xs text-slate-500">{subvalue}</div>
-      </div>
-    </div>
   );
 }
 
-function needleX(percent: number) {
+function needleX(percent: number, radius = 30) {
   const angle = Math.PI - (Math.PI * percent) / 100;
-  return 60 + Math.cos(angle) * 30;
+  return 60 + Math.cos(angle) * radius;
 }
 
-function needleY(percent: number) {
+function needleY(percent: number, radius = 30) {
   const angle = Math.PI - (Math.PI * percent) / 100;
-  return 60 - Math.sin(angle) * 30;
+  return 60 - Math.sin(angle) * radius;
 }
 
 function Stat({ label, value, color, delta }: { label: string; value: number; color?: string; delta?: number }) {

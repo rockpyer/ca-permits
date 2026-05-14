@@ -139,15 +139,18 @@ export function productionPermitProjectionRows(rows: PermitActivity[], netBopdPe
   const latestOil = stats.latest.oilKbopd;
   const projectionYear = Math.max(quota.year, stats.latest.year + 1);
 
-  const historical = productionRows.map((row) => ({
-    year: row.year,
-    oilKbopd: row.oilKbopd,
-    baselineKbopd: null as number | null,
-    withPermitWedgeKbopd: null as number | null,
-    permitWedgeRange: null as [number, number] | null,
-    kernNewDrillPermits: annualPermitCounts.get(row.year) || null,
-    projectedPermits: null as number | null
-  }));
+  const historical = productionRows.map((row) => {
+    const isLatest = row.year === stats.latest.year;
+    return {
+      year: row.year,
+      oilKbopd: row.oilKbopd,
+      baselineKbopd: isLatest ? row.oilKbopd : null,
+      withPermitWedgeKbopd: isLatest ? row.oilKbopd : null,
+      permitWedgeRange: null as [number, number] | null,
+      kernNewDrillPermits: annualPermitCounts.get(row.year) || null,
+      projectedPermits: null as number | null
+    };
+  });
 
   const firstBaseline = Math.max(latestOil - declineKbopd * (projectionYear - stats.latest.year), 0);
   const secondBaseline = Math.max(firstBaseline - declineKbopd, 0);

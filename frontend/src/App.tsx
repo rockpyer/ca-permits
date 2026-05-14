@@ -6,7 +6,7 @@ import { FilterRail } from './components/FilterRail';
 import { PermitTable } from './components/PermitTable';
 import { ProductionPage } from './components/ProductionPage';
 import { RankingPanels } from './components/RankingPanels';
-import { ActivityNotes, ActivitySummaryStrip, FunctionalTypeMix, KernNewDrillQuotaGauge, PermitMomentumPanel } from './components/SummaryCards';
+import { ActivityNotes, ActivitySummaryStrip, FunctionalTypeMix, PermitMomentumPanel } from './components/SummaryCards';
 import { loadEtlRuns, loadFields, loadPermitActivity, loadPermitDateBounds } from './lib/data';
 import { applyFilters, dateRangeForRows, defaultFilters } from './lib/filters';
 import {
@@ -177,9 +177,8 @@ export function App() {
           {!loading && !error && (
             <div className="space-y-4 p-3 sm:p-4">
               <section aria-label="Permit activity summary">
-                <ActivitySummaryStrip rows={filteredRows} />
+                <ActivitySummaryStrip rows={filteredRows} quotaRows={rows} />
               </section>
-              <KernNewDrillQuotaGauge rows={rows} compact />
               <ActiveQuery filters={filters} dateBounds={dateBounds} />
               <section aria-label="Permit activity map">
                 <ActivityMap rows={filteredRows} fields={fields} selected={selected} onSelect={setSelected} />
