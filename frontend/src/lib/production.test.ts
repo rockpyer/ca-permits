@@ -5,6 +5,7 @@ import {
   kernNewDrillQuotaStats,
   monthlyDevelopmentPermitTrend,
   productionPermitProjectionRows,
+  recentAnnualizedExistingWork,
   recentAnnualizedDevelopmentPermits
 } from './production';
 import type { PermitActivity } from './types';
@@ -108,15 +109,31 @@ describe('production helpers', () => {
   it('builds an oil production projection row with permit wedge data', () => {
     const rows = [
       { ...baseRow, notice_dated: '2026-01-01', county: 'Kern', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' },
-      { ...baseRow, source_key: 'permit-2', source_object_id: 2, notice_dated: '2026-01-10', county: 'Kern', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' }
+      { ...baseRow, source_key: 'permit-2', source_object_id: 2, notice_dated: '2026-01-10', county: 'Kern', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' },
+      { ...baseRow, source_key: 'permit-3', source_object_id: 3, notice_dated: '2026-01-10', county: 'Kern', notice_type: 'NOI - Rework', notice_type_label: 'Rework' }
     ];
-    const projection = productionPermitProjectionRows(rows, 25);
+    const projection = productionPermitProjectionRows(rows, 25, 100);
     const row2026 = projection.find((row) => row.year === 2026);
 
     expect(row2026).toMatchObject({
-      projectedPermits: 73,
+      projectedNewDrillPermits: 100,
+      projectedExistingWork: 4,
       withPermitWedgeKbopd: expect.any(Number),
       baselineKbopd: expect.any(Number)
+    });
+  });
+
+  it('annualizes existing work separately for the production scenario', () => {
+    const rows = [
+      baseRow,
+      { ...baseRow, source_key: 'permit-2', source_object_id: 2, notice_dated: '2026-03-10', notice_type: 'NOI - Rework', notice_type_label: 'Rework' },
+      { ...baseRow, source_key: 'permit-3', source_object_id: 3, notice_dated: '2026-03-10', notice_type: 'NOI - Sidetrack', notice_type_label: 'Sidetrack' },
+      { ...baseRow, source_key: 'permit-4', source_object_id: 4, notice_dated: '2026-03-10', notice_type: 'NOI - Abandon', notice_type_label: 'Abandon' }
+    ];
+
+    expect(recentAnnualizedExistingWork(rows, 10)).toMatchObject({
+      count: 2,
+      annualized: 73
     });
   });
 });

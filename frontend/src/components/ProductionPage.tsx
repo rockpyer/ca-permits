@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ExternalLink, Gauge, SlidersHorizontal } from 'lucide-react';
 import {
   Area,
@@ -16,9 +16,10 @@ import { KernNewDrillQuotaGauge } from './SummaryCards';
 import {
   EIA_CALIFORNIA_OIL_SOURCE,
   estimateRequiredPermits,
+  kernNewDrillQuotaStats,
   oilProductionStats,
   productionPermitProjectionRows,
-  recentAnnualizedDevelopmentPermits
+  recentAnnualizedExistingWork
 } from '../lib/production';
 import type { PermitActivity } from '../lib/types';
 
@@ -31,11 +32,21 @@ type ProductionPageProps = {
 
 export function ProductionPage({ rows, loading, error, onNavigateHome }: ProductionPageProps) {
   const [netBopdPerPermit, setNetBopdPerPermit] = useState(30);
-  const projectionRows = useMemo(() => productionPermitProjectionRows(rows, netBopdPerPermit), [netBopdPerPermit, rows]);
+  const quota = useMemo(() => kernNewDrillQuotaStats(rows), [rows]);
+  const [projectedNewDrillPermits, setProjectedNewDrillPermits] = useState(0);
+  const projectionRows = useMemo(
+    () => productionPermitProjectionRows(rows, netBopdPerPermit, projectedNewDrillPermits || quota.projectedCount),
+    [netBopdPerPermit, projectedNewDrillPermits, quota.projectedCount, rows]
+  );
   const stats = useMemo(() => oilProductionStats(), []);
-  const recentPace = useMemo(() => recentAnnualizedDevelopmentPermits(rows, 90), [rows]);
+  const existingWorkPace = useMemo(() => recentAnnualizedExistingWork(rows, 90), [rows]);
   const requiredPermits = estimateRequiredPermits(stats.recentAnnualDeclineBopd, netBopdPerPermit);
-  const permitGap = recentPace.annualized - requiredPermits;
+  const modeledPermitCount = (projectedNewDrillPermits || quota.projectedCount) + existingWorkPace.annualized;
+  const permitGap = modeledPermitCount - requiredPermits;
+
+  useEffect(() => {
+    setProjectedNewDrillPermits(quota.projectedCount);
+  }, [quota.projectedCount]);
 
   return (
     <main id="activity-content" className="min-h-screen bg-ink px-4 py-5 text-slate-200 sm:px-6 lg:px-8" aria-label="California oil production model">
@@ -85,15 +96,15 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
         <section className="mt-5 grid gap-3 border-y border-line py-3 text-sm md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_300px]" aria-label="Production model context">
           <ModelStat label="2025 oil rate" value={`${formatNumber(stats.latest.oilKbopd)} kbopd`} />
           <ModelStat
-            label="10-year decline"
-            value={`${formatNumber(stats.tenYearDeclineKbopd)} kbopd`}
-            subvalue={`${Math.round(stats.tenYearDeclinePct)}% below 2016`}
+            label="2026 New Drill scenario"
+            value={`${formatNumber(projectedNewDrillPermits || quota.projectedCount)} wells`}
+            subvalue={`${formatNumber(quota.projectedCount)} at current rate`}
           />
           <ModelStat label="Recent decline pace" value={`${formatNumber(stats.recentAnnualDeclineBopd)} bopd/yr`} subvalue="2022-2025 average" />
           <ModelStat
-            label="Permit supply pace"
-            value={`${formatNumber(recentPace.annualized)} permits/yr`}
-            subvalue={recentPace.endDate ? `${formatShortDate(recentPace.startDate)}-${formatShortDate(recentPace.endDate)}` : 'pending permits'}
+            label="Existing work pace"
+            value={`${formatNumber(existingWorkPace.annualized)} permits/yr`}
+            subvalue="rework, deepen, sidetrack"
           />
           <KernNewDrillQuotaGauge rows={rows} compact />
         </section>
@@ -172,8 +183,9 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
                     strokeWidth={2}
                     dot={{ r: 2 }}
                   />
-                  <Bar yAxisId="permits" dataKey="kernNewDrillPermits" name="Kern New Drill permits" fill="#c084fc" opacity={0.55} />
-                  <Bar yAxisId="permits" dataKey="projectedPermits" name="Projected Kern New Drill permits" fill="#f5b84b" opacity={0.75} />
+                  <Bar yAxisId="permits" dataKey="kernNewDrillPermits" name="Historical Kern New Drill permits" fill="#c084fc" opacity={0.55} />
+                  <Bar yAxisId="permits" dataKey="projectedNewDrillPermits" name="2026 New Drill scenario" fill="#f5b84b" opacity={0.75} />
+                  <Bar yAxisId="permits" dataKey="projectedExistingWork" name="Existing work at current rate" fill="#60a5fa" opacity={0.5} />
                 </ComposedChart>
               </ResponsiveContainer>
             </ChartPanel>
@@ -206,6 +218,33 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
               />
               <div className="w-24 text-right text-lg font-semibold text-white">{netBopdPerPermit} bopd</div>
             </div>
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              Typical new California oil wells can vary widely; use roughly 5-40 bopd for conservative scenarios and higher values only
+              for stronger wells or early-rate sensitivity.
+            </p>
+
+            <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="projected-permit-slider">
+              2026 projected Kern New Drill permits
+            </label>
+            <div className="mt-2 flex items-center gap-3">
+              <input
+                id="projected-permit-slider"
+                className="w-full accent-accent"
+                type="range"
+                min="0"
+                max="2000"
+                step="25"
+                value={projectedNewDrillPermits || quota.projectedCount}
+                onChange={(event) => setProjectedNewDrillPermits(Number(event.target.value))}
+              />
+              <div className="w-28 text-right text-lg font-semibold text-white">
+                {formatNumber(projectedNewDrillPermits || quota.projectedCount)}
+              </div>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              Starts at the current rate of Kern New Drill notices per week, annualized to {formatNumber(quota.projectedCount)}. Wells
+              drilled in 2026 do not immediately add a full year's production; this is a scenario tool.
+            </p>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
               <OffsetMetric label="Needed to arrest decline" value={requiredPermits} suffix="permits/yr" />
@@ -224,9 +263,12 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
               </h3>
               <ul className="mt-3 space-y-2 text-xs leading-5 text-slate-500">
                 <li>Uses EIA annual California crude oil production; gas is excluded.</li>
-                <li>Uses loaded permit notices for New Drill plus Existing work; permits are not completions or production starts.</li>
+                <li>
+                  Adds the selected New Drill scenario plus existing work at its recent annualized pace of{' '}
+                  {formatNumber(existingWorkPace.annualized)} permits/year.
+                </li>
                 <li>Assumed bopd per permit is a net screening variable, not a type curve or economic forecast.</li>
-                <li>Future versions should split new wells, reworks, sidetracks, deepenings, and thermal/injection support explicitly.</li>
+                <li>Permits are not completions, production starts, or full-year producing wells.</li>
               </ul>
             </div>
           </section>
@@ -288,11 +330,4 @@ function OffsetMetric({ label, value, suffix, tone = 'neutral' }: { label: strin
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: value < 1000 ? 1 : 0 }).format(value);
-}
-
-function formatShortDate(date: string) {
-  if (!date) return '';
-  const parsed = new Date(`${date}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return date;
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(parsed);
 }

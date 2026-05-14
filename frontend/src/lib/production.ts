@@ -36,18 +36,13 @@ export function annualThousandBarrelsToKbopd(thousandBarrels: number) {
 
 export function oilProductionStats() {
   const rows = productionChartRows();
-  const first = rows[0];
   const latest = rows[rows.length - 1];
-  const threeYearStart = rows.find((row) => row.year === latest.year - 3) || rows[rows.length - 4] || first;
-  const tenYearDeclineKbopd = Math.max(first.oilKbopd - latest.oilKbopd, 0);
+  const threeYearStart = rows.find((row) => row.year === latest.year - 3) || rows[rows.length - 4] || rows[0];
   const recentAnnualDeclineKbopd = Math.max((threeYearStart.oilKbopd - latest.oilKbopd) / (latest.year - threeYearStart.year), 0);
 
   return {
-    first,
     latest,
     threeYearStart,
-    tenYearDeclineKbopd,
-    tenYearDeclinePct: first.oilKbopd ? (tenYearDeclineKbopd / first.oilKbopd) * 100 : 0,
     recentAnnualDeclineBopd: Math.round(recentAnnualDeclineKbopd * 1000)
   };
 }
@@ -99,6 +94,27 @@ export function recentAnnualizedDevelopmentPermits(rows: PermitActivity[], days 
   };
 }
 
+export function recentAnnualizedExistingWork(rows: PermitActivity[], days = 90) {
+  const latest = latestPermitDate(rows);
+  if (!latest) return { count: 0, annualized: 0, startDate: '', endDate: '' };
+
+  const endDate = new Date(`${latest}T00:00:00`);
+  const startDate = new Date(endDate);
+  startDate.setDate(startDate.getDate() - (days - 1));
+
+  const startText = startDate.toISOString().slice(0, 10);
+  const count = rows.filter(
+    (row) => row.notice_dated && row.notice_dated >= startText && row.notice_dated <= latest && workActivityGroup(row) === 'existing'
+  ).length;
+
+  return {
+    count,
+    annualized: Math.round((count / days) * 365),
+    startDate: startText,
+    endDate: latest
+  };
+}
+
 export function estimateRequiredPermits(annualDeclineBopd: number, netBopdPerPermit: number) {
   if (netBopdPerPermit <= 0) return 0;
   return Math.ceil(annualDeclineBopd / netBopdPerPermit);
@@ -129,13 +145,16 @@ export function kernNewDrillQuotaStats(rows: PermitActivity[], quota = KERN_NEW_
   };
 }
 
-export function productionPermitProjectionRows(rows: PermitActivity[], netBopdPerPermit: number) {
+export function productionPermitProjectionRows(rows: PermitActivity[], netBopdPerPermit: number, projectedNewDrillPermits?: number) {
   const productionRows = productionChartRows();
   const stats = oilProductionStats();
   const quota = kernNewDrillQuotaStats(rows);
   const annualPermitCounts = annualKernNewDrillCounts(rows);
+  const existingPace = recentAnnualizedExistingWork(rows);
   const declineKbopd = stats.recentAnnualDeclineBopd / 1000;
-  const projectedPermitWedgeKbopd = (quota.projectedCount * netBopdPerPermit) / 1000;
+  const newDrillScenario = projectedNewDrillPermits ?? quota.projectedCount;
+  const modeledPermitCount = newDrillScenario + existingPace.annualized;
+  const projectedPermitWedgeKbopd = (modeledPermitCount * netBopdPerPermit) / 1000;
   const latestOil = stats.latest.oilKbopd;
   const projectionYear = Math.max(quota.year, stats.latest.year + 1);
 
@@ -148,14 +167,13 @@ export function productionPermitProjectionRows(rows: PermitActivity[], netBopdPe
       withPermitWedgeKbopd: isLatest ? row.oilKbopd : null,
       permitWedgeRange: null as [number, number] | null,
       kernNewDrillPermits: annualPermitCounts.get(row.year) || null,
-      projectedPermits: null as number | null
+      projectedNewDrillPermits: null as number | null,
+      projectedExistingWork: null as number | null
     };
   });
 
   const firstBaseline = Math.max(latestOil - declineKbopd * (projectionYear - stats.latest.year), 0);
-  const secondBaseline = Math.max(firstBaseline - declineKbopd, 0);
   const firstWithWedge = firstBaseline + projectedPermitWedgeKbopd;
-  const secondWithWedge = secondBaseline + projectedPermitWedgeKbopd;
 
   return [
     ...historical,
@@ -166,16 +184,8 @@ export function productionPermitProjectionRows(rows: PermitActivity[], netBopdPe
       withPermitWedgeKbopd: roundOne(firstWithWedge),
       permitWedgeRange: [roundOne(firstBaseline), roundOne(firstWithWedge)] as [number, number],
       kernNewDrillPermits: annualPermitCounts.get(projectionYear) || null,
-      projectedPermits: quota.projectedCount
-    },
-    {
-      year: projectionYear + 1,
-      oilKbopd: null,
-      baselineKbopd: roundOne(secondBaseline),
-      withPermitWedgeKbopd: roundOne(secondWithWedge),
-      permitWedgeRange: [roundOne(secondBaseline), roundOne(secondWithWedge)] as [number, number],
-      kernNewDrillPermits: null,
-      projectedPermits: quota.projectedCount
+      projectedNewDrillPermits: newDrillScenario,
+      projectedExistingWork: existingPace.annualized
     }
   ];
 }

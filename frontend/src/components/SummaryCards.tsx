@@ -175,7 +175,11 @@ export function KernNewDrillQuotaGauge({ rows, compact = false }: Props & { comp
               New Drill notices only. Rework, deepen, sidetrack, and abandonment records are excluded from this meter.
             </p>
           )}
-          {compact && <div className="mt-1 text-xs text-slate-500">{quota.year} / {quota.quota.toLocaleString()} wells</div>}
+          {compact && (
+            <div className="mt-1 text-xs text-slate-500">
+              {quota.ytdCount.toLocaleString()} used / {quota.projectedCount.toLocaleString()} projected
+            </div>
+          )}
         </div>
         {!compact && <div className="text-right text-xs text-slate-500">
           <div>{quota.year} quota</div>
@@ -188,14 +192,14 @@ export function KernNewDrillQuotaGauge({ rows, compact = false }: Props & { comp
         <div className="min-w-0">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">YTD left</div>
-              <div className={`${compact ? 'text-base' : 'text-lg'} font-semibold text-white`}>{quota.ytdRemaining.toLocaleString()}</div>
-              <div className="text-[11px] text-slate-500">{quota.ytdCount.toLocaleString()} used</div>
+              <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Used</div>
+              <div className={`${compact ? 'text-base' : 'text-lg'} font-semibold text-white`}>{quota.ytdCount.toLocaleString()}</div>
+              <div className="text-[11px] text-slate-500">{quota.ytdRemaining.toLocaleString()} left YTD</div>
             </div>
             <div>
-              <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Projected left</div>
+              <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Left</div>
               <div className={`${compact ? 'text-base' : 'text-lg'} font-semibold text-sky-300`}>{quota.projectedRemaining.toLocaleString()}</div>
-              <div className="truncate text-[11px] text-slate-500">{quota.projectedCount.toLocaleString()} proj.</div>
+              <div className="truncate text-[11px] text-slate-500">{quota.projectedCount.toLocaleString()} projected</div>
             </div>
           </div>
         </div>
