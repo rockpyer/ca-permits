@@ -31,7 +31,7 @@ type ProductionPageProps = {
 };
 
 export function ProductionPage({ rows, loading, error, onNavigateHome }: ProductionPageProps) {
-  const [netBopdPerPermit, setNetBopdPerPermit] = useState(30);
+  const [netBopdPerPermit, setNetBopdPerPermit] = useState(20);
   const quota = useMemo(() => kernNewDrillQuotaStats(rows), [rows]);
   const [projectedNewDrillPermits, setProjectedNewDrillPermits] = useState(0);
   const projectionRows = useMemo(
@@ -73,6 +73,7 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
                 <span>California Oil</span>
                 <span> Production Offset Model</span>
               </h1>
+              <p className="mt-2 text-lg font-semibold text-slate-200">Can New Drilling Offset California’s Oil Decline?</p>
               <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 sm:text-base">
                 A rough oil-focused view of California crude production decline against recent development permit supply.
                 This is a screening model, not a forecast.
