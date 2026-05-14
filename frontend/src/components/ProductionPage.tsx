@@ -12,11 +12,11 @@ import {
   YAxis
 } from 'recharts';
 import { CompactChartTooltip } from './CompactChartTooltip';
-import { KernNewDrillQuotaGauge } from './SummaryCards';
+import { NewDrillQuotaGauge } from './SummaryCards';
 import {
   EIA_CALIFORNIA_OIL_SOURCE,
   estimateRequiredPermits,
-  kernNewDrillQuotaStats,
+  newDrillQuotaStats,
   oilProductionStats,
   productionPermitProjectionRows,
   recentAnnualizedExistingWork
@@ -32,7 +32,7 @@ type ProductionPageProps = {
 
 export function ProductionPage({ rows, loading, error, onNavigateHome }: ProductionPageProps) {
   const [netBopdPerPermit, setNetBopdPerPermit] = useState(20);
-  const quota = useMemo(() => kernNewDrillQuotaStats(rows), [rows]);
+  const quota = useMemo(() => newDrillQuotaStats(rows), [rows]);
   const [projectedNewDrillPermits, setProjectedNewDrillPermits] = useState(0);
   const projectionRows = useMemo(
     () => productionPermitProjectionRows(rows, netBopdPerPermit, projectedNewDrillPermits || quota.projectedCount),
@@ -97,7 +97,7 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
         <section className="mt-5 grid gap-3 border-y border-line py-3 text-sm md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_300px]" aria-label="Production model context">
           <ModelStat label="2025 oil rate" value={`${formatNumber(stats.latest.oilKbopd)} kbopd`} />
           <ModelStat
-            label="2026 New Drill scenario"
+            label="2026 projected New Drill Permits"
             value={`${formatNumber(projectedNewDrillPermits || quota.projectedCount)} wells`}
             subvalue={`${formatNumber(quota.projectedCount)} at current rate`}
           />
@@ -107,7 +107,7 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
             value={`${formatNumber(existingWorkPace.annualized)} permits/yr`}
             subvalue="rework, deepen, sidetrack"
           />
-          <KernNewDrillQuotaGauge rows={rows} compact />
+          <NewDrillQuotaGauge rows={rows} compact />
         </section>
 
         <section className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_440px]" aria-label="Production decline and offset model">
@@ -161,7 +161,7 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
                     yAxisId="oil"
                     type="linear"
                     dataKey="permitWedgeRange"
-                    name="Modeled new oil wedge"
+                    name="Modeled Est Yearly Prod"
                     stroke="#60a5fa"
                     fill="url(#permitWedgeFill)"
                     strokeWidth={1.5}
@@ -184,8 +184,8 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
                     strokeWidth={2}
                     dot={{ r: 2 }}
                   />
-                  <Bar yAxisId="permits" dataKey="kernNewDrillPermits" name="Historical Kern New Drill permits" fill="#c084fc" opacity={0.55} />
-                  <Bar yAxisId="permits" dataKey="projectedNewDrillPermits" name="2026 New Drill scenario" fill="#f5b84b" opacity={0.75} />
+                  <Bar yAxisId="permits" dataKey="newDrillPermitsToDate" name="New Permits to date" fill="#c084fc" opacity={0.55} />
+                  <Bar yAxisId="permits" dataKey="projectedNewDrillPermits" name="2026 projected New Drill Permits" fill="#f5b84b" opacity={0.75} />
                   <Bar yAxisId="permits" dataKey="projectedExistingWork" name="Existing work at current rate" fill="#60a5fa" opacity={0.5} />
                 </ComposedChart>
               </ResponsiveContainer>
@@ -225,7 +225,7 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
             </p>
 
             <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="projected-permit-slider">
-              2026 projected Kern New Drill permits
+              2026 projected New Drill Permits
             </label>
             <div className="mt-2 flex items-center gap-3">
               <input
@@ -243,7 +243,7 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
               </div>
             </div>
             <p className="mt-2 text-xs leading-5 text-slate-500">
-              Starts at the current rate of Kern New Drill notices per week, annualized to {formatNumber(quota.projectedCount)}. Wells
+              Starts at the current rate of New Drill notices per week, annualized to {formatNumber(quota.projectedCount)}. Wells
               drilled in 2026 do not immediately add a full year's production; this is a scenario tool.
             </p>
 

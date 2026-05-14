@@ -8,7 +8,7 @@ export type OilProductionYear = {
 
 export const EIA_CALIFORNIA_OIL_SOURCE =
   'https://www.eia.gov/dnav/pet/hist/LeafHandler.ashx?n=PET&s=MCRFPCA1&f=A';
-export const KERN_NEW_DRILL_ANNUAL_QUOTA = 2000;
+export const NEW_DRILL_ANNUAL_QUOTA = 2000;
 
 export const CALIFORNIA_OIL_PRODUCTION: OilProductionYear[] = [
   { year: 2016, oilThousandBarrels: 186079 },
@@ -120,13 +120,13 @@ export function estimateRequiredPermits(annualDeclineBopd: number, netBopdPerPer
   return Math.ceil(annualDeclineBopd / netBopdPerPermit);
 }
 
-export function kernNewDrillQuotaStats(rows: PermitActivity[], quota = KERN_NEW_DRILL_ANNUAL_QUOTA) {
+export function newDrillQuotaStats(rows: PermitActivity[], quota = NEW_DRILL_ANNUAL_QUOTA) {
   const latest = latestPermitDate(rows);
   const year = latest ? Number(latest.slice(0, 4)) : new Date().getFullYear();
   const endDate = latest || `${year}-12-31`;
   const yearStart = `${year}-01-01`;
   const elapsedDays = Math.max(daysBetween(yearStart, endDate) + 1, 1);
-  const ytdCount = kernNewDrillRows(rows).filter(
+  const ytdCount = newDrillRows(rows).filter(
     (row) => row.notice_dated && row.notice_dated >= yearStart && row.notice_dated <= endDate
   ).length;
   const projectedCount = Math.round((ytdCount / elapsedDays) * daysInYear(year));
@@ -148,8 +148,8 @@ export function kernNewDrillQuotaStats(rows: PermitActivity[], quota = KERN_NEW_
 export function productionPermitProjectionRows(rows: PermitActivity[], netBopdPerPermit: number, projectedNewDrillPermits?: number) {
   const productionRows = productionChartRows();
   const stats = oilProductionStats();
-  const quota = kernNewDrillQuotaStats(rows);
-  const annualPermitCounts = annualKernNewDrillCounts(rows);
+  const quota = newDrillQuotaStats(rows);
+  const annualPermitCounts = annualNewDrillCounts(rows);
   const existingPace = recentAnnualizedExistingWork(rows);
   const declineKbopd = stats.recentAnnualDeclineBopd / 1000;
   const newDrillScenario = projectedNewDrillPermits ?? quota.projectedCount;
@@ -166,7 +166,7 @@ export function productionPermitProjectionRows(rows: PermitActivity[], netBopdPe
       baselineKbopd: isLatest ? row.oilKbopd : null,
       withPermitWedgeKbopd: isLatest ? row.oilKbopd : null,
       permitWedgeRange: null as [number, number] | null,
-      kernNewDrillPermits: annualPermitCounts.get(row.year) || null,
+      newDrillPermitsToDate: annualPermitCounts.get(row.year) || null,
       projectedNewDrillPermits: null as number | null,
       projectedExistingWork: null as number | null
     };
@@ -183,20 +183,20 @@ export function productionPermitProjectionRows(rows: PermitActivity[], netBopdPe
       baselineKbopd: roundOne(firstBaseline),
       withPermitWedgeKbopd: roundOne(firstWithWedge),
       permitWedgeRange: [roundOne(firstBaseline), roundOne(firstWithWedge)] as [number, number],
-      kernNewDrillPermits: annualPermitCounts.get(projectionYear) || null,
+      newDrillPermitsToDate: annualPermitCounts.get(projectionYear) || null,
       projectedNewDrillPermits: newDrillScenario,
       projectedExistingWork: existingPace.annualized
     }
   ];
 }
 
-function kernNewDrillRows(rows: PermitActivity[]) {
-  return rows.filter((row) => normalizeCounty(row.county) === 'kern' && workActivityGroup(row) === 'new_drills');
+function newDrillRows(rows: PermitActivity[]) {
+  return rows.filter((row) => workActivityGroup(row) === 'new_drills');
 }
 
-function annualKernNewDrillCounts(rows: PermitActivity[]) {
+function annualNewDrillCounts(rows: PermitActivity[]) {
   const counts = new Map<number, number>();
-  kernNewDrillRows(rows).forEach((row) => {
+  newDrillRows(rows).forEach((row) => {
     if (!row.notice_dated) return;
     const year = Number(row.notice_dated.slice(0, 4));
     if (!Number.isFinite(year)) return;
@@ -224,8 +224,4 @@ function daysInYear(year: number) {
 
 function roundOne(value: number) {
   return Math.round(value * 10) / 10;
-}
-
-function normalizeCounty(value: string | null) {
-  return (value || '').toLowerCase().replace(/\s+county$/, '').trim();
 }

@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   annualThousandBarrelsToKbopd,
   estimateRequiredPermits,
-  kernNewDrillQuotaStats,
   monthlyDevelopmentPermitTrend,
+  newDrillQuotaStats,
   productionPermitProjectionRows,
   recentAnnualizedExistingWork,
   recentAnnualizedDevelopmentPermits
@@ -89,7 +89,7 @@ describe('production helpers', () => {
     });
   });
 
-  it('calculates Kern new drill quota status from full-year pace', () => {
+  it('calculates statewide new drill quota status from full-year pace', () => {
     const rows = [
       { ...baseRow, notice_dated: '2026-01-01', county: 'Kern', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' },
       { ...baseRow, source_key: 'permit-2', source_object_id: 2, notice_dated: '2026-01-10', county: 'Kern County', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' },
@@ -97,12 +97,12 @@ describe('production helpers', () => {
       { ...baseRow, source_key: 'permit-4', source_object_id: 4, notice_dated: '2026-01-10', county: 'Los Angeles', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' }
     ];
 
-    expect(kernNewDrillQuotaStats(rows, 2000)).toMatchObject({
+    expect(newDrillQuotaStats(rows, 2000)).toMatchObject({
       year: 2026,
-      ytdCount: 2,
-      projectedCount: 73,
-      ytdRemaining: 1998,
-      projectedRemaining: 1927
+      ytdCount: 3,
+      projectedCount: 110,
+      ytdRemaining: 1997,
+      projectedRemaining: 1890
     });
   });
 
