@@ -181,11 +181,11 @@ export function productionPermitProjectionRows(rows: PermitActivity[], netBopdPe
       oilKbopd: row.oilKbopd,
       baselineKbopd: isLatest ? row.oilKbopd : null,
       withPermitWedgeKbopd: isLatest ? row.oilKbopd : null,
-      permitWedgeRange: null as [number, number] | null,
+      permitWedgeRange: (isLatest ? [row.oilKbopd, row.oilKbopd] : null) as [number, number] | null,
       kernNewDrillPermitsToDate: annualPermitCounts.get(row.year) || null,
       projectedNewDrillPermits: null as number | null,
       projectedExistingWork: null as number | null,
-      projectedAbandonment: null as number | null
+      modeledPermitCount: null as number | null
     };
   });
 
@@ -203,7 +203,7 @@ export function productionPermitProjectionRows(rows: PermitActivity[], netBopdPe
       kernNewDrillPermitsToDate: annualPermitCounts.get(projectionYear) || null,
       projectedNewDrillPermits: newDrillScenario,
       projectedExistingWork: existingPace.annualized,
-      projectedAbandonment: abandonmentPace.annualized
+      modeledPermitCount
     }
   ];
 }

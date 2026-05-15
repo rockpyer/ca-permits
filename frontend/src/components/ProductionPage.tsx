@@ -119,7 +119,7 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
           <div className="grid gap-4">
             <ChartPanel
               title="California Oil Production"
-              subtitle="Actual oil production through 2025, then a 2026 scenario using Kern New Drill permits plus statewide existing work and abandonment signals."
+              subtitle="Actual oil production through 2025, then a 2026 scenario using Kern New Drill permits plus statewide existing work."
             >
               <ResponsiveContainer width="100%" height={420}>
                 <ComposedChart data={projectionRows}>
@@ -169,7 +169,8 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
                     name="Modeled Est Yearly Prod"
                     stroke="#60a5fa"
                     fill="url(#permitWedgeFill)"
-                    strokeWidth={1.5}
+                    strokeWidth={0}
+                    connectNulls
                   />
                   <Line
                     yAxisId="oil"
@@ -192,7 +193,6 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
                   <Bar yAxisId="permits" dataKey="kernNewDrillPermitsToDate" name="Kern New Drill to date" fill="#c084fc" opacity={0.55} />
                   <Bar yAxisId="permits" dataKey="projectedNewDrillPermits" name="2026 projected Kern New Drill Permits" fill="#f5b84b" opacity={0.75} />
                   <Bar yAxisId="permits" dataKey="projectedExistingWork" name="Existing work at current rate" fill="#60a5fa" opacity={0.5} />
-                  <Bar yAxisId="permits" dataKey="projectedAbandonment" name="Abandonment at current rate" fill="#ef6767" opacity={0.45} />
                 </ComposedChart>
               </ResponsiveContainer>
             </ChartPanel>

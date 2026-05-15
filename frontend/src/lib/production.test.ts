@@ -180,10 +180,14 @@ describe('production helpers', () => {
     expect(row2026).toMatchObject({
       projectedNewDrillPermits: 100,
       projectedExistingWork: 4,
-      projectedAbandonment: 0,
+      modeledPermitCount: 104,
       withPermitWedgeKbopd: expect.any(Number),
       baselineKbopd: expect.any(Number)
     });
+
+    const row2025 = projection.find((row) => row.year === 2025);
+    expect(row2025?.permitWedgeRange).toEqual([257.1, 257.1]);
+    expect(row2026?.permitWedgeRange).toEqual([expect.any(Number), expect.any(Number)]);
   });
 
   it('annualizes existing work separately for the production scenario', () => {
