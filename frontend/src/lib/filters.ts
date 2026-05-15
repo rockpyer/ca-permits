@@ -1,4 +1,5 @@
 import { DEFAULT_WORK_ACTIVITY_GROUPS, functionalTypeGroup, workActivityGroup } from './grouping';
+import { permitDate } from './permitDates';
 import type { Filters, PermitActivity } from './types';
 
 const DEFAULT_START_DATE = '2026-01-01';
@@ -49,10 +50,11 @@ export function applyFilters(rows: PermitActivity[], filters: Filters): PermitAc
     if (filters.wellStatuses.length && (!row.well_status || !filters.wellStatuses.includes(row.well_status))) {
       return false;
     }
-    if (filters.startDate && row.notice_dated && row.notice_dated < filters.startDate) {
+    const date = permitDate(row);
+    if (filters.startDate && date && date < filters.startDate) {
       return false;
     }
-    if (filters.endDate && row.notice_dated && row.notice_dated > filters.endDate) {
+    if (filters.endDate && date && date > filters.endDate) {
       return false;
     }
     if (filters.directional !== 'all') {
@@ -70,11 +72,11 @@ export function toggleListValue(values: string[], value: string): string[] {
 
 export function dateRangeForRows(rows: PermitActivity[]) {
   const dates = rows
-    .map((row) => row.notice_dated)
+    .map(permitDate)
     .filter((date): date is string => Boolean(date))
     .sort((a, b) => a.localeCompare(b));
   return {
-    minDate: latestDate(dates[0] || '', DEFAULT_START_DATE),
+    minDate: dates[0] || DEFAULT_START_DATE,
     maxDate: dates[dates.length - 1] || ''
   };
 }

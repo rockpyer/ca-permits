@@ -8,13 +8,14 @@ The project is designed as an oilfield activity intelligence tool rather than a 
 
 ## What It Shows
 
-- Current permit activity by operator, field, county, district, well type, and notice type.
-- Default development-focused scope: New Drill, Deepen, and Sidetrack.
-- Rework, Abandon, and Re-Abandon records available as optional filters, but off by default.
-- Weekly permit trends grouped by New Drills, Reentries, Injection, and Abandonments.
-- Map-based activity view where symbol shape represents well type and color represents permit/work activity.
+- Current permit activity by operator, field, county, district, functional well type, and work activity.
+- Default development-focused scope: New Drill and Existing work, with Abandonment available but off by default.
+- Date filters and trend charts use the WellSTAR determination/approval date when available.
+- Weekly permit momentum grouped by New Drill, Existing, and Abandonment.
+- Map-based activity view where symbol shape represents functional well type and color represents work activity.
 - Shareable filter URLs for persistent operator, field, county, date, and permit-scope views.
-- Compact permit record table with CSV export and clickable WellSTAR detail links.
+- Compact permit record table with expanded CSV export, determination/filed dates, and clickable WellSTAR detail links.
+- Hidden production model at `/prod` for rough California oil decline and Kern County New Drill quota sensitivity.
 - Operator analysis panels for field concentration and cumulative drilling activity.
 - Official WellSTAR detail links using normalized California API numbers.
 - WellFinder links where available.
@@ -92,7 +93,7 @@ pip install -r backend/requirements.txt
 python backend/run_ingest.py
 ```
 
-The ingest loads wells, permits, and fields, normalizes API numbers, deduplicates permit records, validates expected source fields, and upserts into Supabase.
+The ingest loads wells, permits, and fields, normalizes API numbers, deduplicates permit records, validates expected source fields, pages ArcGIS REST responses, and upserts into Supabase.
 
 ## Tests
 

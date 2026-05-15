@@ -18,7 +18,7 @@ import {
   workActivityCounts
 } from '../lib/summary';
 import { workActivityGroup } from '../lib/grouping';
-import { newDrillQuotaStats } from '../lib/production';
+import { kernNewDrillQuotaStats } from '../lib/production';
 import type { PermitActivity } from '../lib/types';
 
 type Props = {
@@ -159,17 +159,17 @@ export function ActivityNotes({ rows }: Props) {
 }
 
 export function NewDrillQuotaGauge({ rows, compact = false }: Props & { compact?: boolean }) {
-  const quota = newDrillQuotaStats(rows);
+  const quota = kernNewDrillQuotaStats(rows);
   const projectedMarker = Math.max(0, Math.min(quota.projectedUsedPct, 100));
 
   return (
     <section
       className={`${compact ? 'border-l border-line pl-3' : 'border border-line bg-panel/50 p-4'}`}
-      aria-label="New Drill quota meter"
+      aria-label="Kern County New Drill quota meter"
     >
       <div className={`flex ${compact ? 'items-center gap-3' : 'flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'}`}>
         <div className="min-w-0">
-          <h2 className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">New Drill Quota</h2>
+          <h2 className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">Kern New Drill Quota</h2>
           {!compact && (
             <p className="mt-1 text-xs text-slate-500">
               New Drill notices only. Rework, deepen, sidetrack, and abandonment records are excluded from this meter.
@@ -221,7 +221,7 @@ function FuelGauge({ usedPct, projectedPct, compact = false }: { usedPct: number
   };
 
   return (
-      <svg viewBox="0 0 120 72" className={compact ? 'h-[48px] w-[72px]' : 'h-[58px] w-[86px]'} role="img" aria-label="New Drill quota gauge">
+      <svg viewBox="0 0 120 72" className={compact ? 'h-[48px] w-[72px]' : 'h-[58px] w-[86px]'} role="img" aria-label="Kern New Drill quota gauge">
         <path d="M20 60 A40 40 0 0 1 100 60" fill="none" stroke="#20312e" strokeWidth="13" strokeLinecap="round" />
         <path
           d="M20 60 A40 40 0 0 1 100 60"

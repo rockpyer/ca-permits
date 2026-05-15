@@ -55,6 +55,11 @@ describe('filters', () => {
     expect(filters.startDate).toBe('2026-01-01');
   });
 
+  it('keeps January 1 2026 as the default while allowing earlier database bounds', () => {
+    expect(defaultFilters({ minDate: '2025-12-01', maxDate: '2026-05-15' }).startDate).toBe('2026-01-01');
+    expect(defaultFilters({ minDate: '2026-02-01', maxDate: '2026-05-15' }).startDate).toBe('2026-02-01');
+  });
+
   it('filters out abandonment unless toggled on', () => {
     const abandonment = { ...baseRow, source_key: '2', notice_type: 'NOI - Abandon', notice_type_label: 'Abandon' };
     expect(applyFilters([baseRow, abandonment], defaultFilters())).toEqual([baseRow]);

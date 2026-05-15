@@ -1,4 +1,5 @@
 import { workActivityGroup } from './grouping';
+import { permitDate } from './permitDates';
 import type { PermitActivity } from './types';
 
 export type OilProductionYear = {
@@ -8,7 +9,7 @@ export type OilProductionYear = {
 
 export const EIA_CALIFORNIA_OIL_SOURCE =
   'https://www.eia.gov/dnav/pet/hist/LeafHandler.ashx?n=PET&s=MCRFPCA1&f=A';
-export const NEW_DRILL_ANNUAL_QUOTA = 2000;
+export const KERN_NEW_DRILL_ANNUAL_QUOTA = 2000;
 
 export const CALIFORNIA_OIL_PRODUCTION: OilProductionYear[] = [
   { year: 2016, oilThousandBarrels: 186079 },
@@ -58,8 +59,9 @@ export function monthlyDevelopmentPermitTrend(rows: PermitActivity[], months = 3
   const buckets = new Map<string, { month: string; new_drills: number; existing: number; total: number }>();
 
   developmentPermitRows(rows).forEach((row) => {
-    if (!row.notice_dated) return;
-    const month = row.notice_dated.slice(0, 7);
+    const date = permitDate(row);
+    if (!date) return;
+    const month = date.slice(0, 7);
     const group = workActivityGroup(row);
     if (group === 'abandonment') return;
     const bucket = buckets.get(month) || { month, new_drills: 0, existing: 0, total: 0 };
@@ -83,8 +85,33 @@ export function recentAnnualizedDevelopmentPermits(rows: PermitActivity[], days 
 
   const startText = startDate.toISOString().slice(0, 10);
   const count = developmentPermitRows(rows).filter(
-    (row) => row.notice_dated && row.notice_dated >= startText && row.notice_dated <= latest
+    (row) => {
+      const date = permitDate(row);
+      return date && date >= startText && date <= latest;
+    }
   ).length;
+
+  return {
+    count,
+    annualized: Math.round((count / days) * 365),
+    startDate: startText,
+    endDate: latest
+  };
+}
+
+export function recentAnnualizedWorkActivity(rows: PermitActivity[], group: 'existing' | 'abandonment', days = 90) {
+  const latest = latestPermitDate(rows);
+  if (!latest) return { count: 0, annualized: 0, startDate: '', endDate: '' };
+
+  const endDate = new Date(`${latest}T00:00:00`);
+  const startDate = new Date(endDate);
+  startDate.setDate(startDate.getDate() - (days - 1));
+
+  const startText = startDate.toISOString().slice(0, 10);
+  const count = rows.filter((row) => {
+    const date = permitDate(row);
+    return date && date >= startText && date <= latest && workActivityGroup(row) === group;
+  }).length;
 
   return {
     count,
@@ -95,24 +122,11 @@ export function recentAnnualizedDevelopmentPermits(rows: PermitActivity[], days 
 }
 
 export function recentAnnualizedExistingWork(rows: PermitActivity[], days = 90) {
-  const latest = latestPermitDate(rows);
-  if (!latest) return { count: 0, annualized: 0, startDate: '', endDate: '' };
+  return recentAnnualizedWorkActivity(rows, 'existing', days);
+}
 
-  const endDate = new Date(`${latest}T00:00:00`);
-  const startDate = new Date(endDate);
-  startDate.setDate(startDate.getDate() - (days - 1));
-
-  const startText = startDate.toISOString().slice(0, 10);
-  const count = rows.filter(
-    (row) => row.notice_dated && row.notice_dated >= startText && row.notice_dated <= latest && workActivityGroup(row) === 'existing'
-  ).length;
-
-  return {
-    count,
-    annualized: Math.round((count / days) * 365),
-    startDate: startText,
-    endDate: latest
-  };
+export function recentAnnualizedAbandonment(rows: PermitActivity[], days = 90) {
+  return recentAnnualizedWorkActivity(rows, 'abandonment', days);
 }
 
 export function estimateRequiredPermits(annualDeclineBopd: number, netBopdPerPermit: number) {
@@ -120,15 +134,16 @@ export function estimateRequiredPermits(annualDeclineBopd: number, netBopdPerPer
   return Math.ceil(annualDeclineBopd / netBopdPerPermit);
 }
 
-export function newDrillQuotaStats(rows: PermitActivity[], quota = NEW_DRILL_ANNUAL_QUOTA) {
+export function kernNewDrillQuotaStats(rows: PermitActivity[], quota = KERN_NEW_DRILL_ANNUAL_QUOTA) {
   const latest = latestPermitDate(rows);
   const year = latest ? Number(latest.slice(0, 4)) : new Date().getFullYear();
   const endDate = latest || `${year}-12-31`;
   const yearStart = `${year}-01-01`;
   const elapsedDays = Math.max(daysBetween(yearStart, endDate) + 1, 1);
-  const ytdCount = newDrillRows(rows).filter(
-    (row) => row.notice_dated && row.notice_dated >= yearStart && row.notice_dated <= endDate
-  ).length;
+  const ytdCount = kernNewDrillRows(rows).filter((row) => {
+    const date = permitDate(row);
+    return date && date >= yearStart && date <= endDate;
+  }).length;
   const projectedCount = Math.round((ytdCount / elapsedDays) * daysInYear(year));
 
   return {
@@ -148,12 +163,13 @@ export function newDrillQuotaStats(rows: PermitActivity[], quota = NEW_DRILL_ANN
 export function productionPermitProjectionRows(rows: PermitActivity[], netBopdPerPermit: number, projectedNewDrillPermits?: number) {
   const productionRows = productionChartRows();
   const stats = oilProductionStats();
-  const quota = newDrillQuotaStats(rows);
-  const annualPermitCounts = annualNewDrillCounts(rows);
+  const quota = kernNewDrillQuotaStats(rows);
+  const annualPermitCounts = annualKernNewDrillCounts(rows);
   const existingPace = recentAnnualizedExistingWork(rows);
+  const abandonmentPace = recentAnnualizedAbandonment(rows);
   const declineKbopd = stats.recentAnnualDeclineBopd / 1000;
   const newDrillScenario = projectedNewDrillPermits ?? quota.projectedCount;
-  const modeledPermitCount = newDrillScenario + existingPace.annualized;
+  const modeledPermitCount = Math.max(newDrillScenario + existingPace.annualized - abandonmentPace.annualized, 0);
   const projectedPermitWedgeKbopd = (modeledPermitCount * netBopdPerPermit) / 1000;
   const latestOil = stats.latest.oilKbopd;
   const projectionYear = Math.max(quota.year, stats.latest.year + 1);
@@ -166,9 +182,10 @@ export function productionPermitProjectionRows(rows: PermitActivity[], netBopdPe
       baselineKbopd: isLatest ? row.oilKbopd : null,
       withPermitWedgeKbopd: isLatest ? row.oilKbopd : null,
       permitWedgeRange: null as [number, number] | null,
-      newDrillPermitsToDate: annualPermitCounts.get(row.year) || null,
+      kernNewDrillPermitsToDate: annualPermitCounts.get(row.year) || null,
       projectedNewDrillPermits: null as number | null,
-      projectedExistingWork: null as number | null
+      projectedExistingWork: null as number | null,
+      projectedAbandonment: null as number | null
     };
   });
 
@@ -183,22 +200,24 @@ export function productionPermitProjectionRows(rows: PermitActivity[], netBopdPe
       baselineKbopd: roundOne(firstBaseline),
       withPermitWedgeKbopd: roundOne(firstWithWedge),
       permitWedgeRange: [roundOne(firstBaseline), roundOne(firstWithWedge)] as [number, number],
-      newDrillPermitsToDate: annualPermitCounts.get(projectionYear) || null,
+      kernNewDrillPermitsToDate: annualPermitCounts.get(projectionYear) || null,
       projectedNewDrillPermits: newDrillScenario,
-      projectedExistingWork: existingPace.annualized
+      projectedExistingWork: existingPace.annualized,
+      projectedAbandonment: abandonmentPace.annualized
     }
   ];
 }
 
-function newDrillRows(rows: PermitActivity[]) {
-  return rows.filter((row) => workActivityGroup(row) === 'new_drills');
+function kernNewDrillRows(rows: PermitActivity[]) {
+  return rows.filter((row) => normalizeCounty(row.county) === 'kern' && workActivityGroup(row) === 'new_drills');
 }
 
-function annualNewDrillCounts(rows: PermitActivity[]) {
+function annualKernNewDrillCounts(rows: PermitActivity[]) {
   const counts = new Map<number, number>();
-  newDrillRows(rows).forEach((row) => {
-    if (!row.notice_dated) return;
-    const year = Number(row.notice_dated.slice(0, 4));
+  kernNewDrillRows(rows).forEach((row) => {
+    const date = permitDate(row);
+    if (!date) return;
+    const year = Number(date.slice(0, 4));
     if (!Number.isFinite(year)) return;
     counts.set(year, (counts.get(year) || 0) + 1);
   });
@@ -207,7 +226,7 @@ function annualNewDrillCounts(rows: PermitActivity[]) {
 
 function latestPermitDate(rows: PermitActivity[]) {
   return rows
-    .map((row) => row.notice_dated)
+    .map(permitDate)
     .filter((date): date is string => Boolean(date))
     .sort((a, b) => b.localeCompare(a))[0];
 }
@@ -224,4 +243,8 @@ function daysInYear(year: number) {
 
 function roundOne(value: number) {
   return Math.round(value * 10) / 10;
+}
+
+function normalizeCounty(value: string | null) {
+  return (value || '').toLowerCase().replace(/\s+county$/, '').trim();
 }

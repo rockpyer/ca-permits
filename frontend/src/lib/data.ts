@@ -2,31 +2,42 @@ import { supabase } from './supabase';
 import type { EtlRun, FieldBoundary, PermitActivity } from './types';
 
 const DEFAULT_MIN_PERMIT_DATE = '2026-01-01';
+const PAGE_SIZE = 1000;
 
 export async function loadPermitActivity(): Promise<PermitActivity[]> {
-  const { data, error } = await supabase
-    .from('permit_activity')
-    .select('*')
-    .order('notice_dated', { ascending: false, nullsFirst: false })
-    .limit(5000);
+  const rows: PermitActivity[] = [];
+  let offset = 0;
 
-  if (error) throw error;
-  return (data || []) as PermitActivity[];
+  while (true) {
+    const { data, error } = await supabase
+      .from('permit_activity')
+      .select('*')
+      .order('notice_date_determination', { ascending: false, nullsFirst: false })
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (error) throw error;
+    const page = (data || []) as PermitActivity[];
+    rows.push(...page);
+    if (page.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+
+  return rows;
 }
 
 export async function loadPermitDateBounds(): Promise<{ minDate: string; maxDate: string }> {
   const [{ data: oldest, error: oldestError }, { data: newest, error: newestError }] = await Promise.all([
     supabase
       .from('permit_activity')
-      .select('notice_dated')
-      .not('notice_dated', 'is', null)
-      .order('notice_dated', { ascending: true })
+      .select('notice_date_determination')
+      .not('notice_date_determination', 'is', null)
+      .order('notice_date_determination', { ascending: true })
       .limit(1),
     supabase
       .from('permit_activity')
-      .select('notice_dated')
-      .not('notice_dated', 'is', null)
-      .order('notice_dated', { ascending: false })
+      .select('notice_date_determination')
+      .not('notice_date_determination', 'is', null)
+      .order('notice_date_determination', { ascending: false })
       .limit(1)
   ]);
 
@@ -34,15 +45,9 @@ export async function loadPermitDateBounds(): Promise<{ minDate: string; maxDate
   if (newestError) throw newestError;
 
   return {
-    minDate: latestDate(oldest?.[0]?.notice_dated || '', DEFAULT_MIN_PERMIT_DATE),
-    maxDate: newest?.[0]?.notice_dated || ''
+    minDate: oldest?.[0]?.notice_date_determination || DEFAULT_MIN_PERMIT_DATE,
+    maxDate: newest?.[0]?.notice_date_determination || ''
   };
-}
-
-function latestDate(a: string, b: string) {
-  if (!a) return b;
-  if (!b) return a;
-  return a > b ? a : b;
 }
 
 export async function loadFields(): Promise<FieldBoundary[]> {

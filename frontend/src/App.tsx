@@ -62,10 +62,11 @@ export function App() {
     const minDate = dateBounds.minDate || rowBounds.minDate;
     const maxDate = dateBounds.maxDate || rowBounds.maxDate;
     if (!minDate && !maxDate) return;
+    const boundedDefaults = defaultFilters({ minDate, maxDate });
     setFilters((current) => ({
       ...current,
-      startDate: urlDateRef.current ? current.startDate : minDate || current.startDate,
-      endDate: urlDateRef.current ? current.endDate : maxDate || current.endDate
+      startDate: urlDateRef.current ? current.startDate : boundedDefaults.startDate,
+      endDate: urlDateRef.current ? current.endDate : boundedDefaults.endDate
     }));
   }, [dateBounds, rows]);
 

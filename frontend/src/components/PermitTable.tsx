@@ -10,6 +10,7 @@ import {
   workActivityLabel
 } from '../lib/grouping';
 import { buildPermitCsv } from '../lib/csvExport';
+import { permitDate } from '../lib/permitDates';
 import type { PermitActivity } from '../lib/types';
 
 type Props = {
@@ -20,9 +21,9 @@ type Props = {
 
 const columns: ColumnDef<PermitActivity>[] = [
   {
-    accessorKey: 'notice_dated',
-    header: 'Date',
-    cell: ({ row }) => formatCompactDate(row.original.notice_dated)
+    accessorKey: 'notice_date_determination',
+    header: 'Determination',
+    cell: ({ row }) => formatCompactDate(permitDate(row.original))
   },
   {
     id: 'work_activity',

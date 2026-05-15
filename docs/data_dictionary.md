@@ -8,8 +8,8 @@ Key fields:
 
 - `source_key`: hash of API, permit number, notice type, notice dated, and determination date
 - `notice_permit_number`: source permit identifier
-- `notice_dated`: source notice date
-- `notice_date_determination`: source determination date
+- `notice_dated`: source notice or filed date
+- `notice_date_determination`: source determination or approval date. Frontend date filters, weekly trends, and update bounds use this field when present, falling back to `notice_dated` only when no determination date is available.
 - `notice_type`: source notice type, such as `NOI - New Drill`
 - `api_raw`, `api_10`, `api_display`, `wellbore_id`: normalized API variants
 - `join_status`: internal QA field only. Indicates whether a permit row matched a WellSTAR well metadata row by API.

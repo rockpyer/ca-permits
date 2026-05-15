@@ -1,4 +1,5 @@
 import type { PermitActivity } from './types';
+import { permitDate } from './permitDates';
 import {
   FUNCTIONAL_TYPE_GROUPS,
   WORK_ACTIVITY_GROUPS,
@@ -23,15 +24,16 @@ export function countBy(rows: PermitActivity[], key: keyof PermitActivity, limit
 }
 
 export function isCurrentYear(row: PermitActivity) {
-  return row.notice_dated?.startsWith(String(new Date().getFullYear())) || false;
+  return permitDate(row).startsWith(String(new Date().getFullYear())) || false;
 }
 
 export function weeklyGroupedTrend(rows: PermitActivity[], weeks = 52) {
   const buckets = new Map<string, Record<WorkActivityGroup, number> & { week: string; total: number }>();
   rows.forEach((row) => {
-    if (!row.notice_dated) return;
+    const date = permitDate(row);
+    if (!date) return;
     const group = workActivityGroup(row);
-    const week = weekStart(row.notice_dated);
+    const week = weekStart(date);
     const bucket =
       buckets.get(week) ||
       ({
@@ -54,18 +56,24 @@ export function recentCount(rows: PermitActivity[], days: number) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
   const cutoffText = cutoff.toISOString().slice(0, 10);
-  return rows.filter((row) => row.notice_dated && row.notice_dated >= cutoffText).length;
+  return rows.filter((row) => {
+    const date = permitDate(row);
+    return date && date >= cutoffText;
+  }).length;
 }
 
 export function latestNoticeDate(rows: PermitActivity[]) {
   return rows
-    .map((row) => row.notice_dated)
+    .map(permitDate)
     .filter((date): date is string => Boolean(date))
     .sort((a, b) => b.localeCompare(a))[0];
 }
 
 export function countInDateWindow(rows: PermitActivity[], startDate: string, endDate: string) {
-  return rows.filter((row) => row.notice_dated && row.notice_dated >= startDate && row.notice_dated <= endDate).length;
+  return rows.filter((row) => {
+    const date = permitDate(row);
+    return date && date >= startDate && date <= endDate;
+  }).length;
 }
 
 export function shiftDate(dateText: string, days: number) {
@@ -168,8 +176,9 @@ export function operatorWeeklyTrend(rows: PermitActivity[], operatorLimit = 5, w
   const buckets = new Map<string, Record<string, string | number>>();
 
   currentYearRows.forEach((row) => {
-    if (!row.notice_dated || !row.operator_name || !operators.includes(row.operator_name)) return;
-    const week = weekStart(row.notice_dated);
+    const date = permitDate(row);
+    if (!date || !row.operator_name || !operators.includes(row.operator_name)) return;
+    const week = weekStart(date);
     const bucket = buckets.get(week) || { week };
     bucket[row.operator_name] = Number(bucket[row.operator_name] || 0) + 1;
     buckets.set(week, bucket);
@@ -202,8 +211,8 @@ export function operatorCumulativeWorkActivityTrend(rows: PermitActivity[], oper
   const weeksInScope = Array.from(
     new Set(
       currentYearRows
-        .filter((row) => row.notice_dated && operators.includes(row.operator_name as string))
-        .map((row) => weekStart(row.notice_dated as string))
+        .filter((row) => permitDate(row) && operators.includes(row.operator_name as string))
+        .map((row) => weekStart(permitDate(row)))
     )
   )
     .sort((a, b) => a.localeCompare(b))
@@ -213,8 +222,9 @@ export function operatorCumulativeWorkActivityTrend(rows: PermitActivity[], oper
   const data = weeksInScope.map((week) => {
     const entry: Record<string, string | number> = { week };
     currentYearRows.forEach((row) => {
-      if (!row.notice_dated || !row.operator_name || !operators.includes(row.operator_name)) return;
-      if (weekStart(row.notice_dated) === week) {
+      const date = permitDate(row);
+      if (!date || !row.operator_name || !operators.includes(row.operator_name)) return;
+      if (weekStart(date) === week) {
         cumulative.set(row.operator_name, (cumulative.get(row.operator_name) || 0) + 1);
       }
     });

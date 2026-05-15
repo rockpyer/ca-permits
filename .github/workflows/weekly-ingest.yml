@@ -8,6 +8,10 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+concurrency:
+  group: "weekly-calgem-ingest"
+  cancel-in-progress: true
+
 jobs:
   ingest:
     runs-on: ubuntu-latest

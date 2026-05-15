@@ -16,9 +16,10 @@ import { NewDrillQuotaGauge } from './SummaryCards';
 import {
   EIA_CALIFORNIA_OIL_SOURCE,
   estimateRequiredPermits,
-  newDrillQuotaStats,
+  kernNewDrillQuotaStats,
   oilProductionStats,
   productionPermitProjectionRows,
+  recentAnnualizedAbandonment,
   recentAnnualizedExistingWork
 } from '../lib/production';
 import type { PermitActivity } from '../lib/types';
@@ -32,7 +33,7 @@ type ProductionPageProps = {
 
 export function ProductionPage({ rows, loading, error, onNavigateHome }: ProductionPageProps) {
   const [netBopdPerPermit, setNetBopdPerPermit] = useState(20);
-  const quota = useMemo(() => newDrillQuotaStats(rows), [rows]);
+  const quota = useMemo(() => kernNewDrillQuotaStats(rows), [rows]);
   const [projectedNewDrillPermits, setProjectedNewDrillPermits] = useState(0);
   const projectionRows = useMemo(
     () => productionPermitProjectionRows(rows, netBopdPerPermit, projectedNewDrillPermits || quota.projectedCount),
@@ -40,8 +41,12 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
   );
   const stats = useMemo(() => oilProductionStats(), []);
   const existingWorkPace = useMemo(() => recentAnnualizedExistingWork(rows, 90), [rows]);
+  const abandonmentPace = useMemo(() => recentAnnualizedAbandonment(rows, 90), [rows]);
   const requiredPermits = estimateRequiredPermits(stats.recentAnnualDeclineBopd, netBopdPerPermit);
-  const modeledPermitCount = (projectedNewDrillPermits || quota.projectedCount) + existingWorkPace.annualized;
+  const modeledPermitCount = Math.max(
+    (projectedNewDrillPermits || quota.projectedCount) + existingWorkPace.annualized - abandonmentPace.annualized,
+    0
+  );
   const permitGap = modeledPermitCount - requiredPermits;
 
   useEffect(() => {
@@ -97,7 +102,7 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
         <section className="mt-5 grid gap-3 border-y border-line py-3 text-sm md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_300px]" aria-label="Production model context">
           <ModelStat label="2025 oil rate" value={`${formatNumber(stats.latest.oilKbopd)} kbopd`} />
           <ModelStat
-            label="2026 projected New Drill Permits"
+            label="Kern New Drill scenario"
             value={`${formatNumber(projectedNewDrillPermits || quota.projectedCount)} wells`}
             subvalue={`${formatNumber(quota.projectedCount)} at current rate`}
           />
@@ -114,7 +119,7 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
           <div className="grid gap-4">
             <ChartPanel
               title="California Oil Production"
-              subtitle="Actual oil production through 2025, then forked decline baseline versus a modeled New Drill permit wedge."
+              subtitle="Actual oil production through 2025, then a 2026 scenario using Kern New Drill permits plus statewide existing work and abandonment signals."
             >
               <ResponsiveContainer width="100%" height={420}>
                 <ComposedChart data={projectionRows}>
@@ -184,9 +189,10 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
                     strokeWidth={2}
                     dot={{ r: 2 }}
                   />
-                  <Bar yAxisId="permits" dataKey="newDrillPermitsToDate" name="New Permits to date" fill="#c084fc" opacity={0.55} />
-                  <Bar yAxisId="permits" dataKey="projectedNewDrillPermits" name="2026 projected New Drill Permits" fill="#f5b84b" opacity={0.75} />
+                  <Bar yAxisId="permits" dataKey="kernNewDrillPermitsToDate" name="Kern New Drill to date" fill="#c084fc" opacity={0.55} />
+                  <Bar yAxisId="permits" dataKey="projectedNewDrillPermits" name="2026 projected Kern New Drill Permits" fill="#f5b84b" opacity={0.75} />
                   <Bar yAxisId="permits" dataKey="projectedExistingWork" name="Existing work at current rate" fill="#60a5fa" opacity={0.5} />
+                  <Bar yAxisId="permits" dataKey="projectedAbandonment" name="Abandonment at current rate" fill="#ef6767" opacity={0.45} />
                 </ComposedChart>
               </ResponsiveContainer>
             </ChartPanel>
@@ -197,7 +203,8 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
               <div>
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Permit Offset Estimate</h2>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Estimate how many New Drill or Existing work permits would be needed each year to offset the recent oil decline rate.
+                  The 2,000 permit limit is modeled only for Kern County New Drill permits. Existing work is statewide and abandonments
+                  are shown separately as a rough retirement signal.
                 </p>
               </div>
               <Gauge className="mt-0.5 shrink-0 text-accent" size={20} />
@@ -225,7 +232,7 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
             </p>
 
             <label className="mt-5 block text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="projected-permit-slider">
-              2026 projected New Drill Permits
+              2026 projected Kern New Drill permits
             </label>
             <div className="mt-2 flex items-center gap-3">
               <input
@@ -243,7 +250,7 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
               </div>
             </div>
             <p className="mt-2 text-xs leading-5 text-slate-500">
-              Starts at the current rate of New Drill notices per week, annualized to {formatNumber(quota.projectedCount)}. Wells
+              Starts at the current rate of Kern County New Drill notices per week, annualized to {formatNumber(quota.projectedCount)}. Wells
               drilled in 2026 do not immediately add a full year's production; this is a scenario tool.
             </p>
 
@@ -265,8 +272,9 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
               <ul className="mt-3 space-y-2 text-xs leading-5 text-slate-500">
                 <li>Uses EIA annual California crude oil production; gas is excluded.</li>
                 <li>
-                  Adds the selected New Drill scenario plus existing work at its recent annualized pace of{' '}
-                  {formatNumber(existingWorkPace.annualized)} permits/year.
+                  Adds the selected Kern New Drill scenario plus statewide existing work at{' '}
+                  {formatNumber(existingWorkPace.annualized)} permits/year, then subtracts abandonment at{' '}
+                  {formatNumber(abandonmentPace.annualized)} records/year as a rough count-equivalent retirement signal.
                 </li>
                 <li>Assumed bopd per permit is a net screening variable, not a type curve or economic forecast.</li>
                 <li>Permits are not completions, production starts, or full-year producing wells.</li>

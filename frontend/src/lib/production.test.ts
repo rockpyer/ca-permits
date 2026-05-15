@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   annualThousandBarrelsToKbopd,
   estimateRequiredPermits,
+  kernNewDrillQuotaStats,
   monthlyDevelopmentPermitTrend,
-  newDrillQuotaStats,
   productionPermitProjectionRows,
+  recentAnnualizedAbandonment,
   recentAnnualizedExistingWork,
   recentAnnualizedDevelopmentPermits
 } from './production';
@@ -76,9 +77,25 @@ describe('production helpers', () => {
   it('annualizes recent development permit pace from the latest permit date', () => {
     const rows = [
       baseRow,
-      { ...baseRow, source_key: 'permit-2', source_object_id: 2, notice_dated: '2026-03-10', notice_type: 'NOI - Rework', notice_type_label: 'Rework' },
-      { ...baseRow, source_key: 'permit-3', source_object_id: 3, notice_dated: '2026-03-10', notice_type: 'NOI - Abandon', notice_type_label: 'Abandon' },
-      { ...baseRow, source_key: 'permit-4', source_object_id: 4, notice_dated: '2025-12-01' }
+      {
+        ...baseRow,
+        source_key: 'permit-2',
+        source_object_id: 2,
+        notice_dated: '2026-03-09',
+        notice_date_determination: '2026-03-10',
+        notice_type: 'NOI - Rework',
+        notice_type_label: 'Rework'
+      },
+      {
+        ...baseRow,
+        source_key: 'permit-3',
+        source_object_id: 3,
+        notice_dated: '2026-03-09',
+        notice_date_determination: '2026-03-10',
+        notice_type: 'NOI - Abandon',
+        notice_type_label: 'Abandon'
+      },
+      { ...baseRow, source_key: 'permit-4', source_object_id: 4, notice_dated: '2025-12-01', notice_date_determination: '2025-12-05' }
     ];
 
     expect(recentAnnualizedDevelopmentPermits(rows, 10)).toMatchObject({
@@ -89,28 +106,73 @@ describe('production helpers', () => {
     });
   });
 
-  it('calculates statewide new drill quota status from full-year pace', () => {
+  it('calculates Kern new drill quota status from full-year pace', () => {
     const rows = [
-      { ...baseRow, notice_dated: '2026-01-01', county: 'Kern', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' },
-      { ...baseRow, source_key: 'permit-2', source_object_id: 2, notice_dated: '2026-01-10', county: 'Kern County', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' },
-      { ...baseRow, source_key: 'permit-3', source_object_id: 3, notice_dated: '2026-01-10', county: 'Kern', notice_type: 'NOI - Rework', notice_type_label: 'Rework' },
-      { ...baseRow, source_key: 'permit-4', source_object_id: 4, notice_dated: '2026-01-10', county: 'Los Angeles', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' }
+      { ...baseRow, notice_dated: '2025-12-28', notice_date_determination: '2026-01-01', county: 'Kern', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' },
+      {
+        ...baseRow,
+        source_key: 'permit-2',
+        source_object_id: 2,
+        notice_dated: '2026-01-05',
+        notice_date_determination: '2026-01-10',
+        county: 'Kern County',
+        notice_type: 'NOI - New Drill',
+        notice_type_label: 'New Drill'
+      },
+      {
+        ...baseRow,
+        source_key: 'permit-3',
+        source_object_id: 3,
+        notice_dated: '2026-01-05',
+        notice_date_determination: '2026-01-10',
+        county: 'Kern',
+        notice_type: 'NOI - Rework',
+        notice_type_label: 'Rework'
+      },
+      {
+        ...baseRow,
+        source_key: 'permit-4',
+        source_object_id: 4,
+        notice_dated: '2026-01-05',
+        notice_date_determination: '2026-01-10',
+        county: 'Los Angeles',
+        notice_type: 'NOI - New Drill',
+        notice_type_label: 'New Drill'
+      }
     ];
 
-    expect(newDrillQuotaStats(rows, 2000)).toMatchObject({
+    expect(kernNewDrillQuotaStats(rows, 2000)).toMatchObject({
       year: 2026,
-      ytdCount: 3,
-      projectedCount: 110,
-      ytdRemaining: 1997,
-      projectedRemaining: 1890
+      ytdCount: 2,
+      projectedCount: 73,
+      ytdRemaining: 1998,
+      projectedRemaining: 1927
     });
   });
 
   it('builds an oil production projection row with permit wedge data', () => {
     const rows = [
-      { ...baseRow, notice_dated: '2026-01-01', county: 'Kern', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' },
-      { ...baseRow, source_key: 'permit-2', source_object_id: 2, notice_dated: '2026-01-10', county: 'Kern', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' },
-      { ...baseRow, source_key: 'permit-3', source_object_id: 3, notice_dated: '2026-01-10', county: 'Kern', notice_type: 'NOI - Rework', notice_type_label: 'Rework' }
+      { ...baseRow, notice_dated: '2025-12-28', notice_date_determination: '2026-01-01', county: 'Kern', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' },
+      {
+        ...baseRow,
+        source_key: 'permit-2',
+        source_object_id: 2,
+        notice_dated: '2026-01-05',
+        notice_date_determination: '2026-01-10',
+        county: 'Kern',
+        notice_type: 'NOI - New Drill',
+        notice_type_label: 'New Drill'
+      },
+      {
+        ...baseRow,
+        source_key: 'permit-3',
+        source_object_id: 3,
+        notice_dated: '2026-01-05',
+        notice_date_determination: '2026-01-10',
+        county: 'Kern',
+        notice_type: 'NOI - Rework',
+        notice_type_label: 'Rework'
+      }
     ];
     const projection = productionPermitProjectionRows(rows, 25, 100);
     const row2026 = projection.find((row) => row.year === 2026);
@@ -118,6 +180,7 @@ describe('production helpers', () => {
     expect(row2026).toMatchObject({
       projectedNewDrillPermits: 100,
       projectedExistingWork: 4,
+      projectedAbandonment: 0,
       withPermitWedgeKbopd: expect.any(Number),
       baselineKbopd: expect.any(Number)
     });
@@ -126,14 +189,42 @@ describe('production helpers', () => {
   it('annualizes existing work separately for the production scenario', () => {
     const rows = [
       baseRow,
-      { ...baseRow, source_key: 'permit-2', source_object_id: 2, notice_dated: '2026-03-10', notice_type: 'NOI - Rework', notice_type_label: 'Rework' },
-      { ...baseRow, source_key: 'permit-3', source_object_id: 3, notice_dated: '2026-03-10', notice_type: 'NOI - Sidetrack', notice_type_label: 'Sidetrack' },
-      { ...baseRow, source_key: 'permit-4', source_object_id: 4, notice_dated: '2026-03-10', notice_type: 'NOI - Abandon', notice_type_label: 'Abandon' }
+      {
+        ...baseRow,
+        source_key: 'permit-2',
+        source_object_id: 2,
+        notice_dated: '2026-03-09',
+        notice_date_determination: '2026-03-10',
+        notice_type: 'NOI - Rework',
+        notice_type_label: 'Rework'
+      },
+      {
+        ...baseRow,
+        source_key: 'permit-3',
+        source_object_id: 3,
+        notice_dated: '2026-03-09',
+        notice_date_determination: '2026-03-10',
+        notice_type: 'NOI - Sidetrack',
+        notice_type_label: 'Sidetrack'
+      },
+      {
+        ...baseRow,
+        source_key: 'permit-4',
+        source_object_id: 4,
+        notice_dated: '2026-03-09',
+        notice_date_determination: '2026-03-10',
+        notice_type: 'NOI - Abandon',
+        notice_type_label: 'Abandon'
+      }
     ];
 
     expect(recentAnnualizedExistingWork(rows, 10)).toMatchObject({
       count: 2,
       annualized: 73
+    });
+    expect(recentAnnualizedAbandonment(rows, 10)).toMatchObject({
+      count: 1,
+      annualized: 37
     });
   });
 });
