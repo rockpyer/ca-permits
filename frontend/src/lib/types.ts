@@ -61,6 +61,19 @@ export type EtlRun = {
   finished_at: string | null;
 };
 
+export type OperatorAnnualProduction = {
+  id: string;
+  operator_name: string;
+  operator_code: string | null;
+  year: number;
+  oil_bbl: number;
+  gas_mcf: number;
+  water_bbl: number;
+  producing_well_count: number;
+  county: string | null;
+  district: string | null;
+};
+
 export type Filters = {
   workActivities: string[];
   functionalTypes: string[];

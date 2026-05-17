@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { EtlRun, FieldBoundary, PermitActivity } from './types';
+import type { EtlRun, FieldBoundary, OperatorAnnualProduction, PermitActivity } from './types';
 
 const DEFAULT_MIN_PERMIT_DATE = '2026-01-01';
 const PAGE_SIZE = 1000;
@@ -58,6 +58,16 @@ export async function loadFields(): Promise<FieldBoundary[]> {
 
   if (error) throw error;
   return (data || []) as FieldBoundary[];
+}
+
+export async function loadOperatorProduction(): Promise<OperatorAnnualProduction[]> {
+  const { data, error } = await supabase
+    .from('operator_annual_production')
+    .select('*')
+    .order('operator_name', { ascending: true });
+
+  if (error) throw error;
+  return (data || []) as OperatorAnnualProduction[];
 }
 
 export async function loadEtlRuns(): Promise<EtlRun[]> {

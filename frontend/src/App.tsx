@@ -4,6 +4,7 @@ import { ActivityMap } from './components/ActivityMap';
 import { DetailDrawer } from './components/DetailDrawer';
 import { FilterRail } from './components/FilterRail';
 import { PermitTable } from './components/PermitTable';
+import { OperatorDeclinePage } from './components/OperatorDeclinePage';
 import { ProductionPage } from './components/ProductionPage';
 import { RankingPanels } from './components/RankingPanels';
 import { ActivityNotes, ActivitySummaryStrip, FunctionalTypeMix, PermitMomentumPanel } from './components/SummaryCards';
@@ -71,7 +72,7 @@ export function App() {
   }, [dateBounds, rows]);
 
   useEffect(() => {
-    if (path === '/about-methodology' || path === '/prod') return;
+    if (path === '/about-methodology' || path === '/prod' || path === '/operator-decline') return;
     persistFiltersToUrl(filters, dateBounds);
   }, [dateBounds, filters, path]);
 
@@ -99,6 +100,14 @@ export function App() {
     return (
       <Shell>
         <ProductionPage rows={rows} loading={loading} error={error} onNavigateHome={() => navigateTo('/', setPath)} />
+      </Shell>
+    );
+  }
+
+  if (path === '/operator-decline') {
+    return (
+      <Shell>
+        <OperatorDeclinePage rows={rows} loading={loading} error={error} onNavigateHome={() => navigateTo('/', setPath)} />
       </Shell>
     );
   }
