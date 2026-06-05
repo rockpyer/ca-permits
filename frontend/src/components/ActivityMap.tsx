@@ -284,25 +284,25 @@ function WorkColorStrip({ activities }: { activities: typeof WORK_ACTIVITY_GROUP
 
 function MapLegend({ symbols, activities }: { symbols: typeof FUNCTIONAL_TYPE_GROUPS; activities: typeof WORK_ACTIVITY_GROUPS }) {
   return (
-    <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-30 max-h-[38%] max-w-[360px] overflow-auto border border-line bg-ink/90 px-3 py-2 text-xs text-slate-300 sm:right-auto">
-      <div className="mb-2 font-semibold uppercase tracking-wide text-slate-400">Map Legend</div>
-      <div className="mb-2">
-        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Color = Work Activity</div>
-        <div className="flex flex-wrap gap-x-3 gap-y-1">
+    <div className="pointer-events-none absolute bottom-2 left-2 right-2 z-30 max-h-[34%] max-w-[320px] overflow-auto border border-line bg-ink/90 px-2 py-1.5 text-[10px] leading-tight text-slate-300 sm:bottom-3 sm:left-3 sm:right-auto sm:max-h-[38%] sm:max-w-[360px] sm:px-3 sm:py-2 sm:text-xs">
+      <div className="mb-1 font-semibold uppercase tracking-wide text-slate-400 sm:mb-2">Map Legend</div>
+      <div className="mb-1.5 sm:mb-2">
+        <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500 sm:mb-1 sm:text-[10px]">Color = Work Activity</div>
+        <div className="flex flex-wrap gap-x-2 gap-y-0.5 sm:gap-x-3 sm:gap-y-1">
           {activities.map((item) => (
             <span key={item.key} className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+              <span className="h-2 w-2 rounded-full sm:h-2.5 sm:w-2.5" style={{ backgroundColor: item.color }} />
               {item.label}
             </span>
           ))}
         </div>
       </div>
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Shape = Functional Type</div>
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+      <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500 sm:mb-1 sm:text-[10px]">Shape = Functional Type</div>
+      <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 sm:gap-x-3 sm:gap-y-1">
         {symbols.map((item) => (
           <span key={item.key} className="inline-flex items-center gap-1.5">
             <span
-              className="h-4 w-4 bg-slate-300"
+              className="h-3 w-3 bg-slate-300 sm:h-4 sm:w-4"
               style={{
                 WebkitMask: `url(/map-symbols/${item.symbol}) center / contain no-repeat`,
                 mask: `url(/map-symbols/${item.symbol}) center / contain no-repeat`

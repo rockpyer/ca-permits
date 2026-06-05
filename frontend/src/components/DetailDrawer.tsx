@@ -22,8 +22,8 @@ export function DetailDrawer({ row, onClose }: Props) {
     ? `https://wellstar-public.conservation.ca.gov/Well/Well/Detail?api=${row.api_10}`
     : row.wellstar_url;
   return (
-    <aside className="fixed bottom-0 right-0 top-0 z-30 w-full max-w-md border-l border-line bg-ink shadow-2xl">
-      <div className="flex items-center justify-between border-b border-line p-4">
+    <aside className="fixed bottom-0 right-0 top-0 z-[80] flex w-full max-w-md flex-col border-l border-line bg-ink shadow-2xl">
+      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line p-4">
         <div>
           <h2 className="text-lg font-semibold text-white">{rowOperatorDisplayName(row)}</h2>
           {row.operator_name && rowOperatorDisplayName(row) !== row.operator_name && (
@@ -35,7 +35,7 @@ export function DetailDrawer({ row, onClose }: Props) {
           <X size={18} />
         </button>
       </div>
-      <div className="space-y-5 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
         <DetailSection
           title="Permit"
           rows={[
