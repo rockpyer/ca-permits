@@ -1,6 +1,7 @@
 import { PanelLeftClose, PanelLeftOpen, RotateCcw } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { defaultFilters, toggleListValue, uniqueValues } from '../lib/filters';
+import { uniqueOperatorDisplayNames } from '../lib/operators';
 import {
   FUNCTIONAL_TYPE_GROUPS,
   WORK_ACTIVITY_GROUPS,
@@ -23,7 +24,7 @@ type Props = {
 
 export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedChange, onChange }: Props) {
   return (
-    <aside className="flex min-h-0 flex-col border-b border-line bg-ink p-2.5 lg:h-full lg:border-b-0 lg:border-r">
+    <aside className="sticky top-0 z-40 flex min-h-0 flex-col border-b border-line bg-ink p-2.5 lg:static lg:h-full lg:border-b-0 lg:border-r">
       <div className="mb-2 flex items-center justify-between">
         {!collapsed && (
           <div>
@@ -82,7 +83,7 @@ export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedCh
         <FilterSection title="Well And Geography" defaultOpen>
           <InlineSelect
             label="Operator"
-            options={uniqueValues(rows, 'operator_name')}
+            options={uniqueOperatorDisplayNames(rows)}
             value={filters.operators[0] || ''}
             onChange={(value) => onChange({ ...filters, operators: value ? [value] : [] })}
           />

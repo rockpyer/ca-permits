@@ -18,6 +18,7 @@ import {
   stackedMatrix,
   truncateLabel
 } from '../lib/summary';
+import { rowOperatorDisplayName } from '../lib/operators';
 import {
   functionalTypeColor,
   functionalTypeGroup,
@@ -64,7 +65,7 @@ type CategoryFieldKey =
   | 'well_status';
 
 const CATEGORY_FIELDS: CategoryField[] = [
-  { key: 'operator', label: 'Operator', kind: 'standard', get: (row) => row.operator_name || 'Unknown' },
+  { key: 'operator', label: 'Operator', kind: 'standard', get: rowOperatorDisplayName },
   { key: 'field', label: 'Field', kind: 'standard', get: (row) => row.field_name || 'Unknown' },
   { key: 'county', label: 'County', kind: 'standard', get: (row) => row.county || 'Unknown' },
   { key: 'district', label: 'District', kind: 'standard', get: (row) => row.district || 'Unknown' },

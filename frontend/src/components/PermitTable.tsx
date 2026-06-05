@@ -10,6 +10,7 @@ import {
   workActivityLabel
 } from '../lib/grouping';
 import { buildPermitCsv } from '../lib/csvExport';
+import { rowOperatorDisplayName } from '../lib/operators';
 import { permitDate } from '../lib/permitDates';
 import type { PermitActivity } from '../lib/types';
 
@@ -45,7 +46,11 @@ const columns: ColumnDef<PermitActivity>[] = [
     header: 'Source Type',
     cell: ({ row }) => sourceType(row.original)
   },
-  { accessorKey: 'operator_name', header: 'Operator' },
+  {
+    id: 'operator',
+    header: 'Operator',
+    cell: ({ row }) => rowOperatorDisplayName(row.original)
+  },
   { accessorKey: 'field_name', header: 'Field' },
   {
     accessorKey: 'api_display',

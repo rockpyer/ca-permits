@@ -14,6 +14,7 @@ import {
   type WorkActivityGroup
 } from '../lib/grouping';
 import type { FieldBoundary, PermitActivity } from '../lib/types';
+import { rowOperatorDisplayName } from '../lib/operators';
 
 type Props = {
   rows: PermitActivity[];
@@ -411,7 +412,7 @@ function iconId(symbol: FunctionalTypeGroup, activity: WorkActivityGroup) {
 function renderTooltip(row: PermitActivity) {
   return `
     <div class="well-map-popup__body">
-      <div class="well-map-popup__title">${escapeHtml(row.operator_name || 'Unknown operator')}</div>
+      <div class="well-map-popup__title">${escapeHtml(rowOperatorDisplayName(row))}</div>
       <div><strong>Activity Detail:</strong> ${escapeHtml(noticeType(row))}</div>
       <div><strong>Source Type:</strong> ${escapeHtml(sourceType(row))}</div>
       <div>${escapeHtml(row.field_name || 'Unknown field')}${row.county ? `, ${escapeHtml(row.county)}` : ''}</div>

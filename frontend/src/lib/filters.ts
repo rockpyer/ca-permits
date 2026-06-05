@@ -1,4 +1,5 @@
 import { DEFAULT_WORK_ACTIVITY_GROUPS, functionalTypeGroup, workActivityGroup } from './grouping';
+import { rowOperatorDisplayName } from './operators';
 import { permitDate } from './permitDates';
 import type { Filters, PermitActivity } from './types';
 
@@ -35,7 +36,7 @@ export function applyFilters(rows: PermitActivity[], filters: Filters): PermitAc
     if (filters.functionalTypes.length && !filters.functionalTypes.includes(functionalTypeGroup(row))) {
       return false;
     }
-    if (filters.operators.length && (!row.operator_name || !filters.operators.includes(row.operator_name))) {
+    if (filters.operators.length && !filters.operators.includes(rowOperatorDisplayName(row))) {
       return false;
     }
     if (filters.fields.length && (!row.field_name || !filters.fields.includes(row.field_name))) {

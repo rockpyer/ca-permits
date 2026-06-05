@@ -8,12 +8,17 @@ import {
   type FunctionalTypeGroup,
   type WorkActivityGroup
 } from './grouping';
+import { rowOperatorDisplayName } from './operators';
 
 export function countBy(rows: PermitActivity[], key: keyof PermitActivity, limit = 8) {
+  return countByValue(rows, (row) => valueForKey(row, key), limit);
+}
+
+export function countByValue(rows: PermitActivity[], getter: (row: PermitActivity) => string, limit = 8) {
   const counts = new Map<string, number>();
   rows.forEach((row) => {
-    const value = row[key];
-    if (typeof value === 'string' && value) {
+    const value = getter(row);
+    if (value) {
       counts.set(value, (counts.get(value) || 0) + 1);
     }
   });
@@ -21,6 +26,12 @@ export function countBy(rows: PermitActivity[], key: keyof PermitActivity, limit
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, limit);
+}
+
+function valueForKey(row: PermitActivity, key: keyof PermitActivity) {
+  if (key === 'operator_name') return rowOperatorDisplayName(row);
+  const value = row[key];
+  return typeof value === 'string' && value ? value : '';
 }
 
 export function isCurrentYear(row: PermitActivity) {
@@ -133,10 +144,10 @@ export function stackedMatrix(
   return primaries.map((primary) => {
     const entry: Record<string, string | number> = { name: primary };
     stacks.forEach((stack) => {
-      entry[stack] = currentYearRows.filter((row) => row[primaryKey] === primary && row[stackKey] === stack).length;
+      entry[stack] = currentYearRows.filter((row) => valueForKey(row, primaryKey) === primary && valueForKey(row, stackKey) === stack).length;
     });
     const other = currentYearRows.filter(
-      (row) => row[primaryKey] === primary && typeof row[stackKey] === 'string' && !stacks.includes(row[stackKey])
+      (row) => valueForKey(row, primaryKey) === primary && !stacks.includes(valueForKey(row, stackKey))
     ).length;
     if (other) entry.Other = other;
     return entry;
@@ -156,10 +167,10 @@ export function categoricalStackedMatrix(
   return primaries.map((primary) => {
     const entry: Record<string, string | number> = { name: primary };
     stacks.forEach((stack) => {
-      entry[stack] = rows.filter((row) => row[primaryKey] === primary && row[stackKey] === stack).length;
+      entry[stack] = rows.filter((row) => valueForKey(row, primaryKey) === primary && valueForKey(row, stackKey) === stack).length;
     });
     const other = rows.filter(
-      (row) => row[primaryKey] === primary && typeof row[stackKey] === 'string' && !stacks.includes(row[stackKey])
+      (row) => valueForKey(row, primaryKey) === primary && !stacks.includes(valueForKey(row, stackKey))
     ).length;
     if (other) entry.Other = other;
     return entry;
@@ -177,10 +188,11 @@ export function operatorWeeklyTrend(rows: PermitActivity[], operatorLimit = 5, w
 
   currentYearRows.forEach((row) => {
     const date = permitDate(row);
-    if (!date || !row.operator_name || !operators.includes(row.operator_name)) return;
+    const operator = rowOperatorDisplayName(row);
+    if (!date || operator === 'Unknown' || !operators.includes(operator)) return;
     const week = weekStart(date);
     const bucket = buckets.get(week) || { week };
-    bucket[row.operator_name] = Number(bucket[row.operator_name] || 0) + 1;
+    bucket[operator] = Number(bucket[operator] || 0) + 1;
     buckets.set(week, bucket);
   });
 
@@ -195,12 +207,13 @@ export function operatorCumulativeDrillingTrend(rows: PermitActivity[], operator
 
 export function operatorCumulativeWorkActivityTrend(rows: PermitActivity[], operatorLimit = 5, weeks = 52) {
   const currentYearRows = rows.filter(
-    (row) => isCurrentYear(row) && row.operator_name && workActivityGroup(row) !== 'abandonment'
+    (row) => isCurrentYear(row) && rowOperatorDisplayName(row) !== 'Unknown' && workActivityGroup(row) !== 'abandonment'
   );
   const operatorTotals = new Map<string, number>();
 
   currentYearRows.forEach((row) => {
-    operatorTotals.set(row.operator_name as string, (operatorTotals.get(row.operator_name as string) || 0) + 1);
+    const operator = rowOperatorDisplayName(row);
+    operatorTotals.set(operator, (operatorTotals.get(operator) || 0) + 1);
   });
 
   const operators = Array.from(operatorTotals.entries())
@@ -211,7 +224,7 @@ export function operatorCumulativeWorkActivityTrend(rows: PermitActivity[], oper
   const weeksInScope = Array.from(
     new Set(
       currentYearRows
-        .filter((row) => permitDate(row) && operators.includes(row.operator_name as string))
+        .filter((row) => permitDate(row) && operators.includes(rowOperatorDisplayName(row)))
         .map((row) => weekStart(permitDate(row)))
     )
   )
@@ -223,9 +236,10 @@ export function operatorCumulativeWorkActivityTrend(rows: PermitActivity[], oper
     const entry: Record<string, string | number> = { week };
     currentYearRows.forEach((row) => {
       const date = permitDate(row);
-      if (!date || !row.operator_name || !operators.includes(row.operator_name)) return;
+      const operator = rowOperatorDisplayName(row);
+      if (!date || !operators.includes(operator)) return;
       if (weekStart(date) === week) {
-        cumulative.set(row.operator_name, (cumulative.get(row.operator_name) || 0) + 1);
+        cumulative.set(operator, (cumulative.get(operator) || 0) + 1);
       }
     });
     operators.forEach((operator) => {
@@ -242,11 +256,12 @@ export function operatorDrillingActivity(rows: PermitActivity[], operatorLimit =
   const counts = new Map<string, { name: string; new_drill: number; deepen: number; sidetrack: number; total: number }>();
 
   currentYearRows.forEach((row) => {
-    if (!row.operator_name || !isDrillingActivityNotice(row)) {
+    const operator = rowOperatorDisplayName(row);
+    if (operator === 'Unknown' || !isDrillingActivityNotice(row)) {
       return;
     }
-    const entry = counts.get(row.operator_name) || {
-      name: row.operator_name,
+    const entry = counts.get(operator) || {
+      name: operator,
       new_drill: 0,
       deepen: 0,
       sidetrack: 0,
@@ -256,7 +271,7 @@ export function operatorDrillingActivity(rows: PermitActivity[], operatorLimit =
     if (row.notice_type === 'NOI - Deepen') entry.deepen += 1;
     if (row.notice_type === 'NOI - Sidetrack') entry.sidetrack += 1;
     entry.total += 1;
-    counts.set(row.operator_name, entry);
+    counts.set(operator, entry);
   });
 
   return Array.from(counts.values())

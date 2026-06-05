@@ -18,6 +18,7 @@ import {
   workActivityCounts
 } from '../lib/summary';
 import { workActivityGroup } from '../lib/grouping';
+import { rowOperatorDisplayName } from '../lib/operators';
 import { kernNewDrillQuotaStats } from '../lib/production';
 import type { PermitActivity } from '../lib/types';
 
@@ -27,7 +28,7 @@ type Props = {
 
 export function ActivitySummaryStrip({ rows, quotaRows = rows }: Props & { quotaRows?: PermitActivity[] }) {
   const counts = workActivityCounts(rows);
-  const operatorCount = new Set(rows.map((row) => row.operator_name).filter(Boolean)).size;
+  const operatorCount = new Set(rows.map(rowOperatorDisplayName).filter((name) => name !== 'Unknown')).size;
   const totalDelta = fourWeekDelta(rows);
 
   return (
@@ -43,7 +44,7 @@ export function ActivitySummaryStrip({ rows, quotaRows = rows }: Props & { quota
             delta={fourWeekDelta(rows.filter((row) => workActivityGroup(row) === group.key)).delta}
           />
         ))}
-        <Stat label="Operators" value={operatorCount} />
+        <Stat label="Operators" value={operatorCount} className="hidden sm:block" />
         <NewDrillQuotaGauge rows={quotaRows} compact />
       </div>
     </section>
@@ -168,9 +169,9 @@ export function NewDrillQuotaGauge({ rows, compact = false }: Props & { compact?
         className="col-span-2 border-t border-line/70 pt-2 md:col-span-3 xl:col-span-1 xl:border-l xl:border-t-0 xl:py-0 xl:pl-3"
         aria-label="Kern County New Drill quota meter"
       >
-        <div className="min-w-0">
-          <h2 className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">Kern New Drill Quota</h2>
-          <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs">
+          <div className="min-w-0">
+            <h2 className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">Kern New Drill Quota</h2>
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs xl:flex-col xl:items-start xl:gap-x-0 xl:gap-y-0.5">
             <span className="text-accent">
               <strong>{quota.ytdCount.toLocaleString()}</strong> permitted
             </span>
@@ -268,9 +269,9 @@ function needleY(percent: number, radius = 30) {
   return 60 - Math.sin(angle) * radius;
 }
 
-function Stat({ label, value, color, delta }: { label: string; value: number; color?: string; delta?: number }) {
+function Stat({ label, value, color, delta, className = '' }: { label: string; value: number; color?: string; delta?: number; className?: string }) {
   return (
-    <div className="min-w-0">
+    <div className={`min-w-0 ${className}`}>
       <div className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
       <div className="flex items-baseline gap-2">
         <span className="text-base font-semibold text-white sm:text-lg" style={color ? { color } : undefined}>

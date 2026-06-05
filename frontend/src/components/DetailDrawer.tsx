@@ -8,6 +8,7 @@ import {
   workActivityGroup,
   workActivityLabel
 } from '../lib/grouping';
+import { rowOperatorDisplayName } from '../lib/operators';
 import type { PermitActivity } from '../lib/types';
 
 type Props = {
@@ -24,7 +25,10 @@ export function DetailDrawer({ row, onClose }: Props) {
     <aside className="fixed bottom-0 right-0 top-0 z-30 w-full max-w-md border-l border-line bg-ink shadow-2xl">
       <div className="flex items-center justify-between border-b border-line p-4">
         <div>
-          <h2 className="text-lg font-semibold text-white">{row.operator_name || 'Unknown Operator'}</h2>
+          <h2 className="text-lg font-semibold text-white">{rowOperatorDisplayName(row)}</h2>
+          {row.operator_name && rowOperatorDisplayName(row) !== row.operator_name && (
+            <p className="text-xs text-slate-500">Source operator: {row.operator_name}</p>
+          )}
           <p className="text-sm text-slate-400">{row.field_name || 'Unknown Field'}</p>
         </div>
         <button className="icon-button" onClick={onClose} title="Close detail drawer" type="button">
