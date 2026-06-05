@@ -169,8 +169,10 @@ export function productionPermitProjectionRows(rows: PermitActivity[], netBopdPe
   const abandonmentPace = recentAnnualizedAbandonment(rows);
   const declineKbopd = stats.recentAnnualDeclineBopd / 1000;
   const newDrillScenario = projectedNewDrillPermits ?? quota.projectedCount;
-  const modeledPermitCount = Math.max(newDrillScenario + existingPace.annualized - abandonmentPace.annualized, 0);
-  const projectedPermitWedgeKbopd = (modeledPermitCount * netBopdPerPermit) / 1000;
+  const modeledExistingPermitCount = Math.max(existingPace.annualized - abandonmentPace.annualized, 0);
+  const modeledPermitCount = modeledExistingPermitCount + newDrillScenario;
+  const existingWorkWedgeKbopd = (modeledExistingPermitCount * netBopdPerPermit) / 1000;
+  const newDrillWedgeKbopd = (newDrillScenario * netBopdPerPermit) / 1000;
   const latestOil = stats.latest.oilKbopd;
   const projectionYear = Math.max(quota.year, stats.latest.year + 1);
 
@@ -180,8 +182,10 @@ export function productionPermitProjectionRows(rows: PermitActivity[], netBopdPe
       year: row.year,
       oilKbopd: row.oilKbopd,
       baselineKbopd: isLatest ? row.oilKbopd : null,
-      withPermitWedgeKbopd: isLatest ? row.oilKbopd : null,
-      permitWedgeRange: (isLatest ? [row.oilKbopd, row.oilKbopd] : null) as [number, number] | null,
+      withExistingWorkKbopd: isLatest ? row.oilKbopd : null,
+      withNewDrillKbopd: isLatest ? row.oilKbopd : null,
+      existingWorkWedgeRange: (isLatest ? [row.oilKbopd, row.oilKbopd] : null) as [number, number] | null,
+      newDrillWedgeRange: (isLatest ? [row.oilKbopd, row.oilKbopd] : null) as [number, number] | null,
       kernNewDrillPermitsToDate: annualPermitCounts.get(row.year) || null,
       projectedNewDrillPermits: null as number | null,
       projectedExistingWork: null as number | null,
@@ -190,7 +194,8 @@ export function productionPermitProjectionRows(rows: PermitActivity[], netBopdPe
   });
 
   const firstBaseline = Math.max(latestOil - declineKbopd * (projectionYear - stats.latest.year), 0);
-  const firstWithWedge = firstBaseline + projectedPermitWedgeKbopd;
+  const firstWithExisting = firstBaseline + existingWorkWedgeKbopd;
+  const firstWithNewDrill = firstWithExisting + newDrillWedgeKbopd;
 
   return [
     ...historical,
@@ -198,8 +203,10 @@ export function productionPermitProjectionRows(rows: PermitActivity[], netBopdPe
       year: projectionYear,
       oilKbopd: null,
       baselineKbopd: roundOne(firstBaseline),
-      withPermitWedgeKbopd: roundOne(firstWithWedge),
-      permitWedgeRange: [roundOne(firstBaseline), roundOne(firstWithWedge)] as [number, number],
+      withExistingWorkKbopd: roundOne(firstWithExisting),
+      withNewDrillKbopd: roundOne(firstWithNewDrill),
+      existingWorkWedgeRange: [roundOne(firstBaseline), roundOne(firstWithExisting)] as [number, number],
+      newDrillWedgeRange: [roundOne(firstWithExisting), roundOne(firstWithNewDrill)] as [number, number],
       kernNewDrillPermitsToDate: annualPermitCounts.get(projectionYear) || null,
       projectedNewDrillPermits: newDrillScenario,
       projectedExistingWork: existingPace.annualized,

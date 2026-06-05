@@ -35,6 +35,13 @@ body {
   color: #c9d4dd;
 }
 
+@media (max-width: 640px) {
+  .product-title {
+    font-size: clamp(1.85rem, 8.5vw, 2.35rem);
+    line-height: 1.03;
+  }
+}
+
 .author-link {
   color: #9fb1a9;
   text-decoration: none;

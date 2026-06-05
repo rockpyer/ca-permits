@@ -115,7 +115,7 @@ export function App() {
           onChange={setFilters}
         />
         <main id="activity-content" className="min-h-0 bg-ink lg:overflow-y-auto" aria-label="California permit activity explorer">
-          <header className="border-b border-line bg-ink/95 px-4 py-4 sm:px-5">
+          <header className="border-b border-line bg-ink/95 px-4 py-3 sm:px-5 sm:py-4">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
               <div className="max-w-4xl">
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
@@ -176,7 +176,7 @@ export function App() {
           {error && <div className="m-4 border border-danger bg-danger/10 p-4 text-sm text-red-200">{error}</div>}
 
           {!loading && !error && (
-            <div className="space-y-4 p-3 sm:p-4">
+            <div className="space-y-3 p-3 sm:space-y-4 sm:p-4">
               <section aria-label="Permit activity summary">
                 <ActivitySummaryStrip rows={filteredRows} quotaRows={rows} />
               </section>

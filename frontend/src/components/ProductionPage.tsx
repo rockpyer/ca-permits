@@ -129,8 +129,12 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
                       <stop offset="95%" stopColor="#36d399" stopOpacity={0.04} />
                     </linearGradient>
                     <linearGradient id="permitWedgeFill" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#60a5fa" stopOpacity={0.08} />
+                      <stop offset="5%" stopColor="#c084fc" stopOpacity={0.38} />
+                      <stop offset="95%" stopColor="#c084fc" stopOpacity={0.08} />
+                    </linearGradient>
+                    <linearGradient id="newDrillWedgeFill" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="5%" stopColor="#f5b84b" stopOpacity={0.38} />
+                      <stop offset="95%" stopColor="#f5b84b" stopOpacity={0.08} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid stroke="#20312e" vertical={false} />
@@ -165,10 +169,20 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
                   <Area
                     yAxisId="oil"
                     type="linear"
-                    dataKey="permitWedgeRange"
-                    name="Modeled Est Yearly Prod"
-                    stroke="#60a5fa"
+                    dataKey="existingWorkWedgeRange"
+                    name="Existing work modeled lift"
+                    stroke="#c084fc"
                     fill="url(#permitWedgeFill)"
+                    strokeWidth={0}
+                    connectNulls
+                  />
+                  <Area
+                    yAxisId="oil"
+                    type="linear"
+                    dataKey="newDrillWedgeRange"
+                    name="New Drill modeled lift"
+                    stroke="#f5b84b"
+                    fill="url(#newDrillWedgeFill)"
                     strokeWidth={0}
                     connectNulls
                   />
@@ -176,17 +190,26 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
                     yAxisId="oil"
                     type="linear"
                     dataKey="baselineKbopd"
-                    name="Expected decline baseline"
-                    stroke="#ef6767"
+                    name="Modeled decline"
+                    stroke="#36d399"
                     strokeDasharray="5 5"
                     dot={{ r: 2 }}
                   />
                   <Line
                     yAxisId="oil"
                     type="linear"
-                    dataKey="withPermitWedgeKbopd"
-                    name="Oil with permit wedge"
-                    stroke="#60a5fa"
+                    dataKey="withExistingWorkKbopd"
+                    name="Existing permits modeled production"
+                    stroke="#c084fc"
+                    strokeWidth={2}
+                    dot={{ r: 2 }}
+                  />
+                  <Line
+                    yAxisId="oil"
+                    type="linear"
+                    dataKey="withNewDrillKbopd"
+                    name="New Drill modeled production"
+                    stroke="#f5b84b"
                     strokeWidth={2}
                     dot={{ r: 2 }}
                   />

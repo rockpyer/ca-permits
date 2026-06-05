@@ -32,7 +32,7 @@ export function ActivitySummaryStrip({ rows, quotaRows = rows }: Props & { quota
 
   return (
     <section className="border-y border-line py-2" aria-label="Activity context">
-      <div className="grid grid-cols-2 gap-x-5 gap-y-3 text-sm md:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))_260px]">
+      <div className="grid grid-cols-2 items-start gap-x-4 gap-y-2 text-sm md:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))_300px]">
         <Stat label="Permits" value={rows.length} delta={totalDelta.delta} />
         {WORK_ACTIVITY_GROUPS.map((group) => (
           <Stat
@@ -164,10 +164,10 @@ export function NewDrillQuotaGauge({ rows, compact = false }: Props & { compact?
 
   return (
     <section
-      className={`${compact ? 'border-l border-line pl-3' : 'border border-line bg-panel/50 p-4'}`}
+      className={`${compact ? 'col-span-2 border-t border-line pt-2 md:col-span-3 xl:col-span-1 xl:border-l xl:border-t-0 xl:py-0 xl:pl-3' : 'border border-line bg-panel/50 p-4'}`}
       aria-label="Kern County New Drill quota meter"
     >
-      <div className={`flex ${compact ? 'items-center gap-3' : 'flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'}`}>
+      <div className={`flex ${compact ? 'items-center justify-between gap-3 xl:items-start' : 'flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'}`}>
         <div className="min-w-0">
           <h2 className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">Kern New Drill Quota</h2>
           {!compact && (
@@ -176,8 +176,8 @@ export function NewDrillQuotaGauge({ rows, compact = false }: Props & { compact?
             </p>
           )}
           {compact && (
-            <div className="mt-1 text-xs text-slate-500">
-              {quota.ytdCount.toLocaleString()} used / {quota.projectedCount.toLocaleString()} projected
+            <div className="mt-1 text-xs text-slate-500 sm:whitespace-nowrap">
+              {quota.ytdCount.toLocaleString()} used / {quota.projectedCount.toLocaleString()} projected / {quota.projectedRemaining.toLocaleString()} left
             </div>
           )}
         </div>
@@ -187,9 +187,9 @@ export function NewDrillQuotaGauge({ rows, compact = false }: Props & { compact?
         </div>}
       </div>
 
-      <div className={`${compact ? 'mt-1 grid grid-cols-[76px_1fr] items-center gap-2' : 'mt-4 grid grid-cols-[92px_1fr] items-center gap-3 border border-line bg-ink/35 px-3 py-2'}`}>
+      <div className={`${compact ? 'mt-0 flex shrink-0 items-center gap-2 xl:mt-1' : 'mt-4 grid grid-cols-[92px_1fr] items-center gap-3 border border-line bg-ink/35 px-3 py-2'}`}>
         <FuelGauge usedPct={quota.ytdUsedPct} projectedPct={projectedMarker} compact={compact} />
-        <div className="min-w-0">
+        <div className={`min-w-0 ${compact ? 'hidden xl:block' : ''}`}>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Used</div>
@@ -221,7 +221,7 @@ function FuelGauge({ usedPct, projectedPct, compact = false }: { usedPct: number
   };
 
   return (
-      <svg viewBox="0 0 120 72" className={compact ? 'h-[48px] w-[72px]' : 'h-[58px] w-[86px]'} role="img" aria-label="Kern New Drill quota gauge">
+      <svg viewBox="0 0 120 72" className={compact ? 'h-[38px] w-[58px] sm:h-[42px] sm:w-[64px]' : 'h-[58px] w-[86px]'} role="img" aria-label="Kern New Drill quota gauge">
         <path d="M20 60 A40 40 0 0 1 100 60" fill="none" stroke="#20312e" strokeWidth="13" strokeLinecap="round" />
         <path
           d="M20 60 A40 40 0 0 1 100 60"
@@ -253,7 +253,7 @@ function Stat({ label, value, color, delta }: { label: string; value: number; co
     <div className="min-w-0">
       <div className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
       <div className="flex items-baseline gap-2">
-        <span className="text-lg font-semibold text-white" style={color ? { color } : undefined}>
+        <span className="text-base font-semibold text-white sm:text-lg" style={color ? { color } : undefined}>
           {value.toLocaleString()}
         </span>
         {delta !== undefined && <span className={deltaClass(delta)}>{formatDelta(delta)} vs prior 4w</span>}

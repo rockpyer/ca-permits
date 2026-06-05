@@ -101,7 +101,7 @@ describe('production helpers', () => {
     expect(recentAnnualizedDevelopmentPermits(rows, 10)).toMatchObject({
       count: 2,
       annualized: 73,
-      startDate: '2026-02-28',
+      startDate: '2026-03-01',
       endDate: '2026-03-10'
     });
   });
@@ -181,13 +181,16 @@ describe('production helpers', () => {
       projectedNewDrillPermits: 100,
       projectedExistingWork: 4,
       modeledPermitCount: 104,
-      withPermitWedgeKbopd: expect.any(Number),
+      withExistingWorkKbopd: expect.any(Number),
+      withNewDrillKbopd: expect.any(Number),
       baselineKbopd: expect.any(Number)
     });
 
     const row2025 = projection.find((row) => row.year === 2025);
-    expect(row2025?.permitWedgeRange).toEqual([257.1, 257.1]);
-    expect(row2026?.permitWedgeRange).toEqual([expect.any(Number), expect.any(Number)]);
+    expect(row2025?.existingWorkWedgeRange).toEqual([257.1, 257.1]);
+    expect(row2025?.newDrillWedgeRange).toEqual([257.1, 257.1]);
+    expect(row2026?.existingWorkWedgeRange).toEqual([expect.any(Number), expect.any(Number)]);
+    expect(row2026?.newDrillWedgeRange).toEqual([expect.any(Number), expect.any(Number)]);
   });
 
   it('annualizes existing work separately for the production scenario', () => {
