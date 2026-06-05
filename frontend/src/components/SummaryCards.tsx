@@ -31,8 +31,8 @@ export function ActivitySummaryStrip({ rows, quotaRows = rows }: Props & { quota
   const totalDelta = fourWeekDelta(rows);
 
   return (
-    <section className="border-y border-line py-2" aria-label="Activity context">
-      <div className="grid grid-cols-2 items-start gap-x-4 gap-y-2 text-sm md:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))_300px]">
+    <section className="py-1" aria-label="Activity context">
+      <div className="grid grid-cols-2 items-start gap-x-4 gap-y-2 text-sm md:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))_minmax(260px,300px)]">
         <Stat label="Permits" value={rows.length} delta={totalDelta.delta} />
         {WORK_ACTIVITY_GROUPS.map((group) => (
           <Stat
@@ -162,34 +162,54 @@ export function NewDrillQuotaGauge({ rows, compact = false }: Props & { compact?
   const quota = kernNewDrillQuotaStats(rows);
   const projectedMarker = Math.max(0, Math.min(quota.projectedUsedPct, 100));
 
+  if (compact) {
+    return (
+      <section
+        className="col-span-2 border-t border-line/70 pt-2 md:col-span-3 xl:col-span-1 xl:border-l xl:border-t-0 xl:py-0 xl:pl-3"
+        aria-label="Kern County New Drill quota meter"
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="min-w-0">
+            <h2 className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">Kern New Drill Quota</h2>
+            <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs">
+              <span className="text-slate-300">
+                <strong className="text-white">{quota.ytdCount.toLocaleString()}</strong> used
+              </span>
+              <span className="text-danger">
+                <strong>{quota.projectedCount.toLocaleString()}</strong> projected
+              </span>
+              <span className="text-sky-300">
+                <strong>{quota.projectedRemaining.toLocaleString()}</strong> left
+              </span>
+            </div>
+          </div>
+          <FuelGauge usedPct={quota.ytdUsedPct} projectedPct={projectedMarker} compact />
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section
-      className={`${compact ? 'col-span-2 border-t border-line pt-2 md:col-span-3 xl:col-span-1 xl:border-l xl:border-t-0 xl:py-0 xl:pl-3' : 'border border-line bg-panel/50 p-4'}`}
+      className="border border-line bg-panel/50 p-4"
       aria-label="Kern County New Drill quota meter"
     >
-      <div className={`flex ${compact ? 'items-center justify-between gap-3 xl:items-start' : 'flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'}`}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h2 className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">Kern New Drill Quota</h2>
-          {!compact && (
-            <p className="mt-1 text-xs text-slate-500">
-              New Drill notices only. Rework, deepen, sidetrack, and abandonment records are excluded from this meter.
-            </p>
-          )}
-          {compact && (
-            <div className="mt-1 text-xs text-slate-500 sm:whitespace-nowrap">
-              {quota.ytdCount.toLocaleString()} used / {quota.projectedCount.toLocaleString()} projected / {quota.projectedRemaining.toLocaleString()} left
-            </div>
-          )}
+          <p className="mt-1 text-xs text-slate-500">
+            New Drill notices only. Rework, deepen, sidetrack, and abandonment records are excluded from this meter.
+          </p>
         </div>
-        {!compact && <div className="text-right text-xs text-slate-500">
+        <div className="text-right text-xs text-slate-500">
           <div>{quota.year} quota</div>
           <div className="font-semibold text-slate-300">{quota.quota.toLocaleString()} wells/year</div>
-        </div>}
+        </div>
       </div>
 
-      <div className={`${compact ? 'mt-0 flex shrink-0 items-center gap-2 xl:mt-1' : 'mt-4 grid grid-cols-[92px_1fr] items-center gap-3 border border-line bg-ink/35 px-3 py-2'}`}>
-        <FuelGauge usedPct={quota.ytdUsedPct} projectedPct={projectedMarker} compact={compact} />
-        <div className={`min-w-0 ${compact ? 'hidden xl:block' : ''}`}>
+      <div className="mt-4 grid grid-cols-[92px_1fr] items-center gap-3 border border-line bg-ink/35 px-3 py-2">
+        <FuelGauge usedPct={quota.ytdUsedPct} projectedPct={projectedMarker} />
+        <div className="min-w-0">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Used</div>
@@ -198,8 +218,8 @@ export function NewDrillQuotaGauge({ rows, compact = false }: Props & { compact?
             </div>
             <div>
               <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Left</div>
-              <div className={`${compact ? 'text-base' : 'text-lg'} font-semibold text-sky-300`}>{quota.projectedRemaining.toLocaleString()}</div>
-              <div className="truncate text-[11px] text-slate-500">{quota.projectedCount.toLocaleString()} projected</div>
+              <div className="text-lg font-semibold text-sky-300">{quota.projectedRemaining.toLocaleString()}</div>
+              <div className="truncate text-[11px] text-danger">{quota.projectedCount.toLocaleString()} projected</div>
             </div>
           </div>
         </div>
@@ -231,7 +251,7 @@ function FuelGauge({ usedPct, projectedPct, compact = false }: { usedPct: number
           strokeLinecap="round"
           strokeDasharray={`${dash} ${circumference}`}
         />
-        <line x1={marker.x1} y1={marker.y1} x2={marker.x2} y2={marker.y2} stroke="#60a5fa" strokeWidth="4" strokeLinecap="round" />
+        <line x1={marker.x1} y1={marker.y1} x2={marker.x2} y2={marker.y2} stroke="#ef6767" strokeWidth="4" strokeLinecap="round" />
         <line x1="60" y1="60" x2={needleX(pct, 30)} y2={needleY(pct, 30)} stroke="#e2e8f0" strokeWidth="3" strokeLinecap="round" />
         <circle cx="60" cy="60" r="4" fill="#e2e8f0" />
       </svg>

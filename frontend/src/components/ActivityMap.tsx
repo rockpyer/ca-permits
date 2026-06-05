@@ -82,8 +82,7 @@ export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
       style: MAP_STYLE,
       center: [-119.4, 36.4],
       zoom: 5.6,
-      attributionControl: false,
-      scrollZoom: false
+      attributionControl: false
     });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
@@ -157,7 +156,7 @@ export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
   }, [selected]);
 
   return (
-    <div className="relative h-[400px] min-h-[340px] overflow-hidden border border-line bg-panel sm:h-[460px] xl:h-[560px] 2xl:max-w-[1500px]">
+    <div className="relative h-[340px] min-h-[300px] max-w-[1360px] overflow-hidden border border-line bg-panel sm:h-[400px] xl:h-[460px]">
       <div ref={containerRef} className="absolute inset-0" />
       <div className="absolute left-3 top-3 z-30 flex flex-wrap gap-2 border border-line bg-ink/90 p-2 text-xs text-slate-300">
         <label className="map-control">

@@ -118,9 +118,6 @@ export function App() {
           <header className="border-b border-line bg-ink/95 px-4 py-3 sm:px-5 sm:py-4">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
               <div className="max-w-4xl">
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                  CalGEM / WellSTAR activity intelligence
-                </p>
                 <h1 className="product-title">
                   <span>California</span>
                   <span> Well Permit Tracker</span>
@@ -176,7 +173,7 @@ export function App() {
           {error && <div className="m-4 border border-danger bg-danger/10 p-4 text-sm text-red-200">{error}</div>}
 
           {!loading && !error && (
-            <div className="space-y-3 p-3 sm:space-y-4 sm:p-4">
+            <div className="space-y-2.5 p-3 sm:space-y-3 sm:p-4">
               <section aria-label="Permit activity summary">
                 <ActivitySummaryStrip rows={filteredRows} quotaRows={rows} />
               </section>
@@ -244,7 +241,7 @@ function ActiveQuery({ filters, dateBounds }: { filters: Filters; dateBounds: { 
   const range = formatDateRange(filters.startDate || dateBounds.minDate, filters.endDate || dateBounds.maxDate);
 
   return (
-    <div className="flex flex-wrap items-center gap-2 border border-line bg-panel/40 px-3 py-2 text-xs text-slate-400">
+    <div className="flex flex-wrap items-center gap-2 px-0.5 py-0 text-xs text-slate-400">
       <span className="font-semibold uppercase tracking-wide text-slate-500">Active Query</span>
       <span className="text-slate-300">{work}</span>
       <span className="text-slate-600">/</span>
