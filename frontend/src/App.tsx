@@ -178,7 +178,12 @@ export function App() {
                 <ActivitySummaryStrip rows={filteredRows} quotaRows={rows} />
               </section>
               <ActiveQuery filters={filters} dateBounds={dateBounds} />
-              <section aria-label="Permit activity map">
+              <section className="xl:grid xl:grid-cols-[64px_minmax(0,1360px)] xl:gap-3" aria-label="Permit activity map">
+                <div
+                  className="hidden border border-line/50 bg-panel/15 xl:block"
+                  aria-hidden="true"
+                  title="Scroll area"
+                />
                 <ActivityMap rows={filteredRows} fields={fields} selected={selected} onSelect={setSelected} />
               </section>
               <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,0.92fr)_360px]" aria-label="Permit momentum and activity notes">

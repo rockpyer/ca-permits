@@ -168,22 +168,22 @@ export function NewDrillQuotaGauge({ rows, compact = false }: Props & { compact?
         className="col-span-2 border-t border-line/70 pt-2 md:col-span-3 xl:col-span-1 xl:border-l xl:border-t-0 xl:py-0 xl:pl-3"
         aria-label="Kern County New Drill quota meter"
       >
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="min-w-0">
-            <h2 className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">Kern New Drill Quota</h2>
-            <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs">
-              <span className="text-slate-300">
-                <strong className="text-white">{quota.ytdCount.toLocaleString()}</strong> used
-              </span>
-              <span className="text-danger">
-                <strong>{quota.projectedCount.toLocaleString()}</strong> projected
-              </span>
-              <span className="text-sky-300">
-                <strong>{quota.projectedRemaining.toLocaleString()}</strong> left
-              </span>
-            </div>
+        <div className="min-w-0">
+          <h2 className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">Kern New Drill Quota</h2>
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs">
+            <span className="text-accent">
+              <strong>{quota.ytdCount.toLocaleString()}</strong> permitted
+            </span>
+            <span className="text-danger">
+              <strong>{quota.projectedCount.toLocaleString()}</strong> projected
+            </span>
+            <span className="text-sky-300">
+              <strong>{quota.projectedRemaining.toLocaleString()}</strong> left
+            </span>
           </div>
+          <div className="mt-1">
           <FuelGauge usedPct={quota.ytdUsedPct} projectedPct={projectedMarker} compact />
+          </div>
         </div>
       </section>
     );
@@ -212,8 +212,8 @@ export function NewDrillQuotaGauge({ rows, compact = false }: Props & { compact?
         <div className="min-w-0">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Used</div>
-              <div className={`${compact ? 'text-base' : 'text-lg'} font-semibold text-white`}>{quota.ytdCount.toLocaleString()}</div>
+              <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Permitted</div>
+              <div className="text-lg font-semibold text-accent">{quota.ytdCount.toLocaleString()}</div>
               <div className="text-[11px] text-slate-500">{quota.ytdRemaining.toLocaleString()} left YTD</div>
             </div>
             <div>
