@@ -20,13 +20,18 @@ import {
 import { workActivityGroup } from '../lib/grouping';
 import { rowOperatorDisplayName } from '../lib/operators';
 import { kernNewDrillQuotaStats } from '../lib/production';
+import { SB237_PAGE_URL, type Sb237DrillTrackerStats } from '../lib/sb237';
 import type { PermitActivity } from '../lib/types';
 
 type Props = {
   rows: PermitActivity[];
 };
 
-export function ActivitySummaryStrip({ rows, quotaRows = rows }: Props & { quotaRows?: PermitActivity[] }) {
+export function ActivitySummaryStrip({
+  rows,
+  quotaRows = rows,
+  sb237Stats
+}: Props & { quotaRows?: PermitActivity[]; sb237Stats?: Sb237DrillTrackerStats | null }) {
   const counts = workActivityCounts(rows);
   const operatorCount = new Set(rows.map(rowOperatorDisplayName).filter((name) => name !== 'Unknown')).size;
   const totalDelta = fourWeekDelta(rows);
@@ -45,7 +50,7 @@ export function ActivitySummaryStrip({ rows, quotaRows = rows }: Props & { quota
           />
         ))}
         <Stat label="Operators" value={operatorCount} className="hidden sm:block" />
-        <NewDrillQuotaGauge rows={quotaRows} compact />
+        <NewDrillQuotaGauge rows={quotaRows} sb237Stats={sb237Stats} compact />
       </div>
     </section>
   );
@@ -159,9 +164,14 @@ export function ActivityNotes({ rows }: Props) {
   );
 }
 
-export function NewDrillQuotaGauge({ rows, compact = false }: Props & { compact?: boolean }) {
+export function NewDrillQuotaGauge({
+  rows,
+  sb237Stats,
+  compact = false
+}: Props & { sb237Stats?: Sb237DrillTrackerStats | null; compact?: boolean }) {
   const quota = kernNewDrillQuotaStats(rows);
   const projectedMarker = Math.max(0, Math.min(quota.projectedUsedPct, 100));
+  const spuddedPct = quota.quota && sb237Stats ? Math.min((sb237Stats.spuddedCount / quota.quota) * 100, 100) : undefined;
 
   if (compact) {
     return (
@@ -181,9 +191,15 @@ export function NewDrillQuotaGauge({ rows, compact = false }: Props & { compact?
             <span className="text-sky-300">
               <strong>{quota.projectedRemaining.toLocaleString()}</strong> left
             </span>
+            {sb237Stats && (
+              <span className="text-amber-300">
+                <strong>{sb237Stats.spuddedCount.toLocaleString()}</strong> spudded
+              </span>
+            )}
           </div>
-          <div className="mt-1">
-          <FuelGauge usedPct={quota.ytdUsedPct} projectedPct={projectedMarker} compact />
+          <div className="group relative mt-1 inline-block">
+            <FuelGauge usedPct={quota.ytdUsedPct} projectedPct={projectedMarker} spuddedPct={spuddedPct} compact />
+            <QuotaTooltip quota={quota} sb237Stats={sb237Stats} />
           </div>
         </div>
       </section>
@@ -209,7 +225,10 @@ export function NewDrillQuotaGauge({ rows, compact = false }: Props & { compact?
       </div>
 
       <div className="mt-4 grid grid-cols-[92px_1fr] items-center gap-3 border border-line bg-ink/35 px-3 py-2">
-        <FuelGauge usedPct={quota.ytdUsedPct} projectedPct={projectedMarker} />
+        <div className="group relative">
+          <FuelGauge usedPct={quota.ytdUsedPct} projectedPct={projectedMarker} spuddedPct={spuddedPct} />
+          <QuotaTooltip quota={quota} sb237Stats={sb237Stats} />
+        </div>
         <div className="min-w-0">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -222,6 +241,13 @@ export function NewDrillQuotaGauge({ rows, compact = false }: Props & { compact?
               <div className="text-lg font-semibold text-sky-300">{quota.projectedRemaining.toLocaleString()}</div>
               <div className="truncate text-[11px] text-danger">{quota.projectedCount.toLocaleString()} projected</div>
             </div>
+            {sb237Stats && (
+              <div>
+                <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Spudded</div>
+                <div className="text-lg font-semibold text-amber-300">{sb237Stats.spuddedCount.toLocaleString()}</div>
+                <div className="text-[11px] text-slate-500">operator reported</div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -229,9 +255,20 @@ export function NewDrillQuotaGauge({ rows, compact = false }: Props & { compact?
   );
 }
 
-function FuelGauge({ usedPct, projectedPct, compact = false }: { usedPct: number; projectedPct: number; compact?: boolean }) {
+function FuelGauge({
+  usedPct,
+  projectedPct,
+  spuddedPct,
+  compact = false
+}: {
+  usedPct: number;
+  projectedPct: number;
+  spuddedPct?: number;
+  compact?: boolean;
+}) {
   const pct = Math.max(0, Math.min(usedPct, 100));
   const projected = Math.max(0, Math.min(projectedPct, 100));
+  const spudded = spuddedPct === undefined ? null : Math.max(0, Math.min(spuddedPct, 100));
   const circumference = 132;
   const dash = (pct / 100) * circumference;
   const marker = {
@@ -240,6 +277,15 @@ function FuelGauge({ usedPct, projectedPct, compact = false }: { usedPct: number
     x2: needleX(projected, 45),
     y2: needleY(projected, 45)
   };
+  const spudMarker =
+    spudded === null
+      ? null
+      : {
+          x1: needleX(spudded, 24),
+          y1: needleY(spudded, 24),
+          x2: needleX(spudded, 45),
+          y2: needleY(spudded, 45)
+        };
 
   return (
       <svg viewBox="0 0 120 72" className={compact ? 'h-[38px] w-[58px] sm:h-[42px] sm:w-[64px]' : 'h-[58px] w-[86px]'} role="img" aria-label="Kern New Drill quota gauge">
@@ -253,9 +299,43 @@ function FuelGauge({ usedPct, projectedPct, compact = false }: { usedPct: number
           strokeDasharray={`${dash} ${circumference}`}
         />
         <line x1={marker.x1} y1={marker.y1} x2={marker.x2} y2={marker.y2} stroke="#ef6767" strokeWidth="4" strokeLinecap="round" />
+        {spudMarker && (
+          <line x1={spudMarker.x1} y1={spudMarker.y1} x2={spudMarker.x2} y2={spudMarker.y2} stroke="#fbbf24" strokeWidth="4" strokeLinecap="round" />
+        )}
         <line x1="60" y1="60" x2={needleX(pct, 30)} y2={needleY(pct, 30)} stroke="#e2e8f0" strokeWidth="3" strokeLinecap="round" />
         <circle cx="60" cy="60" r="4" fill="#e2e8f0" />
       </svg>
+  );
+}
+
+function QuotaTooltip({
+  quota,
+  sb237Stats
+}: {
+  quota: ReturnType<typeof kernNewDrillQuotaStats>;
+  sb237Stats?: Sb237DrillTrackerStats | null;
+}) {
+  return (
+    <div className="pointer-events-auto absolute left-0 top-full z-50 mt-2 hidden w-[260px] border border-line bg-ink/95 p-3 text-xs leading-5 text-slate-300 shadow-xl shadow-black/30 group-hover:block group-focus-within:block">
+      <div className="mb-1 font-semibold uppercase tracking-wide text-slate-400">Projection Basis</div>
+      <p>
+        Naive projection: Kern County New Drill permits approved year-to-date divided by elapsed days, then annualized
+        against the {quota.quota.toLocaleString()} permit quota.
+      </p>
+      <p className="mt-2">
+        Gauge max is 2,000 permits under{' '}
+        <a className="text-accent hover:underline" href={SB237_PAGE_URL} target="_blank" rel="noreferrer">
+          SB237
+        </a>
+        .
+      </p>
+      {sb237Stats && (
+        <p className="mt-2 text-amber-200">
+          Spudded count comes from CalGEM&apos;s Central District Drill Tracker
+          {sb237Stats.updatedLabel ? `, updated ${sb237Stats.updatedLabel}` : ''}.
+        </p>
+      )}
+    </div>
   );
 }
 

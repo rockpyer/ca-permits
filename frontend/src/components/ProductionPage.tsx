@@ -22,16 +22,18 @@ import {
   recentAnnualizedAbandonment,
   recentAnnualizedExistingWork
 } from '../lib/production';
+import type { Sb237DrillTrackerStats } from '../lib/sb237';
 import type { PermitActivity } from '../lib/types';
 
 type ProductionPageProps = {
   rows: PermitActivity[];
   loading: boolean;
   error: string | null;
+  sb237Stats?: Sb237DrillTrackerStats | null;
   onNavigateHome: () => void;
 };
 
-export function ProductionPage({ rows, loading, error, onNavigateHome }: ProductionPageProps) {
+export function ProductionPage({ rows, loading, error, sb237Stats, onNavigateHome }: ProductionPageProps) {
   const [netBopdPerPermit, setNetBopdPerPermit] = useState(20);
   const quota = useMemo(() => kernNewDrillQuotaStats(rows), [rows]);
   const [projectedNewDrillPermits, setProjectedNewDrillPermits] = useState(0);
@@ -112,7 +114,7 @@ export function ProductionPage({ rows, loading, error, onNavigateHome }: Product
             value={`${formatNumber(existingWorkPace.annualized)} permits/yr`}
             subvalue="rework, deepen, sidetrack"
           />
-          <NewDrillQuotaGauge rows={rows} compact />
+          <NewDrillQuotaGauge rows={rows} sb237Stats={sb237Stats} compact />
         </section>
 
         <section className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_440px]" aria-label="Production decline and offset model">

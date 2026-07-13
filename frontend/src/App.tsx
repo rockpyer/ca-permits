@@ -17,6 +17,7 @@ import {
   type FunctionalTypeGroup,
   type WorkActivityGroup
 } from './lib/grouping';
+import { loadSb237DrillTrackerStats, type Sb237DrillTrackerStats } from './lib/sb237';
 import { hasSupabaseConfig } from './lib/supabase';
 import type { EtlRun, FieldBoundary, Filters, PermitActivity } from './lib/types';
 
@@ -24,6 +25,7 @@ export function App() {
   const [rows, setRows] = useState<PermitActivity[]>([]);
   const [fields, setFields] = useState<FieldBoundary[]>([]);
   const [etlRuns, setEtlRuns] = useState<EtlRun[]>([]);
+  const [sb237Stats, setSb237Stats] = useState<Sb237DrillTrackerStats | null>(null);
   const [filters, setFilters] = useState<Filters>(() => filtersFromUrl(defaultFilters()));
   const urlDateRef = useRef(hasUrlDateFilters());
   const [selected, setSelected] = useState<PermitActivity | null>(null);
@@ -55,6 +57,12 @@ export function App() {
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Unable to load data'))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadSb237DrillTrackerStats()
+      .then(setSb237Stats)
+      .catch(() => setSb237Stats(null));
   }, []);
 
   useEffect(() => {
@@ -98,7 +106,7 @@ export function App() {
   if (path === '/prod') {
     return (
       <Shell>
-        <ProductionPage rows={rows} loading={loading} error={error} onNavigateHome={() => navigateTo('/', setPath)} />
+        <ProductionPage rows={rows} loading={loading} error={error} sb237Stats={sb237Stats} onNavigateHome={() => navigateTo('/', setPath)} />
       </Shell>
     );
   }
@@ -175,7 +183,7 @@ export function App() {
           {!loading && !error && (
             <div className="space-y-2.5 p-3 sm:space-y-3 sm:p-4">
               <section aria-label="Permit activity summary">
-                <ActivitySummaryStrip rows={filteredRows} quotaRows={rows} />
+                <ActivitySummaryStrip rows={filteredRows} quotaRows={rows} sb237Stats={sb237Stats} />
               </section>
               <ActiveQuery filters={filters} dateBounds={dateBounds} />
               <section className="xl:grid xl:grid-cols-[64px_minmax(0,1360px)] xl:gap-3" aria-label="Permit activity map">
