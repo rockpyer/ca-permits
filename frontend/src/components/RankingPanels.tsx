@@ -18,7 +18,7 @@ import {
   stackedMatrix,
   truncateLabel
 } from '../lib/summary';
-import { rowOperatorDisplayName } from '../lib/operators';
+import { operatorNameForView, rowOperatorDisplayName, type OperatorView } from '../lib/operators';
 import {
   functionalTypeColor,
   functionalTypeGroup,
@@ -77,25 +77,63 @@ const CATEGORY_FIELDS: CategoryField[] = [
 ];
 
 export function RankingPanels({ rows }: { rows: PermitActivity[] }) {
-  const fieldByOperator = stackedMatrix(rows, 'field_name', 'operator_name', 8, 5);
-  const operatorByField = stackedMatrix(rows, 'operator_name', 'field_name', 8, 5);
-  const cumulativeTrend = operatorCumulativeWorkActivityTrend(rows, 5, 52);
+  const [operatorView, setOperatorView] = useState<OperatorView>('operator');
+  const analysisRows = useMemo(
+    () => rows.map((row) => ({ ...row, operator_name: operatorNameForView(row, operatorView) })),
+    [operatorView, rows]
+  );
+  const fieldByOperator = stackedMatrix(analysisRows, 'field_name', 'operator_name', 8, 5);
+  const operatorByField = stackedMatrix(analysisRows, 'operator_name', 'field_name', 8, 5);
+  const cumulativeTrend = operatorCumulativeWorkActivityTrend(analysisRows, 5, 52);
+  const operatorLabel = operatorView === 'parent' ? 'Parent Companies' : 'Operators';
 
   return (
     <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3 xl:col-span-2">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Operator Analysis</h2>
+          <p className="text-xs text-slate-500">
+            {operatorView === 'parent'
+              ? 'Parent view rolls Aera, California Resources, Tidelands, THUMS, Elk Hills Power, and Berry into CRC. Source operators remain unchanged in records.'
+              : 'Using CalGEM source operator names. Switch to Parent for the CRC company-family rollup.'}
+          </p>
+        </div>
+        <div className="inline-flex border border-line bg-ink p-0.5 text-xs" aria-label="Operator analysis grouping">
+          <button
+            type="button"
+            className={`px-2.5 py-1.5 ${operatorView === 'operator' ? 'bg-panel text-white' : 'text-slate-500 hover:text-slate-200'}`}
+            aria-pressed={operatorView === 'operator'}
+            onClick={() => setOperatorView('operator')}
+          >
+            By Operator
+          </button>
+          <button
+            type="button"
+            className={`px-2.5 py-1.5 ${operatorView === 'parent' ? 'bg-accent/15 text-accent' : 'text-slate-500 hover:text-slate-200'}`}
+            aria-pressed={operatorView === 'parent'}
+            onClick={() => setOperatorView('parent')}
+          >
+            By Parent
+          </button>
+        </div>
+      </div>
       <StackedBarPanel
-        title="Operators By Field"
-        subtitle="Current-year permits by top operator, stacked by field."
+        title={`${operatorLabel} By Field`}
+        subtitle={`Current-year permits by top ${operatorView === 'parent' ? 'parent company' : 'operator'}, stacked by field.`}
         data={operatorByField}
         truncateAxis
       />
       <StackedBarPanel
-        title="Fields By Operator"
-        subtitle="Current-year permits in the top fields, stacked by operator."
+        title={`Fields By ${operatorView === 'parent' ? 'Parent Company' : 'Operator'}`}
+        subtitle={`Current-year permits in the top fields, stacked by ${operatorView === 'parent' ? 'parent company' : 'operator'}.`}
         data={fieldByOperator}
       />
-      <CategoryStackPanel rows={rows} />
-      <OperatorTrendPanel data={cumulativeTrend.data} operators={cumulativeTrend.operators} />
+      <CategoryStackPanel rows={analysisRows} primaryLabel={operatorView === 'parent' ? 'Parent Company' : 'Operator'} />
+      <OperatorTrendPanel
+        data={cumulativeTrend.data}
+        operators={cumulativeTrend.operators}
+        label={operatorView === 'parent' ? 'Parent Company' : 'Operator'}
+      />
     </section>
   );
 }
@@ -143,20 +181,20 @@ function StackedBarPanel({
   );
 }
 
-function CategoryStackPanel({ rows }: { rows: PermitActivity[] }) {
+function CategoryStackPanel({ rows, primaryLabel: analysisOperatorLabel }: { rows: PermitActivity[]; primaryLabel: string }) {
   const [primaryKey, setPrimaryKey] = useState<CategoryFieldKey>('operator');
   const [stackKey, setStackKey] = useState<CategoryFieldKey>('source_type');
   const matrix = useMemo(() => categoricalStackedMatrix(rows, primaryKey, stackKey, 10, 12), [primaryKey, rows, stackKey]);
   const data = matrix.data;
   const keys = stackKeys(data);
-  const primaryLabel = fieldLabel(primaryKey);
+  const primaryLabel = primaryKey === 'operator' ? analysisOperatorLabel : fieldLabel(primaryKey);
   const stackLabel = fieldLabel(stackKey);
 
   return (
     <div className="h-[430px] border border-line bg-panel/60 p-3 xl:col-span-2">
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Operator Well Types</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">{primaryLabel} Well Types</h2>
           <p className="text-xs text-slate-500">
             Stacked permit count: {primaryLabel} by {stackLabel.toLowerCase()}.
           </p>
@@ -223,15 +261,23 @@ function fieldLabel(key: CategoryFieldKey) {
   return CATEGORY_FIELDS.find((field) => field.key === key)?.label || String(key);
 }
 
-function OperatorTrendPanel({ data, operators }: { data: Record<string, string | number>[]; operators: string[] }) {
+function OperatorTrendPanel({
+  data,
+  operators,
+  label
+}: {
+  data: Record<string, string | number>[];
+  operators: string[];
+  label: string;
+}) {
   return (
     <div className="h-[340px] border border-line bg-panel/60 p-3 xl:col-span-2">
       <div className="mb-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">
-          Cumulative Operator Work Activity
+          Cumulative {label} Work Activity
         </h2>
         <p className="text-xs text-slate-500">
-          Running current-year total by operator for New Drill and Existing work activity.
+          Running current-year total by {label.toLowerCase()} for New Drill and Existing work activity.
         </p>
       </div>
       <ResponsiveContainer width="100%" height="84%">

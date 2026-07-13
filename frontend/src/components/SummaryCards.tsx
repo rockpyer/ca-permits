@@ -180,7 +180,7 @@ export function NewDrillQuotaGauge({
         aria-label="Kern County New Drill quota meter"
       >
           <div className="min-w-0">
-            <h2 className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">Kern New Drill Quota</h2>
+            <QuotaHeading />
           <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs xl:flex-col xl:items-start xl:gap-x-0 xl:gap-y-0.5">
             <span className="text-accent">
               <strong>{quota.ytdCount.toLocaleString()}</strong> permitted
@@ -213,7 +213,7 @@ export function NewDrillQuotaGauge({
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h2 className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">Kern New Drill Quota</h2>
+          <QuotaHeading />
           <p className="mt-1 text-xs text-slate-500">
             New Drill notices only. Rework, deepen, sidetrack, and abandonment records are excluded from this meter.
           </p>
@@ -323,11 +323,8 @@ function QuotaTooltip({
         against the {quota.quota.toLocaleString()} permit quota.
       </p>
       <p className="mt-2">
-        Gauge max is 2,000 permits under{' '}
-        <a className="text-accent hover:underline" href={SB237_PAGE_URL} target="_blank" rel="noreferrer">
-          SB237
-        </a>
-        .
+        Gauge max is 2,000 permits under SB237. The superscript reference beside the quota heading opens the official
+        CalGEM page.
       </p>
       {sb237Stats && (
         <p className="mt-2 text-amber-200">
@@ -336,6 +333,24 @@ function QuotaTooltip({
         </p>
       )}
     </div>
+  );
+}
+
+function QuotaHeading() {
+  return (
+    <h2 className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+      Kern New Drill Quota{' '}
+      <a
+        className="text-[9px] text-accent align-super hover:underline"
+        href={SB237_PAGE_URL}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="SB237 reference: open official CalGEM page"
+        title="SB237: official CalGEM information"
+      >
+        (1)
+      </a>
+    </h2>
   );
 }
 

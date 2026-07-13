@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyFilters, defaultFilters, toggleListValue } from './filters';
 import { functionalTypeGroup } from './grouping';
-import { rowOperatorDisplayName } from './operators';
+import { operatorParentName, rowOperatorDisplayName } from './operators';
 import type { PermitActivity } from './types';
 
 const baseRow: PermitActivity = {
@@ -76,12 +76,14 @@ describe('filters', () => {
     expect(functionalTypeGroup(dryGas)).toBe('producer');
   });
 
-  it('rolls Aera and CRC operator names into CRC filters', () => {
+  it('keeps CalGEM operators distinct while supporting a CRC parent rollup', () => {
     const aera = { ...baseRow, operator_name: 'Aera Energy LLC' };
     const elkHills = { ...baseRow, source_key: '2', operator_name: 'California Resources Elk Hills LLC' };
     const other = { ...baseRow, source_key: '3', operator_name: 'Chevron U.S.A. Inc.' };
 
-    expect(rowOperatorDisplayName(aera)).toBe('CRC');
-    expect(applyFilters([aera, elkHills, other], { ...defaultFilters(), operators: ['CRC'] })).toEqual([aera, elkHills]);
+    expect(rowOperatorDisplayName(aera)).toBe('Aera Energy LLC');
+    expect(applyFilters([aera, elkHills, other], { ...defaultFilters(), operators: ['Aera Energy LLC'] })).toEqual([aera]);
+    expect(operatorParentName(aera.operator_name)).toBe('CRC');
+    expect(operatorParentName(elkHills.operator_name)).toBe('CRC');
   });
 });
