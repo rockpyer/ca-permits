@@ -3,6 +3,9 @@ import type { EtlRun, FieldBoundary, PermitActivity } from './types';
 
 const DEFAULT_MIN_PERMIT_DATE = '2026-01-01';
 const PAGE_SIZE = 1000;
+// Must match generated_links() in backend/normalize.py; the snapshot omits links it can rebuild.
+const WELLSTAR_URL = 'https://wellstar-public.conservation.ca.gov/Well/Well/Detail';
+const WELLFINDER_URL = 'https://maps.conservation.ca.gov/doggr/wellfinder/';
 
 // Columns the UI reads. Keep in sync with PERMIT_COLUMNS in scripts/snapshot-data.mjs.
 const PERMIT_COLUMNS = [
@@ -52,7 +55,12 @@ async function loadSnapshot(): Promise<AppData | null> {
   const [permitsResponse, fieldsResponse] = await Promise.all([fetch(`${base}/permits.json`), fetch(`${base}/fields.json`)]);
   if (!permitsResponse.ok || !fieldsResponse.ok) return null;
   const { columns, rows } = (await permitsResponse.json()) as { columns: string[]; rows: unknown[][] };
-  const permits = rows.map((values) => Object.fromEntries(columns.map((column, index) => [column, values[index]])) as PermitActivity);
+  const permits = rows.map((values) => {
+    const row = Object.fromEntries(columns.map((column, index) => [column, values[index]])) as PermitActivity;
+    row.wellstar_url ??= linkFor(WELLSTAR_URL, row.api_10);
+    row.wellfinder_url ??= linkFor(WELLFINDER_URL, row.api_10);
+    return row;
+  });
 
   return {
     permits,
@@ -64,6 +72,10 @@ async function loadSnapshot(): Promise<AppData | null> {
     },
     source: 'snapshot'
   };
+}
+
+function linkFor(base: string, api10: string | null) {
+  return api10 ? `${base}?api=${api10}` : null;
 }
 
 export async function loadPermitActivity(): Promise<PermitActivity[]> {

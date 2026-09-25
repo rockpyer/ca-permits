@@ -9,6 +9,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const outDir = resolve(here, '../public/data');
 const required = process.env.SNAPSHOT_REQUIRED === '1';
 const PAGE_SIZE = 1000;
+// Must match generated_links() in backend/normalize.py and linkFor() in src/lib/data.ts.
+const WELLSTAR_URL = 'https://wellstar-public.conservation.ca.gov/Well/Well/Detail';
+const WELLFINDER_URL = 'https://maps.conservation.ca.gov/doggr/wellfinder/';
 
 // Columns the UI reads. Keep in sync with PERMIT_COLUMNS in src/lib/data.ts.
 const PERMIT_COLUMNS = [
@@ -36,6 +39,8 @@ try {
   const fields = await fetchAll('fields?select=source_object_id,field_name,field_code,district,district_label,area_acre,geometry&order=field_name.asc,source_object_id.asc');
   const etlRuns = await get('etl_runs?select=id,source,status,source_count,upsert_count,finished_at&order=created_at.desc&limit=5');
   if (permits.length === 0) throw new Error('permit_activity returned 0 rows');
+  const shortKeys = new Set(permits.map((row) => String(row.source_key).slice(0, 12)));
+  if (shortKeys.size !== permits.length) throw new Error('source_key prefix collision; lengthen the prefix');
 
   const dates = permits.map((row) => row.notice_date_determination).filter(Boolean).sort();
   const meta = {
@@ -50,7 +55,7 @@ try {
   // Columnar layout avoids repeating every key on every row.
   await writeFile(
     resolve(outDir, 'permits.json'),
-    JSON.stringify({ columns: PERMIT_COLUMNS, rows: permits.map((row) => PERMIT_COLUMNS.map((column) => row[column] ?? null)) })
+    JSON.stringify({ columns: PERMIT_COLUMNS, rows: permits.map((row) => PERMIT_COLUMNS.map((column) => compactValue(row, column))) })
   );
   await writeFile(resolve(outDir, 'fields.json'), JSON.stringify(fields.map(compactField)));
   await writeFile(resolve(outDir, 'meta.json'), JSON.stringify(meta));
@@ -73,6 +78,20 @@ async function fetchAll(path) {
     rows.push(...page);
     if (page.length < PAGE_SIZE) return rows;
   }
+}
+
+// Trims values the browser can rebuild. source_key is a sha256 used only as a row
+// identity, so 12 hex chars (48 bits) stay unique; links derived from api_10 are dropped.
+function compactValue(row, column) {
+  const value = row[column] ?? null;
+  if (column === 'source_key' && value) return value.slice(0, 12);
+  if (column === 'wellstar_url' && value === linkFor(WELLSTAR_URL, row.api_10)) return null;
+  if (column === 'wellfinder_url' && value === linkFor(WELLFINDER_URL, row.api_10)) return null;
+  return value;
+}
+
+function linkFor(base, api10) {
+  return api10 ? `${base}?api=${api10}` : null;
 }
 
 // Same 240-point display decimation the map applies, plus ~1 m coordinate rounding.

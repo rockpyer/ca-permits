@@ -1,20 +1,21 @@
+import { ACCENT, CHART, SERIES, WORK_COLORS } from './palette';
 import type { PermitActivity } from './types';
 
 export type WorkActivityGroup = 'new_drills' | 'existing' | 'abandonment';
 export type FunctionalTypeGroup = 'producer' | 'thermal_producer' | 'injector' | 'observation' | 'other';
 
 export const WORK_ACTIVITY_GROUPS: Array<{ key: WorkActivityGroup; label: string; color: string }> = [
-  { key: 'new_drills', label: 'New Drill', color: '#36d399' },
-  { key: 'existing', label: 'Existing', color: '#c084fc' },
-  { key: 'abandonment', label: 'Abandonment', color: '#ef6767' }
+  { key: 'new_drills', label: 'New Drill', color: WORK_COLORS.new_drills },
+  { key: 'existing', label: 'Existing', color: WORK_COLORS.existing },
+  { key: 'abandonment', label: 'Abandonment', color: WORK_COLORS.abandonment }
 ];
 
 export const FUNCTIONAL_TYPE_GROUPS: Array<{ key: FunctionalTypeGroup; label: string; symbol: string; color: string }> = [
-  { key: 'producer', label: 'Producer', symbol: 'oil-gas.svg', color: '#e2e8f0' },
-  { key: 'thermal_producer', label: 'Thermal Producer', symbol: 'cyclic-steam.svg', color: '#f5b84b' },
-  { key: 'injector', label: 'Injector', symbol: 'gas-disposal.svg', color: '#60a5fa' },
-  { key: 'observation', label: 'Observation', symbol: 'observation.svg', color: '#c084fc' },
-  { key: 'other', label: 'Other', symbol: 'other.svg', color: '#94a3b8' }
+  { key: 'producer', label: 'Producer', symbol: 'oil-gas.svg', color: ACCENT.neutral },
+  { key: 'thermal_producer', label: 'Thermal Producer', symbol: 'cyclic-steam.svg', color: SERIES[4] },
+  { key: 'injector', label: 'Injector', symbol: 'gas-disposal.svg', color: SERIES[0] },
+  { key: 'observation', label: 'Observation', symbol: 'observation.svg', color: SERIES[5] },
+  { key: 'other', label: 'Other', symbol: 'other.svg', color: CHART.other }
 ];
 
 export const DEFAULT_WORK_ACTIVITY_GROUPS: WorkActivityGroup[] = ['new_drills', 'existing'];
@@ -48,7 +49,7 @@ export function workActivityLabel(group: WorkActivityGroup) {
 }
 
 export function workActivityColor(group: WorkActivityGroup) {
-  return WORK_ACTIVITY_GROUPS.find((item) => item.key === group)?.color || '#94a3b8';
+  return WORK_ACTIVITY_GROUPS.find((item) => item.key === group)?.color || CHART.other;
 }
 
 export function functionalTypeLabel(group: FunctionalTypeGroup) {
@@ -60,7 +61,7 @@ export function functionalTypeSymbol(group: FunctionalTypeGroup) {
 }
 
 export function functionalTypeColor(group: FunctionalTypeGroup) {
-  return FUNCTIONAL_TYPE_GROUPS.find((item) => item.key === group)?.color || '#94a3b8';
+  return FUNCTIONAL_TYPE_GROUPS.find((item) => item.key === group)?.color || CHART.other;
 }
 
 export function normalizeSourceType(value: string) {

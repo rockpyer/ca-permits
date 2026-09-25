@@ -23,6 +23,7 @@ import { rowOperatorDisplayName } from '../lib/operators';
 import { kernNewDrillQuotaStats } from '../lib/production';
 import { SB237_PAGE_URL, type Sb237DrillTrackerStats } from '../lib/sb237';
 import type { ReactNode } from 'react';
+import { ACCENT, CHART, WORK_COLORS } from '../lib/palette';
 import type { PermitActivity } from '../lib/types';
 
 type Props = {
@@ -83,16 +84,16 @@ export function PermitMomentumPanel({ rows }: Props) {
       </div>
       <ResponsiveContainer width="100%" height="78%">
         <LineChart data={trend}>
-          <CartesianGrid stroke="#20312e" vertical={false} />
+          <CartesianGrid stroke={CHART.grid} vertical={false} />
           <XAxis
             dataKey="week"
-            tick={{ fill: '#94a3b8', fontSize: 10 }}
+            tick={{ fill: CHART.axis, fontSize: 10 }}
             tickLine={false}
             axisLine={false}
             minTickGap={24}
           />
-          <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} />
-          <Tooltip content={<CompactChartTooltip />} cursor={{ stroke: '#94a3b8', strokeOpacity: 0.25 }} />
+          <YAxis allowDecimals={false} tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
+          <Tooltip content={<CompactChartTooltip />} cursor={{ stroke: CHART.cursor }} />
           {WORK_ACTIVITY_GROUPS.map((group) => (
             <Line
               key={group.key}
@@ -100,9 +101,9 @@ export function PermitMomentumPanel({ rows }: Props) {
               dataKey={group.key}
               name={group.label}
               stroke={group.color}
-              strokeWidth={2}
-              dot={{ r: 2 }}
-              activeDot={{ r: 4 }}
+              strokeWidth={1.75}
+              dot={false}
+              activeDot={{ r: 4, strokeWidth: 0 }}
             />
           ))}
         </LineChart>
@@ -119,7 +120,7 @@ export function FunctionalTypeMix({ rows }: Props) {
     <section className="border border-line bg-panel/50 p-3" aria-label="Functional type mix">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Functional Type Mix</h2>
       <p className="mb-3 text-xs text-slate-500">Composition of filtered permit records.</p>
-      <div className="flex h-3 overflow-hidden bg-ink">
+      <div className="flex h-2.5 gap-[2px] overflow-hidden bg-ink">
         {FUNCTIONAL_TYPE_GROUPS.map((group) => {
           const value = counts[group.key];
           if (!value) return null;
@@ -194,11 +195,11 @@ export function NewDrillQuotaGauge({
             <span className="text-danger">
               <strong>{quota.projectedCount.toLocaleString()}</strong> projected
             </span>
-            <span className="text-sky-300">
+            <span className="text-steel">
               <strong>{quota.projectedRemaining.toLocaleString()}</strong> left
             </span>
             {sb237Stats && (
-              <span className="text-amber-300">
+              <span className="text-gold">
                 <strong>{sb237Stats.spuddedCount.toLocaleString()}</strong> spudded
               </span>
             )}
@@ -244,13 +245,13 @@ export function NewDrillQuotaGauge({
             </div>
             <div>
               <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Left</div>
-              <div className="text-lg font-semibold text-sky-300">{quota.projectedRemaining.toLocaleString()}</div>
+              <div className="text-lg font-semibold text-steel">{quota.projectedRemaining.toLocaleString()}</div>
               <div className="truncate text-[11px] text-danger">{quota.projectedCount.toLocaleString()} projected</div>
             </div>
             {sb237Stats && (
               <div>
                 <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Spudded</div>
-                <div className="text-lg font-semibold text-amber-300">{sb237Stats.spuddedCount.toLocaleString()}</div>
+                <div className="text-lg font-semibold text-gold">{sb237Stats.spuddedCount.toLocaleString()}</div>
                 <div className="text-[11px] text-slate-500">operator reported</div>
               </div>
             )}
@@ -295,21 +296,21 @@ function FuelGauge({
 
   return (
       <svg viewBox="0 0 120 72" className={compact ? 'h-[38px] w-[58px] sm:h-[42px] sm:w-[64px]' : 'h-[58px] w-[86px]'} role="img" aria-label="Kern New Drill quota gauge">
-        <path d="M20 60 A40 40 0 0 1 100 60" fill="none" stroke="#20312e" strokeWidth="13" strokeLinecap="round" />
+        <path d="M20 60 A40 40 0 0 1 100 60" fill="none" stroke={CHART.grid} strokeWidth="13" strokeLinecap="round" />
         <path
           d="M20 60 A40 40 0 0 1 100 60"
           fill="none"
-          stroke="#36d399"
+          stroke={WORK_COLORS.new_drills}
           strokeWidth="13"
           strokeLinecap="round"
           strokeDasharray={`${dash} ${circumference}`}
         />
-        <line x1={marker.x1} y1={marker.y1} x2={marker.x2} y2={marker.y2} stroke="#ef6767" strokeWidth="4" strokeLinecap="round" />
+        <line x1={marker.x1} y1={marker.y1} x2={marker.x2} y2={marker.y2} stroke={ACCENT.coral} strokeWidth="4" strokeLinecap="round" />
         {spudMarker && (
-          <line x1={spudMarker.x1} y1={spudMarker.y1} x2={spudMarker.x2} y2={spudMarker.y2} stroke="#fbbf24" strokeWidth="4" strokeLinecap="round" />
+          <line x1={spudMarker.x1} y1={spudMarker.y1} x2={spudMarker.x2} y2={spudMarker.y2} stroke={ACCENT.gold} strokeWidth="4" strokeLinecap="round" />
         )}
-        <line x1="60" y1="60" x2={needleX(pct, 30)} y2={needleY(pct, 30)} stroke="#e2e8f0" strokeWidth="3" strokeLinecap="round" />
-        <circle cx="60" cy="60" r="4" fill="#e2e8f0" />
+        <line x1="60" y1="60" x2={needleX(pct, 30)} y2={needleY(pct, 30)} stroke={ACCENT.neutral} strokeWidth="3" strokeLinecap="round" />
+        <circle cx="60" cy="60" r="4" fill={ACCENT.neutral} />
       </svg>
   );
 }
@@ -333,7 +334,7 @@ function QuotaTooltip({
         CalGEM page.
       </p>
       {sb237Stats && (
-        <p className="mt-2 text-amber-200">
+        <p className="mt-2 text-gold">
           Spudded count comes from CalGEM&apos;s Central District Drill Tracker
           {sb237Stats.updatedLabel ? `, updated ${sb237Stats.updatedLabel}` : ''}.
         </p>
@@ -375,7 +376,7 @@ function Stat({ label, value, color, delta, className = '' }: { label: string; v
     <div className={`min-w-0 ${className}`}>
       <div className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
       <div className="flex items-baseline gap-2">
-        <span className="text-base font-semibold text-white sm:text-lg" style={color ? { color } : undefined}>
+        <span className="text-base font-semibold text-slate-100 sm:text-lg" style={color ? { color } : undefined}>
           {value.toLocaleString()}
         </span>
         {delta !== undefined && <span className={deltaClass(delta)}>{formatDelta(delta)} vs prior 4w</span>}
