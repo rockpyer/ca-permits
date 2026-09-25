@@ -39,8 +39,8 @@ const MAP_STYLE = {
       id: 'osm',
       type: 'raster',
       source: 'osm',
-      // Quiet the full-color OSM raster so permits and fields carry the color.
-      paint: { 'raster-saturation': -0.75, 'raster-brightness-max': 0.72, 'raster-contrast': -0.1 }
+      // Slightly calm the OSM raster so it sits in the dark UI while staying legible.
+      paint: { 'raster-saturation': -0.15, 'raster-brightness-max': 0.95 }
     }
   ]
 } as maplibregl.StyleSpecification;
@@ -204,7 +204,7 @@ function addFieldLayers(
     source: 'fields',
     paint: {
       'fill-color': WORK_COLORS.new_drills,
-      'fill-opacity': 0.08
+      'fill-opacity': 0.12
     }
   });
   map.addLayer({
@@ -213,7 +213,7 @@ function addFieldLayers(
     source: 'fields',
     paint: {
       'line-color': WORK_COLORS.new_drills,
-      'line-opacity': 0.45,
+      'line-opacity': 0.65,
       'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.7, 9, 1.4, 12, 2]
     }
   });

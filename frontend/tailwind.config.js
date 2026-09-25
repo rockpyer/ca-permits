@@ -8,11 +8,11 @@ export default {
         ink: '#0f1816',
         panel: '#141e1b',
         line: '#24302d',
-        accent: '#3fa98f',
-        amber: '#c2a24a',
-        danger: '#c46a64',
-        steel: '#7fa7d1',
-        gold: '#c2a24a'
+        accent: '#17ad8e',
+        amber: '#c9a437',
+        danger: '#cf6761',
+        steel: '#7caadb',
+        gold: '#c9a437'
       },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif']
