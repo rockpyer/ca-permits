@@ -1,0 +1,35 @@
+name: Midweek Supabase check
+
+# One tiny read between weekly ingests so the free-tier project never sits idle
+# for 7 days, and a freshness check that fails loudly if the ingest has stalled.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "43 15 * * 4"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Query latest ingest run
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          body=$(curl -sfS --retry 3 --retry-delay 10 \
+            "$SUPABASE_URL/rest/v1/etl_runs?select=finished_at&status=eq.success&order=finished_at.desc&limit=1" \
+            -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY")
+          echo "Latest successful ingest: $body"
+          last=$(echo "$body" | jq -r '.[0].finished_at // empty')
+          if [ -z "$last" ]; then
+            echo "::error::No successful ingest run found"
+            exit 1
+          fi
+          age_days=$(( ( $(date -u +%s) - $(date -u -d "$last" +%s) ) / 86400 ))
+          echo "Ingest age: ${age_days} days"
+          if [ "$age_days" -gt 9 ]; then
+            echo "::error::Last successful ingest was ${age_days} days ago. Check the Weekly CalGEM ingest workflow."
+            exit 1
+          fi

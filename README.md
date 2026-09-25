@@ -1,4 +1,4 @@
-# California Well Permit Tracker
+# California well permit activity
 
 California Well Permit Tracker is a public web app for monitoring California oil and gas well permit activity using CalGEM and WellSTAR public data.
 

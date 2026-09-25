@@ -14,6 +14,7 @@ import {
   countBy,
   fourWeekDelta,
   functionalTypeCounts,
+  sinceLastWeek,
   weeklyGroupedTrend,
   workActivityCounts
 } from '../lib/summary';
@@ -21,6 +22,7 @@ import { workActivityGroup } from '../lib/grouping';
 import { rowOperatorDisplayName } from '../lib/operators';
 import { kernNewDrillQuotaStats } from '../lib/production';
 import { SB237_PAGE_URL, type Sb237DrillTrackerStats } from '../lib/sb237';
+import type { ReactNode } from 'react';
 import type { PermitActivity } from '../lib/types';
 
 type Props = {
@@ -30,15 +32,17 @@ type Props = {
 export function ActivitySummaryStrip({
   rows,
   quotaRows = rows,
-  sb237Stats
-}: Props & { quotaRows?: PermitActivity[]; sb237Stats?: Sb237DrillTrackerStats | null }) {
+  sb237Stats,
+  latestDate,
+  children
+}: Props & { quotaRows?: PermitActivity[]; sb237Stats?: Sb237DrillTrackerStats | null; latestDate: string; children?: ReactNode }) {
   const counts = workActivityCounts(rows);
   const operatorCount = new Set(rows.map(rowOperatorDisplayName).filter((name) => name !== 'Unknown')).size;
   const totalDelta = fourWeekDelta(rows);
 
   return (
     <section className="py-1" aria-label="Activity context">
-      <div className="grid grid-cols-2 items-start gap-x-4 gap-y-2 text-sm md:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))_minmax(260px,300px)]">
+      <div className="grid grid-cols-2 items-start gap-x-4 gap-y-2 text-sm md:grid-cols-3 xl:grid-cols-[repeat(6,minmax(0,1fr))_minmax(260px,300px)]">
         <Stat label="Permits" value={rows.length} delta={totalDelta.delta} />
         {WORK_ACTIVITY_GROUPS.map((group) => (
           <Stat
@@ -50,7 +54,9 @@ export function ActivitySummaryStrip({
           />
         ))}
         <Stat label="Operators" value={operatorCount} className="hidden sm:block" />
+        <SinceLastWeek rows={rows} latestDate={latestDate} />
         <NewDrillQuotaGauge rows={quotaRows} sb237Stats={sb237Stats} compact />
+        {children && <div className="col-span-2 md:col-span-3 xl:col-span-6 xl:row-start-2">{children}</div>}
       </div>
     </section>
   );
@@ -176,7 +182,7 @@ export function NewDrillQuotaGauge({
   if (compact) {
     return (
       <section
-        className="col-span-2 border-t border-line/70 pt-2 md:col-span-3 xl:col-span-1 xl:border-l xl:border-t-0 xl:py-0 xl:pl-3"
+        className="col-span-2 border-t border-line/70 pt-2 md:col-span-3 xl:col-span-1 xl:col-start-7 xl:row-span-2 xl:row-start-1 xl:border-l xl:border-t-0 xl:py-0 xl:pl-3"
         aria-label="Kern County New Drill quota meter"
       >
           <div className="min-w-0">
@@ -373,6 +379,24 @@ function Stat({ label, value, color, delta, className = '' }: { label: string; v
           {value.toLocaleString()}
         </span>
         {delta !== undefined && <span className={deltaClass(delta)}>{formatDelta(delta)} vs prior 4w</span>}
+      </div>
+    </div>
+  );
+}
+
+function SinceLastWeek({ rows, latestDate }: { rows: PermitActivity[]; latestDate: string }) {
+  const week = sinceLastWeek(rows, latestDate);
+  const operatorTitle = week.newOperators.length ? `First permit in the current query: ${week.newOperators.join(', ')}` : undefined;
+
+  return (
+    <div className="min-w-0" title={latestDate ? `7 days ending ${latestDate}` : undefined}>
+      <div className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">Since Last Week</div>
+      <div className="flex items-baseline gap-2">
+        <span className="text-base font-semibold text-slate-100 sm:text-lg">+{week.current.toLocaleString()}</span>
+        <span className={deltaClass(week.current - week.previous)}>{formatDelta(week.current - week.previous)} vs prior wk</span>
+      </div>
+      <div className="truncate text-[10px] text-slate-500" title={operatorTitle}>
+        {week.newDrills.toLocaleString()} new drill · {week.newOperators.length} new operator{week.newOperators.length === 1 ? '' : 's'}
       </div>
     </div>
   );
