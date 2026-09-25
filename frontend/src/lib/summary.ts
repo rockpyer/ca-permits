@@ -296,3 +296,34 @@ function weekStart(dateText: string) {
   date.setDate(date.getDate() + diff);
   return date.toISOString().slice(0, 10);
 }
+
+// Last 7 days ending at the dataset's latest permit date, compared with the 7 days before.
+export function sinceLastWeek(rows: PermitActivity[], endDate: string) {
+  if (!endDate) return { current: 0, previous: 0, newDrills: 0, newOperators: [] as string[] };
+  const currentStart = shiftDate(endDate, -6);
+  const previousStart = shiftDate(currentStart, -7);
+  const priorOperators = new Set<string>();
+  const currentOperators = new Set<string>();
+  let current = 0;
+  let previous = 0;
+  let newDrills = 0;
+
+  rows.forEach((row) => {
+    const date = permitDate(row);
+    if (!date || date > endDate) return;
+    const operator = rowOperatorDisplayName(row);
+    if (date >= currentStart) {
+      current += 1;
+      if (workActivityGroup(row) === 'new_drills') newDrills += 1;
+      if (operator !== 'Unknown') currentOperators.add(operator);
+      return;
+    }
+    if (date >= previousStart) previous += 1;
+    priorOperators.add(operator);
+  });
+
+  const newOperators = Array.from(currentOperators)
+    .filter((operator) => !priorOperators.has(operator))
+    .sort((a, b) => a.localeCompare(b));
+  return { current, previous, newDrills, newOperators };
+}

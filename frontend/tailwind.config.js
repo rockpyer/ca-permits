@@ -4,12 +4,15 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: '#07110f',
-        panel: '#0d1917',
-        line: '#20312e',
-        accent: '#36d399',
-        amber: '#f5b84b',
-        danger: '#ef6767'
+        // Keep in sync with src/lib/palette.ts.
+        ink: '#0f1816',
+        panel: '#141e1b',
+        line: '#24302d',
+        accent: '#3fa98f',
+        amber: '#c2a24a',
+        danger: '#c46a64',
+        steel: '#7fa7d1',
+        gold: '#c2a24a'
       },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif']

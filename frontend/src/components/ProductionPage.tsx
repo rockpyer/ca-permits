@@ -22,6 +22,7 @@ import {
   recentAnnualizedAbandonment,
   recentAnnualizedExistingWork
 } from '../lib/production';
+import { ACCENT, CHART, SERIES, WORK_COLORS } from '../lib/palette';
 import type { Sb237DrillTrackerStats } from '../lib/sb237';
 import type { PermitActivity } from '../lib/types';
 
@@ -127,44 +128,44 @@ export function ProductionPage({ rows, loading, error, sb237Stats, onNavigateHom
                 <ComposedChart data={projectionRows}>
                   <defs>
                     <linearGradient id="oilProductionFill" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="5%" stopColor="#36d399" stopOpacity={0.45} />
-                      <stop offset="95%" stopColor="#36d399" stopOpacity={0.04} />
+                      <stop offset="5%" stopColor={WORK_COLORS.new_drills} stopOpacity={0.45} />
+                      <stop offset="95%" stopColor={WORK_COLORS.new_drills} stopOpacity={0.04} />
                     </linearGradient>
                     <linearGradient id="permitWedgeFill" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="5%" stopColor="#c084fc" stopOpacity={0.38} />
-                      <stop offset="95%" stopColor="#c084fc" stopOpacity={0.08} />
+                      <stop offset="5%" stopColor={WORK_COLORS.existing} stopOpacity={0.38} />
+                      <stop offset="95%" stopColor={WORK_COLORS.existing} stopOpacity={0.08} />
                     </linearGradient>
                     <linearGradient id="newDrillWedgeFill" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="5%" stopColor="#f5b84b" stopOpacity={0.38} />
-                      <stop offset="95%" stopColor="#f5b84b" stopOpacity={0.08} />
+                      <stop offset="5%" stopColor={ACCENT.gold} stopOpacity={0.38} />
+                      <stop offset="95%" stopColor={ACCENT.gold} stopOpacity={0.08} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="#20312e" vertical={false} />
-                  <XAxis dataKey="year" tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
+                  <CartesianGrid stroke={CHART.grid} vertical={false} />
+                  <XAxis dataKey="year" tick={{ fill: CHART.axis, fontSize: 11 }} tickLine={false} axisLine={false} />
                   <YAxis
                     yAxisId="oil"
                     width={54}
-                    tick={{ fill: '#94a3b8', fontSize: 11 }}
+                    tick={{ fill: CHART.axis, fontSize: 11 }}
                     tickLine={false}
                     axisLine={false}
-                    label={{ value: 'kbopd', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 11 }}
+                    label={{ value: 'kbopd', angle: -90, position: 'insideLeft', fill: CHART.axis, fontSize: 11 }}
                   />
                   <YAxis
                     yAxisId="permits"
                     orientation="right"
                     allowDecimals={false}
-                    tick={{ fill: '#94a3b8', fontSize: 11 }}
+                    tick={{ fill: CHART.axis, fontSize: 11 }}
                     tickLine={false}
                     axisLine={false}
-                    label={{ value: 'permits/yr', angle: 90, position: 'insideRight', fill: '#64748b', fontSize: 11 }}
+                    label={{ value: 'permits/yr', angle: 90, position: 'insideRight', fill: CHART.axis, fontSize: 11 }}
                   />
-                  <Tooltip content={<CompactChartTooltip />} cursor={{ stroke: '#94a3b8', strokeOpacity: 0.25 }} />
+                  <Tooltip content={<CompactChartTooltip />} cursor={{ stroke: CHART.cursor }} />
                   <Area
                     yAxisId="oil"
                     type="linear"
                     dataKey="oilKbopd"
                     name="Actual oil kbopd"
-                    stroke="#36d399"
+                    stroke={WORK_COLORS.new_drills}
                     fill="url(#oilProductionFill)"
                     strokeWidth={2.25}
                   />
@@ -173,7 +174,7 @@ export function ProductionPage({ rows, loading, error, sb237Stats, onNavigateHom
                     type="linear"
                     dataKey="existingWorkWedgeRange"
                     name="Existing work modeled lift"
-                    stroke="#c084fc"
+                    stroke={WORK_COLORS.existing}
                     fill="url(#permitWedgeFill)"
                     strokeWidth={0}
                     connectNulls
@@ -183,7 +184,7 @@ export function ProductionPage({ rows, loading, error, sb237Stats, onNavigateHom
                     type="linear"
                     dataKey="newDrillWedgeRange"
                     name="New Drill modeled lift"
-                    stroke="#f5b84b"
+                    stroke={ACCENT.gold}
                     fill="url(#newDrillWedgeFill)"
                     strokeWidth={0}
                     connectNulls
@@ -193,7 +194,7 @@ export function ProductionPage({ rows, loading, error, sb237Stats, onNavigateHom
                     type="linear"
                     dataKey="baselineKbopd"
                     name="Modeled decline"
-                    stroke="#36d399"
+                    stroke={WORK_COLORS.new_drills}
                     strokeDasharray="5 5"
                     dot={{ r: 2 }}
                   />
@@ -202,7 +203,7 @@ export function ProductionPage({ rows, loading, error, sb237Stats, onNavigateHom
                     type="linear"
                     dataKey="withExistingWorkKbopd"
                     name="Existing permits modeled production"
-                    stroke="#c084fc"
+                    stroke={WORK_COLORS.existing}
                     strokeWidth={2}
                     dot={{ r: 2 }}
                   />
@@ -211,13 +212,13 @@ export function ProductionPage({ rows, loading, error, sb237Stats, onNavigateHom
                     type="linear"
                     dataKey="withNewDrillKbopd"
                     name="New Drill modeled production"
-                    stroke="#f5b84b"
+                    stroke={ACCENT.gold}
                     strokeWidth={2}
                     dot={{ r: 2 }}
                   />
-                  <Bar yAxisId="permits" dataKey="kernNewDrillPermitsToDate" name="Kern New Drill to date" fill="#c084fc" opacity={0.55} />
-                  <Bar yAxisId="permits" dataKey="projectedNewDrillPermits" name="2026 projected Kern New Drill Permits" fill="#f5b84b" opacity={0.75} />
-                  <Bar yAxisId="permits" dataKey="projectedExistingWork" name="Existing work at current rate" fill="#60a5fa" opacity={0.5} />
+                  <Bar yAxisId="permits" dataKey="kernNewDrillPermitsToDate" name="Kern New Drill to date" fill={WORK_COLORS.existing} opacity={0.55} />
+                  <Bar yAxisId="permits" dataKey="projectedNewDrillPermits" name="2026 projected Kern New Drill Permits" fill={ACCENT.gold} opacity={0.75} />
+                  <Bar yAxisId="permits" dataKey="projectedExistingWork" name="Existing work at current rate" fill={SERIES[0]} opacity={0.5} />
                 </ComposedChart>
               </ResponsiveContainer>
             </ChartPanel>

@@ -31,20 +31,11 @@ import {
   type FunctionalTypeGroup,
   type WorkActivityGroup
 } from '../lib/grouping';
+import { CHART, SERIES, SURFACE } from '../lib/palette';
 import type { PermitActivity } from '../lib/types';
 
-const STACK_COLORS = [
-  '#36d399',
-  '#60a5fa',
-  '#c084fc',
-  '#f5b84b',
-  '#ef6767',
-  '#2dd4bf',
-  '#f472b6',
-  '#a3e635',
-  '#fb7185',
-  '#94a3b8'
-];
+// Fixed order; series past SERIES.length fold into "Other" rather than reusing a hue.
+const STACK_COLORS = SERIES;
 
 type CategoryField = {
   key: CategoryFieldKey;
@@ -159,21 +150,21 @@ function StackedBarPanel({
       </div>
       <ResponsiveContainer width="100%" height="86%">
         <BarChart data={data} layout="vertical" margin={{ top: 4, right: 10, bottom: 0, left: 16 }}>
-          <CartesianGrid stroke="#20312e" horizontal={false} />
-          <XAxis type="number" allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+          <CartesianGrid stroke={CHART.grid} horizontal={false} />
+          <XAxis type="number" allowDecimals={false} tick={{ fill: CHART.axis, fontSize: 10 }} />
           <YAxis
             type="category"
             dataKey="name"
             width={130}
-            tick={{ fill: '#cbd5e1', fontSize: 11 }}
+            tick={{ fill: CHART.label, fontSize: 11 }}
             tickFormatter={(value) => (truncateAxis ? truncateLabel(String(value), 13) : String(value))}
             tickLine={false}
             axisLine={false}
           />
-          <Tooltip content={<CompactChartTooltip />} cursor={{ fill: 'rgba(148, 163, 184, 0.08)' }} />
-          <Legend wrapperStyle={{ color: '#94a3b8', fontSize: 11 }} />
+          <Tooltip content={<CompactChartTooltip />} cursor={{ fill: CHART.cursorFill }} />
+          <Legend wrapperStyle={{ color: CHART.label, fontSize: 11 }} />
           {keys.map((key, index) => (
-            <Bar key={key} dataKey={key} stackId="total" fill={STACK_COLORS[index % STACK_COLORS.length]} />
+            <Bar key={key} dataKey={key} stackId="total" fill={key === 'Other' ? CHART.other : STACK_COLORS[index % STACK_COLORS.length]} stroke={SURFACE.panel} strokeWidth={1} />
           ))}
         </BarChart>
       </ResponsiveContainer>
@@ -184,7 +175,7 @@ function StackedBarPanel({
 function CategoryStackPanel({ rows, primaryLabel: analysisOperatorLabel }: { rows: PermitActivity[]; primaryLabel: string }) {
   const [primaryKey, setPrimaryKey] = useState<CategoryFieldKey>('operator');
   const [stackKey, setStackKey] = useState<CategoryFieldKey>('source_type');
-  const matrix = useMemo(() => categoricalStackedMatrix(rows, primaryKey, stackKey, 10, 12), [primaryKey, rows, stackKey]);
+  const matrix = useMemo(() => categoricalStackedMatrix(rows, primaryKey, stackKey, 10, fieldFor(stackKey).kind === 'standard' ? STACK_COLORS.length - 1 : 12), [primaryKey, rows, stackKey]);
   const data = matrix.data;
   const keys = stackKeys(data);
   const primaryLabel = primaryKey === 'operator' ? analysisOperatorLabel : fieldLabel(primaryKey);
@@ -206,21 +197,21 @@ function CategoryStackPanel({ rows, primaryLabel: analysisOperatorLabel }: { row
       </div>
       <ResponsiveContainer width="100%" height="82%">
         <BarChart data={data} layout="vertical" margin={{ top: 4, right: 28, bottom: 0, left: 20 }}>
-          <CartesianGrid stroke="#20312e" horizontal={false} />
-          <XAxis type="number" allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+          <CartesianGrid stroke={CHART.grid} horizontal={false} />
+          <XAxis type="number" allowDecimals={false} tick={{ fill: CHART.axis, fontSize: 10 }} />
           <YAxis
             type="category"
             dataKey="name"
             width={142}
-            tick={{ fill: '#cbd5e1', fontSize: 11 }}
+            tick={{ fill: CHART.label, fontSize: 11 }}
             tickFormatter={(value) => truncateLabel(String(value), 16)}
             tickLine={false}
             axisLine={false}
           />
-          <Tooltip content={<CompactChartTooltip />} cursor={{ fill: 'rgba(148, 163, 184, 0.08)' }} />
-          <Legend wrapperStyle={{ color: '#94a3b8', fontSize: 11 }} />
+          <Tooltip content={<CompactChartTooltip />} cursor={{ fill: CHART.cursorFill }} />
+          <Legend wrapperStyle={{ color: CHART.label, fontSize: 11 }} />
           {keys.map((key, index) => (
-            <Bar key={key} dataKey={key} stackId="total" fill={matrix.colors[key] || STACK_COLORS[index % STACK_COLORS.length]} />
+            <Bar key={key} dataKey={key} stackId="total" fill={matrix.colors[key] || STACK_COLORS[index % STACK_COLORS.length]} stroke={SURFACE.panel} strokeWidth={1} />
           ))}
         </BarChart>
       </ResponsiveContainer>
@@ -282,11 +273,11 @@ function OperatorTrendPanel({
       </div>
       <ResponsiveContainer width="100%" height="84%">
         <LineChart data={data}>
-          <CartesianGrid stroke="#20312e" vertical={false} />
-          <XAxis dataKey="week" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} />
-          <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} />
-          <Tooltip content={<CompactChartTooltip />} cursor={{ stroke: '#94a3b8', strokeOpacity: 0.25 }} />
-          <Legend formatter={(value) => truncateLabel(String(value), 20)} wrapperStyle={{ color: '#94a3b8', fontSize: 11 }} />
+          <CartesianGrid stroke={CHART.grid} vertical={false} />
+          <XAxis dataKey="week" tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
+          <YAxis allowDecimals={false} tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
+          <Tooltip content={<CompactChartTooltip />} cursor={{ stroke: CHART.cursor }} />
+          <Legend formatter={(value) => truncateLabel(String(value), 20)} wrapperStyle={{ color: CHART.label, fontSize: 11 }} />
           {operators.map((operator, index) => (
             <Line
               key={operator}
@@ -294,9 +285,9 @@ function OperatorTrendPanel({
               dataKey={operator}
               name={operator}
               stroke={STACK_COLORS[index % STACK_COLORS.length]}
-              strokeWidth={2}
-              dot={{ r: 2 }}
-              activeDot={{ r: 4 }}
+              strokeWidth={1.75}
+              dot={false}
+              activeDot={{ r: 4, strokeWidth: 0 }}
             />
           ))}
         </LineChart>
@@ -324,7 +315,7 @@ function categoricalStackedMatrix(
       colors[stack] ||= colorForStack(row, stackField.kind);
     }
   });
-  colors.Other ||= '#94a3b8';
+  colors.Other ||= CHART.other;
 
   const data = primaries.map((primary) => {
     const entry: Record<string, string | number> = { name: primary };
@@ -358,5 +349,5 @@ function fieldFor(key: CategoryFieldKey) {
 function colorForStack(row: PermitActivity, kind: CategoryField['kind']) {
   if (kind === 'work') return workActivityColor(workActivityGroup(row) as WorkActivityGroup);
   if (kind === 'type') return functionalTypeColor(functionalTypeGroup(row) as FunctionalTypeGroup);
-  return '#94a3b8';
+  return CHART.other;
 }

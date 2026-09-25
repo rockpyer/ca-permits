@@ -1,3 +1,4 @@
+import { permitDate } from './permitDates';
 import type { PermitActivity } from './types';
 
 const CRC_OPERATOR_ALIASES = new Set([
@@ -35,8 +36,12 @@ export function operatorNameForView(row: PermitActivity, view: OperatorView = 'o
   return view === 'parent' ? operatorParentName(row.operator_name) : rowOperatorDisplayName(row);
 }
 
-export function uniqueOperatorDisplayNames(rows: PermitActivity[]) {
-  return Array.from(new Set(rows.map(rowOperatorDisplayName))).sort((a, b) => a.localeCompare(b));
+// Operators with at least one permit in `year`; `keep` stays listed so a shared-URL selection isn't dropped.
+export function activeOperatorDisplayNames(rows: PermitActivity[], year: string, keep: string[] = []) {
+  const active = rows.filter((row) => permitDate(row).startsWith(year));
+  return Array.from(new Set([...active.map(rowOperatorDisplayName), ...keep]))
+    .filter((name) => name !== 'Unknown')
+    .sort((a, b) => a.localeCompare(b));
 }
 
 function normalizeOperatorName(value: string) {

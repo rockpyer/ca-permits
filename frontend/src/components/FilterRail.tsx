@@ -1,7 +1,7 @@
 import { PanelLeftClose, PanelLeftOpen, RotateCcw } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { defaultFilters, toggleListValue, uniqueValues } from '../lib/filters';
-import { uniqueOperatorDisplayNames } from '../lib/operators';
+import { activeOperatorDisplayNames } from '../lib/operators';
 import {
   FUNCTIONAL_TYPE_GROUPS,
   WORK_ACTIVITY_GROUPS,
@@ -83,7 +83,7 @@ export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedCh
         <FilterSection title="Well And Geography" defaultOpen>
           <InlineSelect
             label="Operator"
-            options={uniqueOperatorDisplayNames(rows)}
+            options={activeOperatorDisplayNames(rows, (dateBounds.maxDate || new Date().toISOString()).slice(0, 4), filters.operators)}
             value={filters.operators[0] || ''}
             onChange={(value) => onChange({ ...filters, operators: value ? [value] : [] })}
           />

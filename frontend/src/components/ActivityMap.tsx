@@ -13,6 +13,7 @@ import {
   type FunctionalTypeGroup,
   type WorkActivityGroup
 } from '../lib/grouping';
+import { SURFACE, WORK_COLORS } from '../lib/palette';
 import type { FieldBoundary, PermitActivity } from '../lib/types';
 import { rowOperatorDisplayName } from '../lib/operators';
 
@@ -33,7 +34,15 @@ const MAP_STYLE = {
       attribution: '© OpenStreetMap contributors'
     }
   },
-  layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
+  layers: [
+    {
+      id: 'osm',
+      type: 'raster',
+      source: 'osm',
+      // Quiet the full-color OSM raster so permits and fields carry the color.
+      paint: { 'raster-saturation': -0.75, 'raster-brightness-max': 0.72, 'raster-contrast': -0.1 }
+    }
+  ]
 } as maplibregl.StyleSpecification;
 
 export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
@@ -83,11 +92,14 @@ export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
       style: MAP_STYLE,
       center: [-119.4, 36.4],
       zoom: 5.6,
-      attributionControl: false
+      // OSM tile policy requires visible attribution.
+      attributionControl: { compact: true }
     });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
-    map.on('load', async () => {
+    // style.load fires once the inline style is parsed; 'load' would also wait on
+    // basemap tiles, so slow or throttled OSM tiles would hide every permit.
+    map.once('style.load', async () => {
       await loadPermitSymbolImages(map);
       addFieldLayers(map, fieldGeojsonRef.current);
       setFieldLayerVisibility(map, showFieldsRef.current);
@@ -191,8 +203,8 @@ function addFieldLayers(
     type: 'fill',
     source: 'fields',
     paint: {
-      'fill-color': '#19352f',
-      'fill-opacity': 0.22
+      'fill-color': WORK_COLORS.new_drills,
+      'fill-opacity': 0.08
     }
   });
   map.addLayer({
@@ -200,8 +212,8 @@ function addFieldLayers(
     type: 'line',
     source: 'fields',
     paint: {
-      'line-color': '#36d399',
-      'line-opacity': 0.55,
+      'line-color': WORK_COLORS.new_drills,
+      'line-opacity': 0.45,
       'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.7, 9, 1.4, 12, 2]
     }
   });
@@ -225,7 +237,7 @@ function addPermitLayers(map: maplibregl.Map, data: GeoJSON.FeatureCollection<Ge
         'circle-radius': 14,
         'circle-color': '#f8fafc',
         'circle-opacity': 0.82,
-        'circle-stroke-color': '#07110f',
+        'circle-stroke-color': SURFACE.ink,
         'circle-stroke-width': 2
       }
     });
@@ -238,9 +250,9 @@ function addPermitLayers(map: maplibregl.Map, data: GeoJSON.FeatureCollection<Ge
       source: 'permits',
       paint: {
         'circle-radius': ['case', ['==', ['get', 'selected'], true], 16, 10],
-        'circle-color': '#07110f',
+        'circle-color': SURFACE.ink,
         'circle-opacity': ['case', ['==', ['get', 'selected'], true], 0.86, 0.62],
-        'circle-stroke-color': ['case', ['==', ['get', 'selected'], true], '#f8fafc', '#dbeafe'],
+        'circle-stroke-color': ['case', ['==', ['get', 'selected'], true], '#f1f5f3', '#b7c0bc'],
         'circle-stroke-opacity': ['case', ['==', ['get', 'selected'], true], 1, 0.7],
         'circle-stroke-width': ['case', ['==', ['get', 'selected'], true], 2.5, 1]
       }

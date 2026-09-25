@@ -7,7 +7,7 @@ import { PermitTable } from './components/PermitTable';
 import { ProductionPage } from './components/ProductionPage';
 import { RankingPanels } from './components/RankingPanels';
 import { ActivityNotes, ActivitySummaryStrip, FunctionalTypeMix, PermitMomentumPanel } from './components/SummaryCards';
-import { loadEtlRuns, loadFields, loadPermitActivity, loadPermitDateBounds } from './lib/data';
+import { loadAppData } from './lib/data';
 import { applyFilters, dateRangeForRows, defaultFilters } from './lib/filters';
 import {
   FUNCTIONAL_TYPE_GROUPS,
@@ -18,6 +18,8 @@ import {
   type WorkActivityGroup
 } from './lib/grouping';
 import { loadSb237DrillTrackerStats, type Sb237DrillTrackerStats } from './lib/sb237';
+import { rowOperatorDisplayName } from './lib/operators';
+import { countByValue, shiftDate } from './lib/summary';
 import { hasSupabaseConfig } from './lib/supabase';
 import type { EtlRun, FieldBoundary, Filters, PermitActivity } from './lib/types';
 
@@ -48,12 +50,12 @@ export function App() {
 
   useEffect(() => {
     if (!hasSupabaseConfig) return;
-    Promise.all([loadPermitActivity(), loadFields(), loadEtlRuns(), loadPermitDateBounds()])
-      .then(([permitRows, fieldRows, runs, bounds]) => {
-        setRows(permitRows);
-        setFields(fieldRows);
-        setEtlRuns(runs);
-        setDateBounds(bounds);
+    loadAppData()
+      .then((data) => {
+        setRows(data.permits);
+        setFields(data.fields);
+        setEtlRuns(data.etlRuns);
+        setDateBounds(data.dateBounds);
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Unable to load data'))
       .finally(() => setLoading(false));
@@ -128,7 +130,7 @@ export function App() {
               <div className="max-w-4xl">
                 <h1 className="product-title">
                   <span>California</span>
-                  <span> Well Permit Tracker</span>
+                  <span> well permit activity</span>
                 </h1>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">
                   Active CalGEM permit activity, WellSTAR well metadata, and field concentration.
@@ -183,7 +185,9 @@ export function App() {
           {!loading && !error && (
             <div className="space-y-2.5 p-3 sm:space-y-3 sm:p-4">
               <section aria-label="Permit activity summary">
-                <ActivitySummaryStrip rows={filteredRows} quotaRows={rows} sb237Stats={sb237Stats} />
+                <ActivitySummaryStrip rows={filteredRows} quotaRows={rows} sb237Stats={sb237Stats} latestDate={dateBounds.maxDate}>
+                  <QuickViews rows={rows} filters={filters} dateBounds={dateBounds} onChange={setFilters} />
+                </ActivitySummaryStrip>
               </section>
               <ActiveQuery filters={filters} dateBounds={dateBounds} />
               <section className="xl:grid xl:grid-cols-[64px_minmax(0,1360px)] xl:gap-3" aria-label="Permit activity map">
@@ -266,6 +270,69 @@ function ActiveQuery({ filters, dateBounds }: { filters: Filters; dateBounds: { 
       <span className="text-slate-600">/</span>
       <span>{range}</span>
     </div>
+  );
+}
+
+type DateBounds = { minDate: string; maxDate: string };
+
+function quickViewPresets(rows: PermitActivity[], dateBounds: DateBounds): Array<{ label: string; filters: Filters }> {
+  const base = defaultFilters(dateBounds);
+  const daysBack = (days: number) => {
+    const start = shiftDate(base.endDate, -(days - 1));
+    return dateBounds.minDate && start < dateBounds.minDate ? dateBounds.minDate : start;
+  };
+  const topOperator = countByValue(applyFilters(rows, base), rowOperatorDisplayName, 2).find((item) => item.name !== 'Unknown')?.name;
+
+  return [
+    { label: 'Year to date', filters: base },
+    { label: 'Last 30 days', filters: { ...base, startDate: daysBack(30) } },
+    { label: 'Kern New Drill', filters: { ...base, workActivities: ['new_drills'], counties: ['Kern'] } },
+    ...(topOperator ? [{ label: topOperator, filters: { ...base, operators: [topOperator] } }] : []),
+    { label: 'Injectors', filters: { ...base, functionalTypes: ['injector'] } },
+    { label: 'Abandonment, 90 days', filters: { ...base, workActivities: ['abandonment'], startDate: daysBack(90) } }
+  ];
+}
+
+function sameFilters(a: Filters, b: Filters) {
+  const key = (filters: Filters) =>
+    JSON.stringify({ ...filters, workActivities: [...filters.workActivities].sort(), functionalTypes: [...filters.functionalTypes].sort() });
+  return key(a) === key(b);
+}
+
+function QuickViews({
+  rows,
+  filters,
+  dateBounds,
+  onChange
+}: {
+  rows: PermitActivity[];
+  filters: Filters;
+  dateBounds: DateBounds;
+  onChange: (filters: Filters) => void;
+}) {
+  const presets = useMemo(() => quickViewPresets(rows, dateBounds), [rows, dateBounds]);
+  if (!dateBounds.maxDate) return null;
+
+  return (
+    <nav className="flex flex-wrap items-center gap-1.5 pt-1 text-xs" aria-label="Quick views">
+      <span className="mr-1 font-semibold uppercase tracking-wide text-slate-500">Quick Views</span>
+      {presets.map((preset) => {
+        const active = sameFilters(filters, preset.filters);
+        return (
+          <button
+            key={preset.label}
+            type="button"
+            aria-pressed={active}
+            className={`border px-2 py-0.5 transition ${
+              active ? 'border-accent/60 bg-accent/10 text-slate-100' : 'border-line text-slate-400 hover:border-slate-500 hover:text-slate-200'
+            }`}
+            onClick={() => onChange(preset.filters)}
+          >
+            {preset.label}
+          </button>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -482,7 +549,7 @@ function SetupState() {
       <div className="max-w-2xl border border-line bg-panel p-6">
         <div className="mb-4 flex items-center gap-3 text-accent">
           <MapPinned size={24} />
-          <h1 className="text-2xl font-semibold text-white">California Well Permit Tracker</h1>
+          <h1 className="text-2xl font-semibold text-white">California well permit activity</h1>
         </div>
         <p className="mb-4 text-slate-300">
           Add Supabase settings to run the app: <code>VITE_SUPABASE_URL</code> and{' '}

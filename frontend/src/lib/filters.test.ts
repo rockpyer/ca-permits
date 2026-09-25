@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyFilters, defaultFilters, toggleListValue } from './filters';
 import { functionalTypeGroup } from './grouping';
-import { operatorParentName, rowOperatorDisplayName } from './operators';
+import { activeOperatorDisplayNames, operatorParentName, rowOperatorDisplayName } from './operators';
 import type { PermitActivity } from './types';
 
 const baseRow: PermitActivity = {
@@ -85,5 +85,16 @@ describe('filters', () => {
     expect(applyFilters([aera, elkHills, other], { ...defaultFilters(), operators: ['Aera Energy LLC'] })).toEqual([aera]);
     expect(operatorParentName(aera.operator_name)).toBe('CRC');
     expect(operatorParentName(elkHills.operator_name)).toBe('CRC');
+  });
+});
+
+describe('activeOperatorDisplayNames', () => {
+  it('lists only operators with a permit in the year, keeping a selected one', () => {
+    const rows = [
+      { ...baseRow, operator_name: 'Current Co', notice_date_determination: '2026-03-01' },
+      { ...baseRow, operator_name: 'Old Co', notice_date_determination: '2025-11-01', notice_dated: '2025-11-01' },
+      { ...baseRow, operator_name: 'Kept Co', notice_date_determination: '2024-01-01', notice_dated: '2024-01-01' }
+    ];
+    expect(activeOperatorDisplayNames(rows, '2026', ['Kept Co'])).toEqual(['Current Co', 'Kept Co']);
   });
 });

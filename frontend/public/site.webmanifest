@@ -1,12 +1,12 @@
 {
-  "name": "California Well Permit Tracker",
+  "name": "California well permit activity",
   "short_name": "CA Permits",
   "description": "Track California oil and gas well permit activity from public CalGEM and WellSTAR data.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#07110f",
-  "theme_color": "#07110f",
+  "background_color": "#0f1816",
+  "theme_color": "#0f1816",
   "icons": [
     {
       "src": "/app-icon.svg",
