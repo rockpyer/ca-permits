@@ -40,7 +40,24 @@ export type PermitActivity = {
   depth_data_status: 'not_available' | 'linked_only' | 'scraped' | 'api_source';
   wellstar_url: string | null;
   wellfinder_url: string | null;
+  // From CalGEM's monthly wells CSV via the snapshot; absent in live mode.
+  pool_name?: string | null;
 };
+
+export type DrillTrackerRow = {
+  api_10: string;
+  well_name: string | null;
+  operator: string | null;
+  field: string | null;
+  well_type: string | null;
+  approval_date: string | null;
+  spud_date: string | null;
+  sb237: boolean;
+};
+
+export type DrillTracker = { updatedLabel: string; rows: DrillTrackerRow[] };
+
+export type RigCount = { sourceUrl: string; weeks: Array<{ date: string; california: number; kern: number }> };
 
 export type FieldBoundary = {
   source_object_id: number;

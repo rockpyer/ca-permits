@@ -11,3 +11,4 @@ frontend/dist/
 frontend/vite.config.js
 frontend/vite.config.d.ts
 frontend/public/data/
+frontend/.cache/

@@ -72,20 +72,20 @@ export function DetailDrawer({ row, onClose }: Props) {
         <DetailSection
           title="Depth And Target"
           rows={[
+            ['Pool', row.pool_name],
             ['Bottom Hole MD', row.bottom_hole_md],
             ['Bottom Hole TVD', row.bottom_hole_tvd],
             ['Completion Top MD', row.completion_top_md],
             ['Completion Bottom MD', row.completion_bottom_md],
             ['Formation', row.formation],
-            ['Pool Code', row.pool_code],
             ['Wellbore Direction', row.wellbore_direction]
           ]}
         />
         <section className="border border-line bg-panel/40 p-3 text-sm text-slate-300">
           <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Depth Details</div>
           <p>
-            Public ArcGIS layers do not expose depth and completion intervals yet. See WellSTAR for the official well
-            detail page.
+            Pool names come from CalGEM&apos;s monthly well list. Depth and completion intervals are not in the public
+            data layers yet; see WellSTAR for the official well detail page.
           </p>
           {wellstarUrl && (
             <a className="mt-3 inline-flex text-accent hover:underline" href={wellstarUrl} target="_blank" rel="noreferrer">

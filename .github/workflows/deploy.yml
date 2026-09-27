@@ -52,6 +52,15 @@ jobs:
             exit 1
           fi
 
+      # Keeps CalGEM's ~43 MB monthly wells CSV between runs; the snapshot re-downloads
+      # only when the file's ETag/Last-Modified changes.
+      - name: Restore source cache
+        uses: actions/cache@v4
+        with:
+          path: frontend/.cache
+          key: calgem-sources-${{ github.run_id }}
+          restore-keys: calgem-sources-
+
       - name: Build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}

@@ -316,8 +316,8 @@ function MapLegend({ symbols, activities }: { symbols: typeof FUNCTIONAL_TYPE_GR
             <span
               className="h-3 w-3 bg-slate-300 sm:h-4 sm:w-4"
               style={{
-                WebkitMask: `url(/map-symbols/${item.symbol}) center / contain no-repeat`,
-                mask: `url(/map-symbols/${item.symbol}) center / contain no-repeat`
+                WebkitMask: `url(${import.meta.env.BASE_URL}map-symbols/${item.symbol}) center / contain no-repeat`,
+                mask: `url(${import.meta.env.BASE_URL}map-symbols/${item.symbol}) center / contain no-repeat`
               }}
             />
             {item.label}
@@ -381,7 +381,7 @@ async function loadPermitSymbolImages(map: maplibregl.Map) {
       WORK_ACTIVITY_GROUPS.map(async (activity) => {
         const id = iconId(symbol.key, activity.key);
         if (map.hasImage(id)) return;
-        const svg = await fetch(`/map-symbols/${symbol.symbol}`).then((response) => response.text());
+        const svg = await fetch(`${import.meta.env.BASE_URL}map-symbols/${symbol.symbol}`).then((response) => response.text());
         const imageData = await svgToImageData(svg.replace(/currentColor/g, activity.color));
         map.addImage(id, imageData, { pixelRatio: 2 });
       })
