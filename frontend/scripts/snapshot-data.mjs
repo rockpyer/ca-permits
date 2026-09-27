@@ -4,9 +4,13 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fetchDrillTracker } from './sources/drill-tracker.mjs';
+import { fetchRigCount } from './sources/rig-count.mjs';
+import { fetchWellPools } from './sources/well-pools.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const outDir = resolve(here, '../public/data');
+const cacheDir = resolve(here, '../.cache');
 const required = process.env.SNAPSHOT_REQUIRED === '1';
 const PAGE_SIZE = 1000;
 // Must match generated_links() in backend/normalize.py and linkFor() in src/lib/data.ts.
@@ -42,12 +46,28 @@ try {
   const shortKeys = new Set(permits.map((row) => String(row.source_key).slice(0, 12)));
   if (shortKeys.size !== permits.length) throw new Error('source_key prefix collision; lengthen the prefix');
 
+  // Supplementary public sources are optional: a failure drops that dataset, never the build.
+  const sources = {};
+  const wellPools = await optional(sources, 'wellPools', async () => {
+    const result = await fetchWellPools(new Set(permits.map((row) => row.api_10).filter(Boolean)), cacheDir);
+    return { ...result, summary: { url: result.url, lastModified: result.lastModified, fromCache: result.fromCache, wells: result.pools.size } };
+  });
+  const drillTracker = await optional(sources, 'drillTracker', async () => {
+    const result = await fetchDrillTracker();
+    return { ...result, summary: { updated: result.updatedLabel, rows: result.rows.length } };
+  });
+  const rigCount = await optional(sources, 'rigCount', async () => {
+    const result = await fetchRigCount();
+    return { ...result, summary: { url: result.sourceUrl, weeks: result.weeks.length, latest: result.weeks.at(-1) } };
+  });
+
   const dates = permits.map((row) => row.notice_date_determination).filter(Boolean).sort();
   const meta = {
     generatedAt: new Date().toISOString(),
     permitCount: permits.length,
     dateBounds: { minDate: dates[0] || '', maxDate: dates[dates.length - 1] || '' },
-    etlRuns
+    etlRuns,
+    sources
   };
 
   await rm(outDir, { recursive: true, force: true });
@@ -55,14 +75,37 @@ try {
   // Columnar layout avoids repeating every key on every row.
   await writeFile(
     resolve(outDir, 'permits.json'),
-    JSON.stringify({ columns: PERMIT_COLUMNS, rows: permits.map((row) => PERMIT_COLUMNS.map((column) => compactValue(row, column))) })
+    JSON.stringify({
+      columns: [...PERMIT_COLUMNS, 'pool_name'],
+      rows: permits.map((row) => [
+        ...PERMIT_COLUMNS.map((column) => compactValue(row, column)),
+        wellPools?.pools.get(row.api_10)?.join(' / ') || null
+      ])
+    })
   );
+  if (drillTracker) {
+    await writeFile(resolve(outDir, 'drill-tracker.json'), JSON.stringify({ updatedLabel: drillTracker.updatedLabel, rows: drillTracker.rows }));
+  }
+  if (rigCount) await writeFile(resolve(outDir, 'rig-count.json'), JSON.stringify({ sourceUrl: rigCount.sourceUrl, weeks: rigCount.weeks }));
   await writeFile(resolve(outDir, 'fields.json'), JSON.stringify(fields.map(compactField)));
   await writeFile(resolve(outDir, 'meta.json'), JSON.stringify(meta));
   console.log(`snapshot: ${permits.length} permits, ${fields.length} fields, through ${meta.dateBounds.maxDate}`);
+  console.log(`snapshot sources: ${JSON.stringify(sources)}`);
 } catch (error) {
   if (required) fail(error instanceof Error ? error.message : String(error));
   console.warn(`snapshot: ${error instanceof Error ? error.message : error}; skipping (app will query live).`);
+}
+
+async function optional(sources, name, load) {
+  try {
+    const result = await load();
+    sources[name] = { ok: true, ...result.summary };
+    return result;
+  } catch (error) {
+    sources[name] = { ok: false, error: error instanceof Error ? error.message : String(error) };
+    console.warn(`snapshot: ${name} unavailable: ${sources[name].error}`);
+    return null;
+  }
 }
 
 async function get(path, headers = {}) {

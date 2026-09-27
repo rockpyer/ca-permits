@@ -1,3 +1,5 @@
+import type { DrillTracker } from './types';
+
 export const SB237_PAGE_URL = 'https://www.conservation.ca.gov/calgem/Pages/SB237.aspx';
 export const SB237_DRILL_TRACKER_URL =
   'https://www.conservation.ca.gov/calgem/Documents/Permits/Central%20District%20Drill%20Tracker.xlsx';
@@ -11,6 +13,14 @@ type DrillTrackerRow = {
   'Spud Date (preliminary and self-reported by operators)'?: unknown;
   'SB-237 (Y/N)'?: unknown;
 };
+
+// Preferred path: the build snapshot, since CalGEM's server sends no CORS header for browsers.
+export function sb237StatsFromTracker(tracker: DrillTracker): Sb237DrillTrackerStats {
+  return {
+    spuddedCount: tracker.rows.filter((row) => row.sb237 && row.spud_date).length,
+    updatedLabel: tracker.updatedLabel
+  };
+}
 
 export async function loadSb237DrillTrackerStats(): Promise<Sb237DrillTrackerStats> {
   const response = await fetch(SB237_DRILL_TRACKER_URL);

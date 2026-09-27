@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Github, Link as LinkIcon, Loader2, MapPinned } from 'lucide-react';
 import { ActivityMap } from './components/ActivityMap';
 import { DetailDrawer } from './components/DetailDrawer';
+import { DrillingPage } from './components/DrillingPage';
 import { FilterRail } from './components/FilterRail';
 import { PermitTable } from './components/PermitTable';
 import { ProductionPage } from './components/ProductionPage';
@@ -17,17 +18,20 @@ import {
   type FunctionalTypeGroup,
   type WorkActivityGroup
 } from './lib/grouping';
-import { loadSb237DrillTrackerStats, type Sb237DrillTrackerStats } from './lib/sb237';
+import { loadSb237DrillTrackerStats, sb237StatsFromTracker, type Sb237DrillTrackerStats } from './lib/sb237';
+import { operatorColorMap } from './lib/operatorColors';
 import { rowOperatorDisplayName } from './lib/operators';
 import { countByValue, shiftDate } from './lib/summary';
 import { hasSupabaseConfig } from './lib/supabase';
-import type { EtlRun, FieldBoundary, Filters, PermitActivity } from './lib/types';
+import type { DrillTracker, EtlRun, FieldBoundary, Filters, PermitActivity, RigCount } from './lib/types';
 
 export function App() {
   const [rows, setRows] = useState<PermitActivity[]>([]);
   const [fields, setFields] = useState<FieldBoundary[]>([]);
   const [etlRuns, setEtlRuns] = useState<EtlRun[]>([]);
   const [sb237Stats, setSb237Stats] = useState<Sb237DrillTrackerStats | null>(null);
+  const [drillTracker, setDrillTracker] = useState<DrillTracker | null>(null);
+  const [rigCount, setRigCount] = useState<RigCount | null>(null);
   const [filters, setFilters] = useState<Filters>(() => filtersFromUrl(defaultFilters()));
   const urlDateRef = useRef(hasUrlDateFilters());
   const [selected, setSelected] = useState<PermitActivity | null>(null);
@@ -45,7 +49,11 @@ export function App() {
       setFilters(filtersFromUrl(defaultFilters(dateBounds)));
     };
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handlePopState);
+    };
   }, [dateBounds]);
 
   useEffect(() => {
@@ -56,16 +64,21 @@ export function App() {
         setFields(data.fields);
         setEtlRuns(data.etlRuns);
         setDateBounds(data.dateBounds);
+        setDrillTracker(data.drillTracker);
+        setRigCount(data.rigCount);
+        if (data.drillTracker) {
+          setSb237Stats(sb237StatsFromTracker(data.drillTracker));
+        } else {
+          // Live/dev mode: try the browser fetch (blocked by CORS on most origins).
+          loadSb237DrillTrackerStats()
+            .then(setSb237Stats)
+            .catch(() => setSb237Stats(null));
+        }
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Unable to load data'))
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    loadSb237DrillTrackerStats()
-      .then(setSb237Stats)
-      .catch(() => setSb237Stats(null));
-  }, []);
 
   useEffect(() => {
     const rowBounds = dateRangeForRows(rows);
@@ -81,11 +94,17 @@ export function App() {
   }, [dateBounds, rows]);
 
   useEffect(() => {
-    if (path === '/about-methodology' || path === '/prod') return;
+    if (path === '/about-methodology' || path === '/prod' || path === '/drilling') return;
     persistFiltersToUrl(filters, dateBounds);
   }, [dateBounds, filters, path]);
 
   const filteredRows = useMemo(() => applyFilters(rows, filters), [rows, filters]);
+  // Operator colors are ranked on the current year's unfiltered permits so filters never repaint them.
+  const colorRows = useMemo(() => {
+    const year = (dateBounds.maxDate || new Date().toISOString()).slice(0, 4);
+    return rows.filter((row) => (row.notice_date_determination || row.notice_dated || '').startsWith(year));
+  }, [rows, dateBounds.maxDate]);
+  const operatorColor = useMemo(() => operatorColorMap(colorRows), [colorRows]);
   const lastRun = etlRuns[0];
   const weeklyUpdateDate = dateBounds.maxDate || lastRun?.finished_at?.slice(0, 10) || '';
 
@@ -101,6 +120,23 @@ export function App() {
     return (
       <Shell>
         <AboutMethodology onNavigateHome={() => navigateTo('/', setPath)} />
+      </Shell>
+    );
+  }
+
+  if (path === '/drilling') {
+    return (
+      <Shell>
+        <DrillingPage
+          rows={rows}
+          drillTracker={drillTracker}
+          rigCount={rigCount}
+          asOf={dateBounds.maxDate}
+          operatorColor={operatorColor}
+          loading={loading}
+          error={error}
+          onNavigateHome={() => navigateTo('/', setPath)}
+        />
       </Shell>
     );
   }
@@ -133,7 +169,7 @@ export function App() {
                   <span> well permit activity</span>
                 </h1>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">
-                  Active CalGEM permit activity, WellSTAR well metadata, and field concentration.
+                  Approved CalGEM permits, WellSTAR well metadata, and field/type analysis.
                 </p>
               </div>
               <div className="min-w-0 border-l-0 border-line text-sm text-slate-400 xl:min-w-[260px] xl:border-l xl:pl-5">
@@ -206,7 +242,7 @@ export function App() {
                 </div>
               </section>
               <section aria-label="Operator and field trend analysis">
-                <RankingPanels rows={filteredRows} />
+                <RankingPanels rows={filteredRows} colorRows={colorRows} />
               </section>
               <section aria-label="Permit records">
                 <PermitTable rows={filteredRows} selected={selected} onSelect={setSelected} />
@@ -234,6 +270,8 @@ export function App() {
 }
 
 function normalizedPath() {
+  // `#/drilling`-style links serve hosts that can't route custom paths (e.g. private previews).
+  if (window.location.hash.startsWith('#/')) return window.location.hash.slice(1).replace(/\/$/, '') || '/';
   const pathname = window.location.pathname.replace(/\/$/, '') || '/';
   return pathname === '/ca-permits' ? '/' : pathname;
 }
@@ -444,7 +482,26 @@ function Shell({ children }: { children: React.ReactNode }) {
         Skip to activity explorer
       </a>
       {children}
+      {import.meta.env.VITE_PREVIEW === '1' && <PreviewNav />}
     </div>
+  );
+}
+
+// Preview builds only (VITE_PREVIEW=1): hash links to routes that aren't linked in the UI.
+function PreviewNav() {
+  return (
+    <nav className="fixed bottom-3 left-3 z-[60] flex items-center gap-2 border border-amber/60 bg-ink/95 px-3 py-1.5 text-xs" aria-label="Preview navigation">
+      <span className="font-semibold uppercase tracking-wide text-amber">Preview</span>
+      {[
+        ['#/', 'Main'],
+        ['#/drilling', 'Drilling'],
+        ['#/prod', 'Production']
+      ].map(([href, label]) => (
+        <a key={href} className="text-slate-300 hover:text-accent" href={href}>
+          {label}
+        </a>
+      ))}
+    </nav>
   );
 }
 
