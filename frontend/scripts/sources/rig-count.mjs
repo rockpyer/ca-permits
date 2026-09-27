@@ -19,18 +19,26 @@ export async function fetchRigCount(overrideUrl = process.env.BAKER_HUGHES_RIGCO
 async function discoverFileUrl() {
   const response = await fetch(PAGE_URL, { headers: HEADERS });
   if (!response.ok) throw new Error(`rig count page HTTP ${response.status}`);
-  const html = await response.text();
-  const links = Array.from(html.matchAll(/<a[^>]+href="([^"]+\.xls[xb]?[^"]*)"[^>]*>([\s\S]*?)<\/a>/gi)).map(([, href, label]) => ({
-    href: new URL(href.replace(/&amp;/g, '&'), PAGE_URL).toString(),
-    label: label.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  return pickReportLink(await response.text(), PAGE_URL);
+}
+
+// Download links are often extension-less (/static-files/<id>), so match on the link text.
+export function pickReportLink(html, pageUrl = PAGE_URL) {
+  const links = Array.from(html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)).map(([, href, label]) => ({
+    href: new URL(href.replace(/&amp;/g, '&'), pageUrl).toString(),
+    label: label.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()
   }));
-  // The weekly "North America Rig Count Report" workbook carries state and county per rig record.
   const text = (link) => `${link.label} ${decodeURIComponent(link.href)}`;
+  const isDownload = (link) => /static-files|\.xls[xbm]?(\?|$)|download/i.test(link.href);
   const match =
     links.find((link) => /north.?america.?rig.?count.?report/i.test(text(link))) ||
-    links.find((link) => /pivot/i.test(text(link)));
-  if (!match) throw new Error(`no rig count report link among ${links.length} spreadsheet links`);
-  return match.href;
+    links.find((link) => isDownload(link) && /north.?america/i.test(text(link)) && /pivot|report/i.test(text(link))) ||
+    links.find((link) => isDownload(link) && /north.?america.*rig.?count/i.test(text(link)));
+  if (match) return match.href;
+  const candidates = links.filter((link) => isDownload(link) || /rig ?count/i.test(link.label)).slice(0, 12);
+  throw new Error(
+    `no rig count report link among ${links.length} links; candidates: ${candidates.map((link) => `"${link.label}" ${link.href}`).join(' | ') || 'none'}`
+  );
 }
 
 // Weekly California and Kern County oil and gas rig totals. "Miscellaneous" rigs
