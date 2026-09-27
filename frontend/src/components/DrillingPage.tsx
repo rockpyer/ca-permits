@@ -1,8 +1,10 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ExternalLink, Loader2 } from 'lucide-react';
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { CompactChartTooltip } from './CompactChartTooltip';
 import {
+  INVENTORY_AGE_LABELS,
+  inventoryBy,
   kernNewDrillPermits,
   lagHistogram,
   operatorScorecard,
@@ -11,17 +13,23 @@ import {
   spudLags,
   spudsByApi,
   undrilledInventory,
-  weeklyActivity
+  unmatchedSpuds,
+  weeklyBreakdown,
+  type WeeklyItem
 } from '../lib/drilling';
+import { FUNCTIONAL_TYPE_GROUPS, functionalTypeGroup, functionalTypeLabel } from '../lib/grouping';
+import type { OperatorColor } from '../lib/operatorColors';
+import { operatorDisplayName, rowOperatorDisplayName } from '../lib/operators';
 import { CHART, SERIES, SURFACE, WORK_COLORS } from '../lib/palette';
 import { SB237_DRILL_TRACKER_URL as DRILL_TRACKER_URL } from '../lib/sb237';
-import type { DrillTracker, PermitActivity, RigCount } from '../lib/types';
+import type { DrillTracker, DrillTrackerRow, PermitActivity, RigCount } from '../lib/types';
 
 type Props = {
   rows: PermitActivity[];
   drillTracker: DrillTracker | null;
   rigCount: RigCount | null;
   asOf: string;
+  operatorColor: OperatorColor;
   loading: boolean;
   error: string | null;
   onNavigateHome: () => void;
@@ -29,10 +37,18 @@ type Props = {
 
 const SPUDDED = WORK_COLORS.new_drills;
 const WAITING = CHART.other;
+// Ordinal ramp for permit age: older inventory reads brighter.
+const AGE_COLORS = ['#184f95', '#256abf', '#5598e7', '#9ec5f4'];
+const RIG_COLOR = '#e8e2d0';
+const OTHER = 'Other';
 
-// Unlinked preview (/drilling): permits vs reported drilling. Not indexed.
-export function DrillingPage({ rows, drillTracker, rigCount, asOf, loading, error, onNavigateHome }: Props) {
+type Breakdown = 'operator' | 'type';
+
+// Unlinked page (/drilling): Kern permits vs reported drilling. Not indexed.
+export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor, loading, error, onNavigateHome }: Props) {
   useNoIndex();
+  const [breakdown, setBreakdown] = useState<Breakdown>('operator');
+  const [inventoryView, setInventoryView] = useState<'operator' | 'field'>('operator');
   const startDate = `${(asOf || new Date().toISOString()).slice(0, 4)}-01-01`;
   const tracker = useMemo(() => drillTracker?.rows || [], [drillTracker]);
   const permits = useMemo(() => kernNewDrillPermits(rows, startDate), [rows, startDate]);
@@ -42,12 +58,50 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, loading, erro
   const histogram = useMemo(() => lagHistogram(lags), [lags]);
   const inventory = useMemo(() => undrilledInventory(permits, spuds, asOf), [permits, spuds, asOf]);
   const scorecard = useMemo(() => operatorScorecard(permits, spuds, asOf), [permits, spuds, asOf]);
-  const weeks = useMemo(() => weeklyActivity(permits, tracker, rigCount?.weeks || [], startDate), [permits, tracker, rigCount, startDate]);
-  const spudded = permits.length - inventory.total;
+  const spudCounts = useMemo(() => unmatchedSpuds(tracker, permits, startDate), [tracker, permits, startDate]);
   const latestRigs = rigCount?.weeks[rigCount.weeks.length - 1];
 
+  // Spuds take the operator/type of their permit when we have it, else the tracker's own fields.
+  const permitByApi = useMemo(() => {
+    const byApi = new Map<string, PermitActivity>();
+    rows.forEach((row) => {
+      if (row.api_10 && row.notice_type === 'NOI - New Drill') byApi.set(row.api_10, row);
+    });
+    return byApi;
+  }, [rows]);
+
+  const weekly = useMemo(() => {
+    const operatorKey = (name: string) => (operatorColor(name) === CHART.other ? OTHER : name);
+    const keyForPermit = (row: PermitActivity) =>
+      breakdown === 'operator' ? operatorKey(rowOperatorDisplayName(row)) : functionalTypeLabel(functionalTypeGroup(row));
+    const keyForSpud = (row: DrillTrackerRow) => {
+      const permit = permitByApi.get(row.api_10);
+      if (permit) return keyForPermit(permit);
+      return breakdown === 'operator'
+        ? operatorKey(operatorDisplayName(row.operator))
+        : functionalTypeLabel(functionalTypeGroup({ well_type_label: row.well_type } as PermitActivity));
+    };
+    const approvals: WeeklyItem[] = permits.map((row) => ({ date: row.notice_date_determination as string, key: keyForPermit(row) }));
+    const spudItems: WeeklyItem[] = tracker.filter((row) => row.spud_date).map((row) => ({ date: row.spud_date as string, key: keyForSpud(row) }));
+    const counts = new Map<string, number>();
+    [...approvals, ...spudItems].forEach((item) => counts.set(item.key, (counts.get(item.key) || 0) + 1));
+    const keys =
+      breakdown === 'operator'
+        ? [...Array.from(counts.keys()).filter((key) => key !== OTHER).sort((a, b) => (counts.get(b) || 0) - (counts.get(a) || 0)), ...(counts.has(OTHER) ? [OTHER] : [])]
+        : FUNCTIONAL_TYPE_GROUPS.map((group) => group.label).filter((label) => counts.has(label));
+    const colorFor = (key: string) =>
+      breakdown === 'operator' ? (key === OTHER ? CHART.other : operatorColor(key)) : FUNCTIONAL_TYPE_GROUPS.find((group) => group.label === key)?.color || CHART.other;
+    return { keys, colorFor, ...weeklyBreakdown(approvals, spudItems, keys, rigCount?.weeks || [], startDate) };
+  }, [breakdown, operatorColor, permitByApi, permits, rigCount, startDate, tracker]);
+
+  const inventoryRows = useMemo(
+    () => inventoryBy(permits, spuds, asOf, inventoryView === 'operator' ? rowOperatorDisplayName : (row) => row.field_name || 'Unknown'),
+    [asOf, inventoryView, permits, spuds]
+  );
+  const inventoryMax = Math.max(1, ...inventoryRows.map((row) => row.total));
+
   return (
-    <main id="activity-content" className="min-h-screen bg-ink px-4 py-5 text-slate-200 sm:px-6 lg:px-8" aria-label="Permits versus drilling preview">
+    <main id="activity-content" className="min-h-screen bg-ink px-4 py-5 text-slate-200 sm:px-6 lg:px-8" aria-label="Kern permits versus drilling activity">
       <div className="mx-auto max-w-[1560px]">
         <a
           className="mb-5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 transition hover:text-accent"
@@ -62,17 +116,15 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, loading, erro
         </a>
 
         <header className="border-b border-line pb-5">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber">Preview / not linked publicly</p>
           <h1 className="product-title max-w-5xl">
-            <span>Permits</span>
-            <span> vs drilling</span>
+            <span>Kern</span>
+            <span> Permits vs Drilling Activity</span>
           </h1>
           <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400">
-            Kern County New Drill permits approved since {startDate.slice(0, 4)} matched by API to operator-reported spud dates
-            from CalGEM&apos;s Central District Drill Tracker{drillTracker?.updatedLabel ? ` (updated ${drillTracker.updatedLabel})` : ''}. Spud
-            dates are preliminary; wells outside Kern and non-New Drill work are not covered.
+            Spud dates are published only for Kern County (CalGEM Drill Tracker, operator-reported
+            {drillTracker?.updatedLabel ? `, updated ${drillTracker.updatedLabel}` : ''}).
           </p>
-          <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-wide">
+          <div className="mt-2 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-wide">
             <SourceLink href={DRILL_TRACKER_URL} label="Drill Tracker" />
             {rigCount && <SourceLink href={rigCount.sourceUrl} label="Baker Hughes rig count" />}
           </div>
@@ -87,33 +139,37 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, loading, erro
         {error && <div className="mt-4 border border-danger bg-danger/10 p-4 text-sm text-red-200">{error}</div>}
         {!loading && !error && !drillTracker && (
           <div className="mt-4 border border-line bg-panel/50 p-4 text-sm text-slate-400">
-            The Drill Tracker is not in this build&apos;s data snapshot, so drilling views are unavailable. Check the snapshot
-            step in the deploy log.
+            The Drill Tracker is not in this build&apos;s data snapshot, so drilling views are unavailable.
           </div>
         )}
 
         {!loading && !error && drillTracker && (
           <div className="mt-4 space-y-4">
-            <section className="grid grid-cols-2 gap-x-4 gap-y-3 border-b border-line pb-4 sm:grid-cols-3 xl:grid-cols-6" aria-label="Drilling summary">
-              <Kpi label="Kern New Drill approved" value={permits.length.toLocaleString()} note={`since ${startDate}`} />
-              <Kpi label="Spudded" value={spudded.toLocaleString()} note={`${percent(permits.length ? spudded / permits.length : 0)} of approved`} />
-              <Kpi label="Approved, not spudded" value={inventory.total.toLocaleString()} note="undrilled inventory" />
-              <Kpi label="Median approval → spud" value={lags.length ? `${quantile(lags, 0.5)} days` : '—'} note={lags.length ? `middle half ${quantile(lags, 0.25)}–${quantile(lags, 0.75)} days` : ''} />
-              <Kpi label="Spuds reported" value={tracker.filter((row) => row.spud_date).length.toLocaleString()} note="all tracker rows" />
-              <Kpi
-                label="Rigs running"
-                value={latestRigs ? `${latestRigs.kern} Kern / ${latestRigs.california} CA` : '—'}
-                note={latestRigs ? `Baker Hughes, week of ${latestRigs.date}` : 'rig count not in this snapshot'}
-              />
+            <section className="border-b border-line pb-4" aria-label="Drilling summary">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+                <Kpi label={`New Drill approved (${startDate.slice(0, 4)})`} value={permits.length.toLocaleString()} note="Kern, excludes closed permits" />
+                <Kpi label="Spudded" value={spudCounts.matched.toLocaleString()} note={`${percent(permits.length ? spudCounts.matched / permits.length : 0)} of those approvals`} />
+                <Kpi label="Approved, not spudded" value={inventory.total.toLocaleString()} note="undrilled inventory" />
+                <Kpi
+                  label="Oil & gas rigs"
+                  value={latestRigs ? `${latestRigs.kern} Kern / ${latestRigs.california} CA` : '—'}
+                  note={latestRigs ? `Baker Hughes, week of ${latestRigs.date}` : 'rig count not in this snapshot'}
+                />
+              </div>
+              <p className="mt-3 text-xs text-slate-500">
+                The tracker lists {spudCounts.total} spuds: {spudCounts.matched} on permits approved in {startDate.slice(0, 4)}
+                {spudCounts.approvedEarlier ? `, ${spudCounts.approvedEarlier} on permits approved earlier` : ''}
+                {spudCounts.other ? `, ${spudCounts.other} not matched to an approved ${startDate.slice(0, 4)} permit (for example closed permits)` : ''}.
+              </p>
             </section>
 
-            <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              <Panel title="Spud share by approval month" subtitle="Of each month's approved permits, how many have a reported spud so far.">
-                <ResponsiveContainer width="100%" height={260}>
+            <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+              <Panel title="Spudded wells by permit approval month" subtitle="Of each month's approved permits, how many have a reported spud so far.">
+                <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={cohorts}>
                     <CartesianGrid stroke={CHART.grid} vertical={false} />
                     <XAxis dataKey="month" tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
-                    <YAxis allowDecimals={false} tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <YAxis allowDecimals={false} width={32} tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
                     <Tooltip content={<CompactChartTooltip />} cursor={{ fill: CHART.cursorFill }} />
                     <Bar dataKey="spudded" name="Spudded" stackId="c" fill={SPUDDED} stroke={SURFACE.panel} strokeWidth={1} />
                     <Bar dataKey="waiting" name="Not yet spudded" stackId="c" fill={WAITING} stroke={SURFACE.panel} strokeWidth={1} />
@@ -122,73 +178,156 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, loading, erro
                 <Legend items={[['Spudded', SPUDDED], ['Not yet spudded', WAITING]]} />
               </Panel>
 
-              <Panel title="Days from approval to spud" subtitle="All Drill Tracker wells with both dates, in 30-day bins.">
-                <ResponsiveContainer width="100%" height={260}>
+              <Panel
+                title="Weekly activity"
+                subtitle="Kern New Drill approvals and reported spuds per week."
+                action={<Toggle value={breakdown} options={[['operator', 'Operator'], ['type', 'Well type']]} onChange={setBreakdown} />}
+              >
+                <ChartLabel>Approvals</ChartLabel>
+                <ResponsiveContainer width="100%" height={120}>
+                  <BarChart data={weekly.approvals} syncId="weekly">
+                    <CartesianGrid stroke={CHART.grid} vertical={false} />
+                    <XAxis dataKey="week" tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} minTickGap={32} />
+                    <YAxis allowDecimals={false} width={32} tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <Tooltip content={<CompactChartTooltip />} cursor={{ fill: CHART.cursorFill }} />
+                    {weekly.keys.map((key) => (
+                      <Bar key={key} dataKey={key} name={key} stackId="a" fill={weekly.colorFor(key)} stroke={SURFACE.panel} strokeWidth={1} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+                <ChartLabel>Reported spuds{rigCount ? ' · line: oil & gas rigs (right axis)' : ''}</ChartLabel>
+                <ResponsiveContainer width="100%" height={140}>
+                  <ComposedChart data={weekly.spuds} syncId="weekly">
+                    <CartesianGrid stroke={CHART.grid} vertical={false} />
+                    <XAxis dataKey="week" tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} minTickGap={32} />
+                    <YAxis yAxisId="spuds" allowDecimals={false} width={32} tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
+                    {rigCount && (
+                      <YAxis
+                        yAxisId="rigs"
+                        orientation="right"
+                        allowDecimals={false}
+                        width={36}
+                        tick={{ fill: RIG_COLOR, fontSize: 10 }}
+                        tickLine={false}
+                        axisLine={false}
+                        label={{ value: 'rigs', angle: 90, position: 'insideRight', fill: RIG_COLOR, fontSize: 10 }}
+                      />
+                    )}
+                    <Tooltip content={<CompactChartTooltip />} cursor={{ fill: CHART.cursorFill }} />
+                    {weekly.keys.map((key) => (
+                      <Bar key={key} yAxisId="spuds" dataKey={key} name={key} stackId="s" fill={weekly.colorFor(key)} stroke={SURFACE.panel} strokeWidth={1} />
+                    ))}
+                    {rigCount && (
+                      <>
+                        <Line yAxisId="rigs" type="stepAfter" dataKey="kernRigs" name="Kern rigs" stroke={RIG_COLOR} strokeWidth={2} dot={false} connectNulls />
+                        <Line yAxisId="rigs" type="stepAfter" dataKey="californiaRigs" name="California rigs" stroke={RIG_COLOR} strokeDasharray="4 3" strokeWidth={1.5} dot={false} connectNulls />
+                      </>
+                    )}
+                  </ComposedChart>
+                </ResponsiveContainer>
+                <Legend
+                  items={[
+                    ...weekly.keys.map((key) => [key, weekly.colorFor(key)] as [string, string]),
+                    ...(rigCount ? ([['Kern rigs (solid) / CA rigs (dashed)', RIG_COLOR]] as Array<[string, string]>) : [])
+                  ]}
+                />
+              </Panel>
+            </section>
+
+            <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+              <Panel
+                title="Days from approval to spud"
+                subtitle="All Drill Tracker wells with both dates, in 30-day bins."
+                action={
+                  lags.length ? (
+                    <div className="text-right">
+                      <div className="text-lg font-semibold text-slate-100">{quantile(lags, 0.5)} days</div>
+                      <div className="text-[10px] text-slate-500">
+                        median · middle half {quantile(lags, 0.25)}–{quantile(lags, 0.75)}
+                      </div>
+                    </div>
+                  ) : null
+                }
+              >
+                <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={histogram}>
                     <CartesianGrid stroke={CHART.grid} vertical={false} />
                     <XAxis dataKey="label" tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
-                    <YAxis allowDecimals={false} tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
+                    <YAxis allowDecimals={false} width={32} tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
                     <Tooltip content={<CompactChartTooltip />} cursor={{ fill: CHART.cursorFill }} />
                     <Bar dataKey="wells" name="Wells" fill={SERIES[0]} radius={[2, 2, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </Panel>
-            </section>
 
-            <Panel title="Weekly activity" subtitle="Separate aligned charts; each has its own scale. Rigs appear once the Baker Hughes source is in the snapshot.">
-              <div className="grid gap-2">
-                <WeeklyChart data={weeks} dataKey="approvals" name="Kern New Drill approvals" color={WORK_COLORS.new_drills} />
-                <WeeklyChart data={weeks} dataKey="spuds" name="Reported spuds" color={SERIES[0]} />
-                {rigCount && <WeeklyChart data={weeks} dataKey="kernRigs" name="Kern rigs (Baker Hughes)" color={SERIES[4]} line />}
-              </div>
-            </Panel>
-
-            <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-              <Panel title="Operator scorecard" subtitle="Kern New Drill permits approved this year.">
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[640px] text-left text-xs">
-                    <thead className="text-[10px] uppercase tracking-wide text-slate-500">
-                      <tr className="border-b border-line">
-                        <th className="py-2 pr-3 font-semibold">Operator</th>
-                        <th className="py-2 pr-3 text-right font-semibold">Approved</th>
-                        <th className="py-2 pr-3 text-right font-semibold">Spudded</th>
-                        <th className="py-2 pr-3 text-right font-semibold">Share</th>
-                        <th className="py-2 pr-3 text-right font-semibold">Waiting</th>
-                        <th className="py-2 pr-3 text-right font-semibold">Median lag</th>
-                        <th className="py-2 text-right font-semibold">Oldest waiting</th>
-                      </tr>
-                    </thead>
-                    <tbody className="text-slate-300">
-                      {scorecard.map((entry) => (
-                        <tr key={entry.operator} className="border-b border-line/50">
-                          <td className="py-1.5 pr-3 text-slate-100">{entry.operator}</td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums">{entry.approved}</td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums">{entry.spudded}</td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums">{percent(entry.share)}</td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums">{entry.waiting}</td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums">{entry.medianLagDays === null ? '—' : `${entry.medianLagDays} d`}</td>
-                          <td className="py-1.5 text-right tabular-nums">{entry.waiting ? `${entry.oldestWaitingDays} d` : '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Panel>
-
-              <Panel title="Undrilled inventory by age" subtitle={`Approved, no reported spud, as of ${asOf}.`}>
-                <div className="space-y-2">
-                  {inventory.buckets.map((bucket) => (
-                    <div key={bucket.label} className="grid grid-cols-[92px_minmax(0,1fr)_40px] items-center gap-2 text-xs">
-                      <span className="text-slate-400">{bucket.label}</span>
-                      <div className="h-2.5 bg-ink">
-                        <div className="h-full" style={{ width: `${inventory.total ? (bucket.permits / inventory.total) * 100 : 0}%`, backgroundColor: WAITING }} />
+              <Panel
+                title="Undrilled inventory by age"
+                subtitle={`Approved, no reported spud, as of ${asOf}.`}
+                action={<Toggle value={inventoryView} options={[['operator', 'Operator'], ['field', 'Field']]} onChange={setInventoryView} />}
+              >
+                <div className="space-y-1.5">
+                  {inventoryRows.map((row) => (
+                    <div key={row.name} className="grid grid-cols-[minmax(0,220px)_minmax(0,1fr)_36px] items-center gap-2 text-xs">
+                      <span className="flex min-w-0 items-center gap-1.5 text-slate-300">
+                        {inventoryView === 'operator' && <ColorBlock color={row.name === OTHER ? CHART.other : operatorColor(row.name)} />}
+                        <span className="truncate" title={row.name}>
+                          {row.name}
+                        </span>
+                      </span>
+                      <div className="flex h-3 gap-px bg-ink" style={{ width: `${(row.total / inventoryMax) * 100}%` }}>
+                        {row.buckets.map((count, index) =>
+                          count ? (
+                            <div
+                              key={INVENTORY_AGE_LABELS[index]}
+                              title={`${INVENTORY_AGE_LABELS[index]}: ${count}`}
+                              style={{ flexGrow: count, backgroundColor: AGE_COLORS[index] }}
+                            />
+                          ) : null
+                        )}
                       </div>
-                      <span className="text-right tabular-nums text-slate-200">{bucket.permits}</span>
+                      <span className="text-right tabular-nums text-slate-200">{row.total}</span>
                     </div>
                   ))}
                 </div>
+                <Legend items={INVENTORY_AGE_LABELS.map((label, index) => [label, AGE_COLORS[index]] as [string, string])} />
               </Panel>
             </section>
+
+            <Panel title="Operator scorecard" subtitle={`Kern New Drill permits approved in ${startDate.slice(0, 4)}.`}>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-left text-xs">
+                  <thead className="text-[10px] uppercase tracking-wide text-slate-500">
+                    <tr className="border-b border-line">
+                      <th className="py-2 pr-3 font-semibold">Operator</th>
+                      <th className="py-2 pr-3 text-right font-semibold">Approved</th>
+                      <th className="py-2 pr-3 text-right font-semibold">Spudded</th>
+                      <th className="py-2 pr-3 text-right font-semibold">Share</th>
+                      <th className="py-2 pr-3 text-right font-semibold">Waiting</th>
+                      <th className="py-2 pr-3 text-right font-semibold">Median lag</th>
+                      <th className="py-2 text-right font-semibold">Oldest waiting</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-slate-300">
+                    {scorecard.map((entry) => (
+                      <tr key={entry.operator} className="border-b border-line/50">
+                        <td className="py-1.5 pr-3 text-slate-100">
+                          <span className="flex items-center gap-1.5">
+                            <ColorBlock color={operatorColor(entry.operator)} />
+                            {entry.operator}
+                          </span>
+                        </td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">{entry.approved}</td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">{entry.spudded}</td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">{percent(entry.share)}</td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">{entry.waiting}</td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">{entry.medianLagDays === null ? '—' : `${entry.medianLagDays} d`}</td>
+                        <td className="py-1.5 text-right tabular-nums">{entry.waiting ? `${entry.oldestWaitingDays} d` : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
           </div>
         )}
       </div>
@@ -208,56 +347,45 @@ function useNoIndex() {
   }, []);
 }
 
-function WeeklyChart({
-  data,
-  dataKey,
-  name,
-  color,
-  line = false
-}: {
-  data: Array<Record<string, string | number | null>>;
-  dataKey: string;
-  name: string;
-  color: string;
-  line?: boolean;
-}) {
+function Panel({ title, subtitle, action, children }: { title: string; subtitle: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div>
-      <div className="mb-0.5 flex items-center gap-1.5 text-[11px] text-slate-400">
-        <span className="h-2 w-2" style={{ backgroundColor: color }} />
-        {name}
+    <section className="border border-line bg-panel/50 p-3">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">{title}</h2>
+          <p className="text-xs text-slate-500">{subtitle}</p>
+        </div>
+        {action}
       </div>
-      <ResponsiveContainer width="100%" height={110}>
-        {line ? (
-          <LineChart data={data} syncId="weekly">
-            <CartesianGrid stroke={CHART.grid} vertical={false} />
-            <XAxis dataKey="week" tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} minTickGap={32} />
-            <YAxis allowDecimals={false} width={32} tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
-            <Tooltip content={<CompactChartTooltip />} cursor={{ stroke: CHART.cursor }} />
-            <Line type="stepAfter" dataKey={dataKey} name={name} stroke={color} strokeWidth={1.75} dot={false} connectNulls />
-          </LineChart>
-        ) : (
-          <BarChart data={data} syncId="weekly">
-            <CartesianGrid stroke={CHART.grid} vertical={false} />
-            <XAxis dataKey="week" tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} minTickGap={32} />
-            <YAxis allowDecimals={false} width={32} tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
-            <Tooltip content={<CompactChartTooltip />} cursor={{ fill: CHART.cursorFill }} />
-            <Bar dataKey={dataKey} name={name} fill={color} radius={[2, 2, 0, 0]} />
-          </BarChart>
-        )}
-      </ResponsiveContainer>
+      {children}
+    </section>
+  );
+}
+
+function Toggle<T extends string>({ value, options, onChange }: { value: T; options: Array<[T, string]>; onChange: (value: T) => void }) {
+  return (
+    <div className="inline-flex shrink-0 border border-line bg-ink p-0.5 text-xs">
+      {options.map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          aria-pressed={value === key}
+          className={`px-2.5 py-1 ${value === key ? 'bg-panel text-white' : 'text-slate-500 hover:text-slate-200'}`}
+          onClick={() => onChange(key)}
+        >
+          {label}
+        </button>
+      ))}
     </div>
   );
 }
 
-function Panel({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
-  return (
-    <section className="border border-line bg-panel/50 p-3">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">{title}</h2>
-      <p className="mb-3 text-xs text-slate-500">{subtitle}</p>
-      {children}
-    </section>
-  );
+function ChartLabel({ children }: { children: React.ReactNode }) {
+  return <div className="mb-0.5 text-[11px] text-slate-400">{children}</div>;
+}
+
+function ColorBlock({ color }: { color: string }) {
+  return <span className="inline-block h-2.5 w-2.5 shrink-0" style={{ backgroundColor: color }} />;
 }
 
 function Kpi({ label, value, note }: { label: string; value: string; note: string }) {
@@ -272,10 +400,10 @@ function Kpi({ label, value, note }: { label: string; value: string; note: strin
 
 function Legend({ items }: { items: Array<[string, string]> }) {
   return (
-    <div className="mt-1 flex flex-wrap gap-3 text-xs text-slate-400">
+    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400">
       {items.map(([label, color]) => (
         <span key={label} className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5" style={{ backgroundColor: color }} />
+          <ColorBlock color={color} />
           {label}
         </span>
       ))}

@@ -115,31 +115,77 @@ function weekOf(date: string) {
   return shiftDate(date, -((day + 6) % 7));
 }
 
-// Weekly approvals, spuds, and rigs on a shared Monday-week axis.
-export function weeklyActivity(
-  permits: PermitActivity[],
-  tracker: DrillTrackerRow[],
+export type WeeklyItem = { date: string; key: string };
+
+// Counts per Monday week per key, e.g. approvals stacked by operator.
+export function stackByWeek(items: WeeklyItem[], keys: string[], startDate: string) {
+  const weeks = new Map<string, Record<string, number | string | null>>();
+  items.forEach(({ date, key }) => {
+    if (date < startDate) return;
+    const week = weekOf(date);
+    const entry = weeks.get(week) || Object.fromEntries([['week', week], ...keys.map((name) => [name, 0])]);
+    entry[key] = ((entry[key] as number) || 0) + 1;
+    weeks.set(week, entry);
+  });
+  return weeks;
+}
+
+// Approvals and spuds on one Monday-week axis, with rigs joined to the spud series.
+export function weeklyBreakdown(
+  approvals: WeeklyItem[],
+  spudItems: WeeklyItem[],
+  keys: string[],
   rigWeeks: Array<{ date: string; california: number; kern: number }>,
   startDate: string
 ) {
-  const weeks = new Map<string, { week: string; approvals: number; spuds: number; kernRigs: number | null; californiaRigs: number | null }>();
-  const at = (date: string) => {
-    const week = weekOf(date);
-    const entry = weeks.get(week) || { week, approvals: 0, spuds: 0, kernRigs: null, californiaRigs: null };
-    weeks.set(week, entry);
-    return entry;
+  const approvalWeeks = stackByWeek(approvals, keys, startDate);
+  const spudWeeks = stackByWeek(spudItems, keys, startDate);
+  const rigByWeek = new Map(rigWeeks.filter((rig) => rig.date >= startDate).map((rig) => [weekOf(rig.date), rig]));
+  const allWeeks = Array.from(new Set([...approvalWeeks.keys(), ...spudWeeks.keys(), ...rigByWeek.keys()])).sort();
+  const empty = (week: string) => Object.fromEntries([['week', week], ...keys.map((name) => [name, 0])]);
+  return {
+    approvals: allWeeks.map((week) => approvalWeeks.get(week) || empty(week)),
+    spuds: allWeeks.map((week) => ({
+      ...(spudWeeks.get(week) || empty(week)),
+      kernRigs: rigByWeek.get(week)?.kern ?? null,
+      californiaRigs: rigByWeek.get(week)?.california ?? null
+    }))
   };
+}
+
+export const INVENTORY_AGE_LABELS = AGE_BUCKETS.map((bucket) => bucket.label);
+
+// Undrilled permits per operator/field, split by age since approval. Keeps the top rows; the rest fold into "Other".
+export function inventoryBy(
+  permits: PermitActivity[],
+  spuds: Map<string, DrillTrackerRow>,
+  asOf: string,
+  keyOf: (row: PermitActivity) => string,
+  limit = 10
+) {
+  const groups = new Map<string, number[]>();
   permits.forEach((row) => {
-    at(row.notice_date_determination as string).approvals += 1;
+    if (row.api_10 && spuds.has(row.api_10)) return;
+    const key = keyOf(row) || 'Unknown';
+    const buckets = groups.get(key) || AGE_BUCKETS.map(() => 0);
+    const age = daysBetween(row.notice_date_determination as string, asOf);
+    buckets[AGE_BUCKETS.findIndex((bucket) => age <= bucket.max)] += 1;
+    groups.set(key, buckets);
   });
-  tracker.forEach((row) => {
-    if (row.spud_date && row.spud_date >= startDate) at(row.spud_date).spuds += 1;
-  });
-  rigWeeks.forEach((rig) => {
-    if (rig.date < startDate) return;
-    const entry = at(rig.date);
-    entry.kernRigs = rig.kern;
-    entry.californiaRigs = rig.california;
-  });
-  return Array.from(weeks.values()).sort((a, b) => a.week.localeCompare(b.week));
+  const sorted = Array.from(groups.entries())
+    .map(([name, buckets]) => ({ name, buckets, total: buckets.reduce((sum, value) => sum + value, 0) }))
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+  if (sorted.length <= limit) return sorted;
+  const rest = sorted.slice(limit - 1);
+  const other = rest.reduce((sum, row) => sum.map((value, index) => value + row.buckets[index]), AGE_BUCKETS.map(() => 0));
+  return [...sorted.slice(0, limit - 1), { name: 'Other', buckets: other, total: other.reduce((a, b) => a + b, 0) }];
+}
+
+// Tracker spuds that don't belong to this year's approved Kern New Drill permits, by reason.
+export function unmatchedSpuds(tracker: DrillTrackerRow[], permits: PermitActivity[], startDate: string) {
+  const inCohort = new Set(permits.map((row) => row.api_10));
+  const spudded = tracker.filter((row) => row.spud_date);
+  const outside = spudded.filter((row) => !inCohort.has(row.api_10));
+  const approvedEarlier = outside.filter((row) => row.approval_date && row.approval_date < startDate).length;
+  return { total: spudded.length, matched: spudded.length - outside.length, approvedEarlier, other: outside.length - approvedEarlier };
 }

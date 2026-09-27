@@ -31,6 +31,7 @@ import {
   type FunctionalTypeGroup,
   type WorkActivityGroup
 } from '../lib/grouping';
+import { operatorColorMap } from '../lib/operatorColors';
 import { CHART, SERIES, SURFACE } from '../lib/palette';
 import type { PermitActivity } from '../lib/types';
 
@@ -67,11 +68,15 @@ const CATEGORY_FIELDS: CategoryField[] = [
   { key: 'well_status', label: 'Well Status', kind: 'standard', get: (row) => row.well_status || 'Unknown' }
 ];
 
-export function RankingPanels({ rows }: { rows: PermitActivity[] }) {
+export function RankingPanels({ rows, colorRows }: { rows: PermitActivity[]; colorRows: PermitActivity[] }) {
   const [operatorView, setOperatorView] = useState<OperatorView>('operator');
   const analysisRows = useMemo(
     () => rows.map((row) => ({ ...row, operator_name: operatorNameForView(row, operatorView) })),
     [operatorView, rows]
+  );
+  const operatorColor = useMemo(
+    () => operatorColorMap(colorRows, (row) => operatorNameForView(row, operatorView)),
+    [colorRows, operatorView]
   );
   const fieldByOperator = stackedMatrix(analysisRows, 'field_name', 'operator_name', 8, 5);
   const operatorByField = stackedMatrix(analysisRows, 'operator_name', 'field_name', 8, 5);
@@ -118,12 +123,14 @@ export function RankingPanels({ rows }: { rows: PermitActivity[] }) {
         title={`Fields By ${operatorView === 'parent' ? 'Parent Company' : 'Operator'}`}
         subtitle={`Current-year permits in the top fields, stacked by ${operatorView === 'parent' ? 'parent company' : 'operator'}.`}
         data={fieldByOperator}
+        colorFor={operatorColor}
       />
       <CategoryStackPanel rows={analysisRows} primaryLabel={operatorView === 'parent' ? 'Parent Company' : 'Operator'} />
       <OperatorTrendPanel
         data={cumulativeTrend.data}
         operators={cumulativeTrend.operators}
         label={operatorView === 'parent' ? 'Parent Company' : 'Operator'}
+        colorFor={operatorColor}
       />
     </section>
   );
@@ -133,12 +140,14 @@ function StackedBarPanel({
   title,
   subtitle,
   data,
-  truncateAxis
+  truncateAxis,
+  colorFor
 }: {
   title: string;
   subtitle: string;
   data: Record<string, string | number>[];
   truncateAxis?: boolean;
+  colorFor?: (key: string) => string;
 }) {
   const keys = stackKeys(data);
 
@@ -164,7 +173,7 @@ function StackedBarPanel({
           <Tooltip content={<CompactChartTooltip />} cursor={{ fill: CHART.cursorFill }} />
           <Legend wrapperStyle={{ color: CHART.label, fontSize: 11 }} />
           {keys.map((key, index) => (
-            <Bar key={key} dataKey={key} stackId="total" fill={key === 'Other' ? CHART.other : STACK_COLORS[index % STACK_COLORS.length]} stroke={SURFACE.panel} strokeWidth={1} />
+            <Bar key={key} dataKey={key} stackId="total" fill={key === 'Other' ? CHART.other : colorFor ? colorFor(key) : STACK_COLORS[index % STACK_COLORS.length]} stroke={SURFACE.panel} strokeWidth={1} />
           ))}
         </BarChart>
       </ResponsiveContainer>
@@ -255,11 +264,13 @@ function fieldLabel(key: CategoryFieldKey) {
 function OperatorTrendPanel({
   data,
   operators,
-  label
+  label,
+  colorFor
 }: {
   data: Record<string, string | number>[];
   operators: string[];
   label: string;
+  colorFor: (operator: string) => string;
 }) {
   return (
     <div className="h-[340px] border border-line bg-panel/60 p-3 xl:col-span-2">
@@ -278,13 +289,13 @@ function OperatorTrendPanel({
           <YAxis allowDecimals={false} tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
           <Tooltip content={<CompactChartTooltip />} cursor={{ stroke: CHART.cursor }} />
           <Legend formatter={(value) => truncateLabel(String(value), 20)} wrapperStyle={{ color: CHART.label, fontSize: 11 }} />
-          {operators.map((operator, index) => (
+          {operators.map((operator) => (
             <Line
               key={operator}
               type="linear"
               dataKey={operator}
               name={operator}
-              stroke={STACK_COLORS[index % STACK_COLORS.length]}
+              stroke={colorFor(operator)}
               strokeWidth={1.75}
               dot={false}
               activeDot={{ r: 4, strokeWidth: 0 }}

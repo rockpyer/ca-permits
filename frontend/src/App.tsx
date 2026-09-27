@@ -19,6 +19,7 @@ import {
   type WorkActivityGroup
 } from './lib/grouping';
 import { loadSb237DrillTrackerStats, sb237StatsFromTracker, type Sb237DrillTrackerStats } from './lib/sb237';
+import { operatorColorMap } from './lib/operatorColors';
 import { rowOperatorDisplayName } from './lib/operators';
 import { countByValue, shiftDate } from './lib/summary';
 import { hasSupabaseConfig } from './lib/supabase';
@@ -98,6 +99,12 @@ export function App() {
   }, [dateBounds, filters, path]);
 
   const filteredRows = useMemo(() => applyFilters(rows, filters), [rows, filters]);
+  // Operator colors are ranked on the current year's unfiltered permits so filters never repaint them.
+  const colorRows = useMemo(() => {
+    const year = (dateBounds.maxDate || new Date().toISOString()).slice(0, 4);
+    return rows.filter((row) => (row.notice_date_determination || row.notice_dated || '').startsWith(year));
+  }, [rows, dateBounds.maxDate]);
+  const operatorColor = useMemo(() => operatorColorMap(colorRows), [colorRows]);
   const lastRun = etlRuns[0];
   const weeklyUpdateDate = dateBounds.maxDate || lastRun?.finished_at?.slice(0, 10) || '';
 
@@ -125,6 +132,7 @@ export function App() {
           drillTracker={drillTracker}
           rigCount={rigCount}
           asOf={dateBounds.maxDate}
+          operatorColor={operatorColor}
           loading={loading}
           error={error}
           onNavigateHome={() => navigateTo('/', setPath)}
@@ -234,7 +242,7 @@ export function App() {
                 </div>
               </section>
               <section aria-label="Operator and field trend analysis">
-                <RankingPanels rows={filteredRows} />
+                <RankingPanels rows={filteredRows} colorRows={colorRows} />
               </section>
               <section aria-label="Permit records">
                 <PermitTable rows={filteredRows} selected={selected} onSelect={setSelected} />
@@ -482,7 +490,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 // Preview builds only (VITE_PREVIEW=1): hash links to routes that aren't linked in the UI.
 function PreviewNav() {
   return (
-    <nav className="fixed bottom-3 right-3 z-[60] flex items-center gap-2 border border-amber/60 bg-ink/95 px-3 py-1.5 text-xs" aria-label="Preview navigation">
+    <nav className="fixed bottom-3 left-3 z-[60] flex items-center gap-2 border border-amber/60 bg-ink/95 px-3 py-1.5 text-xs" aria-label="Preview navigation">
       <span className="font-semibold uppercase tracking-wide text-amber">Preview</span>
       {[
         ['#/', 'Main'],

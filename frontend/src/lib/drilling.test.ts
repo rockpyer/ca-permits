@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { daysBetween, kernNewDrillPermits, lagHistogram, operatorScorecard, spudCohorts, spudLags, spudsByApi, undrilledInventory, weeklyActivity } from './drilling';
+import { daysBetween, inventoryBy, kernNewDrillPermits, lagHistogram, operatorScorecard, spudCohorts, spudLags, spudsByApi, undrilledInventory, unmatchedSpuds, weeklyBreakdown } from './drilling';
 import type { DrillTrackerRow, PermitActivity } from './types';
 
 const permit = (api: string, date: string, operator = 'Alpha', extra: Partial<PermitActivity> = {}) =>
@@ -50,10 +50,32 @@ describe('drilling analysis', () => {
     expect(alpha).toMatchObject({ operator: 'Alpha', approved: 2, spudded: 2, share: 1, medianLagDays: 65 });
     expect(beta).toMatchObject({ operator: 'Beta', approved: 1, spudded: 0, waiting: 1, oldestWaitingDays: 101, medianLagDays: null });
   });
+});
 
-  it('aligns approvals, spuds, and rigs by Monday week', () => {
-    const weeks = weeklyActivity(kern, tracker, [{ date: '2026-03-06', california: 9, kern: 7 }], '2026-01-01');
-    expect(weeks.find((week) => week.week === '2026-03-02')).toMatchObject({ spuds: 1, kernRigs: 7, californiaRigs: 9 });
-    expect(weeks.find((week) => week.week === '2026-01-05')?.approvals).toBe(1);
+describe('drilling breakdowns', () => {
+  const kern = kernNewDrillPermits(permits, '2026-01-01');
+  const spuds = spudsByApi(tracker);
+
+  it('stacks weekly approvals and spuds by key and joins rigs', () => {
+    const result = weeklyBreakdown(
+      [{ date: '2026-03-03', key: 'Alpha' }, { date: '2026-03-04', key: 'Beta' }],
+      [{ date: '2026-03-05', key: 'Alpha' }],
+      ['Alpha', 'Beta'],
+      [{ date: '2026-03-06', california: 5, kern: 3 }],
+      '2026-01-01'
+    );
+    expect(result.approvals).toEqual([{ week: '2026-03-02', Alpha: 1, Beta: 1 }]);
+    expect(result.spuds).toEqual([{ week: '2026-03-02', Alpha: 1, Beta: 0, kernRigs: 3, californiaRigs: 5 }]);
+  });
+
+  it('splits undrilled inventory by key and age', () => {
+    expect(inventoryBy(kern, spuds, '2026-05-01', (row) => row.operator_name || '')).toEqual([
+      { name: 'Beta', buckets: [0, 0, 1, 0], total: 1 }
+    ]);
+  });
+
+  it('explains spuds outside the approval cohort', () => {
+    const extra = [...tracker, spud('7', '2025-11-01', '2026-02-01')];
+    expect(unmatchedSpuds(extra, kern, '2026-01-01')).toEqual({ total: 3, matched: 2, approvedEarlier: 1, other: 0 });
   });
 });
