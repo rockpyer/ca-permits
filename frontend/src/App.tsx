@@ -159,6 +159,7 @@ export function App() {
           collapsed={filtersCollapsed}
           onCollapsedChange={setFiltersCollapsed}
           onChange={setFilters}
+          operatorColor={operatorColor}
         />
         <main id="activity-content" className="min-h-0 bg-ink lg:overflow-y-auto" aria-label="California permit activity explorer">
           <header className="border-b border-line bg-ink/95 px-4 py-3 sm:px-5 sm:py-4">
@@ -291,8 +292,8 @@ function ActiveQuery({ filters, dateBounds }: { filters: Filters; dateBounds: { 
     filters.functionalTypes.length && filters.functionalTypes.length !== FUNCTIONAL_TYPE_GROUPS.length
       ? filters.functionalTypes.map((value) => functionalTypeLabel(value as FunctionalTypeGroup)).join(' + ')
       : 'All functional types';
-  const operator = filters.operators[0] || 'All operators';
-  const field = filters.fields[0] || 'All fields';
+  const operator = listLabel(filters.operators, 'All operators', 'operators');
+  const field = listLabel(filters.fields, 'All fields', 'fields');
   const range = formatDateRange(filters.startDate || dateBounds.minDate, filters.endDate || dateBounds.maxDate);
 
   return (
@@ -372,6 +373,11 @@ function QuickViews({
       })}
     </nav>
   );
+}
+
+function listLabel(values: string[], all: string, noun: string) {
+  if (!values.length) return all;
+  return values.length <= 2 ? values.join(' + ') : `${values.length} ${noun}`;
 }
 
 function hasUrlDateFilters() {

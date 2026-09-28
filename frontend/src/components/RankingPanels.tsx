@@ -170,7 +170,7 @@ function StackedBarPanel({
             tickLine={false}
             axisLine={false}
           />
-          <Tooltip content={<CompactChartTooltip />} cursor={{ fill: CHART.cursorFill }} />
+          <Tooltip content={<CompactChartTooltip showTotal />} cursor={{ fill: CHART.cursorFill }} />
           <Legend wrapperStyle={{ color: CHART.label, fontSize: 11 }} />
           {keys.map((key, index) => (
             <Bar key={key} dataKey={key} stackId="total" fill={key === 'Other' ? CHART.other : colorFor ? colorFor(key) : STACK_COLORS[index % STACK_COLORS.length]} stroke={SURFACE.panel} strokeWidth={1} />
@@ -217,7 +217,7 @@ function CategoryStackPanel({ rows, primaryLabel: analysisOperatorLabel }: { row
             tickLine={false}
             axisLine={false}
           />
-          <Tooltip content={<CompactChartTooltip />} cursor={{ fill: CHART.cursorFill }} />
+          <Tooltip content={<CompactChartTooltip showTotal />} cursor={{ fill: CHART.cursorFill }} />
           <Legend wrapperStyle={{ color: CHART.label, fontSize: 11 }} />
           {keys.map((key, index) => (
             <Bar key={key} dataKey={key} stackId="total" fill={matrix.colors[key] || STACK_COLORS[index % STACK_COLORS.length]} stroke={SURFACE.panel} strokeWidth={1} />

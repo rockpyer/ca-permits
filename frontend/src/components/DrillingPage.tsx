@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ExternalLink, Loader2 } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { CompactChartTooltip } from './CompactChartTooltip';
+import { MultiSelect } from './MultiSelect';
 import {
   INVENTORY_AGE_LABELS,
   inventoryBy,
@@ -43,15 +44,65 @@ const RIG_COLOR = '#e8e2d0';
 const OTHER = 'Other';
 
 type Breakdown = 'operator' | 'type';
+type DrillFilters = { operators: string[]; fields: string[]; types: string[] };
+type WellAttributes = { operator: string; field: string; type: string };
+const NO_FILTERS: DrillFilters = { operators: [], fields: [], types: [] };
+const RIG_KEYS = ['kernRigs', 'californiaRigs'];
 
 // Unlinked page (/drilling): Kern permits vs reported drilling. Not indexed.
 export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor, loading, error, onNavigateHome }: Props) {
   useNoIndex();
   const [breakdown, setBreakdown] = useState<Breakdown>('operator');
   const [inventoryView, setInventoryView] = useState<'operator' | 'field'>('operator');
+  const [filters, setFilters] = useState<DrillFilters>(NO_FILTERS);
   const startDate = `${(asOf || new Date().toISOString()).slice(0, 4)}-01-01`;
-  const tracker = useMemo(() => drillTracker?.rows || [], [drillTracker]);
-  const permits = useMemo(() => kernNewDrillPermits(rows, startDate), [rows, startDate]);
+
+  // Spuds take the operator/field/type of their permit when we have it, else the tracker's own fields.
+  const permitByApi = useMemo(() => {
+    const byApi = new Map<string, PermitActivity>();
+    rows.forEach((row) => {
+      if (row.api_10 && row.notice_type === 'NOI - New Drill') byApi.set(row.api_10, row);
+    });
+    return byApi;
+  }, [rows]);
+  const basePermits = useMemo(() => kernNewDrillPermits(rows, startDate), [rows, startDate]);
+  const baseTracker = useMemo(() => drillTracker?.rows || [], [drillTracker]);
+  const spudAttributes = useMemo(() => {
+    const attributes = new Map<DrillTrackerRow, WellAttributes>();
+    baseTracker.forEach((row) => {
+      const permit = permitByApi.get(row.api_10);
+      attributes.set(
+        row,
+        permit
+          ? permitAttributes(permit)
+          : {
+              operator: operatorDisplayName(row.operator),
+              field: row.field || 'Unknown',
+              type: functionalTypeLabel(functionalTypeGroup({ well_type_label: row.well_type } as PermitActivity))
+            }
+      );
+    });
+    return attributes;
+  }, [baseTracker, permitByApi]);
+  const permits = useMemo(() => basePermits.filter((row) => matches(permitAttributes(row), filters)), [basePermits, filters]);
+  const tracker = useMemo(
+    () => baseTracker.filter((row) => matches(spudAttributes.get(row) as WellAttributes, filters)),
+    [baseTracker, filters, spudAttributes]
+  );
+  const facet = (key: keyof DrillFilters) => {
+    const counts = new Map<string, number>();
+    basePermits.forEach((row) => {
+      const attributes = permitAttributes(row);
+      if (!matches(attributes, { ...filters, [key]: [] })) return;
+      const value = attributes[FILTER_ATTRIBUTE[key]];
+      counts.set(value, (counts.get(value) || 0) + 1);
+    });
+    filters[key].forEach((value) => counts.set(value, counts.get(value) || 0));
+    return Array.from(counts.entries())
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => a.value.localeCompare(b.value));
+  };
+  const filtered = filters.operators.length + filters.fields.length + filters.types.length > 0;
   const spuds = useMemo(() => spudsByApi(tracker), [tracker]);
   const cohorts = useMemo(() => spudCohorts(permits, spuds), [permits, spuds]);
   const lags = useMemo(() => spudLags(tracker), [tracker]);
@@ -61,25 +112,14 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
   const spudCounts = useMemo(() => unmatchedSpuds(tracker, permits, startDate), [tracker, permits, startDate]);
   const latestRigs = rigCount?.weeks[rigCount.weeks.length - 1];
 
-  // Spuds take the operator/type of their permit when we have it, else the tracker's own fields.
-  const permitByApi = useMemo(() => {
-    const byApi = new Map<string, PermitActivity>();
-    rows.forEach((row) => {
-      if (row.api_10 && row.notice_type === 'NOI - New Drill') byApi.set(row.api_10, row);
-    });
-    return byApi;
-  }, [rows]);
 
   const weekly = useMemo(() => {
     const operatorKey = (name: string) => (operatorColor(name) === CHART.other ? OTHER : name);
     const keyForPermit = (row: PermitActivity) =>
       breakdown === 'operator' ? operatorKey(rowOperatorDisplayName(row)) : functionalTypeLabel(functionalTypeGroup(row));
     const keyForSpud = (row: DrillTrackerRow) => {
-      const permit = permitByApi.get(row.api_10);
-      if (permit) return keyForPermit(permit);
-      return breakdown === 'operator'
-        ? operatorKey(operatorDisplayName(row.operator))
-        : functionalTypeLabel(functionalTypeGroup({ well_type_label: row.well_type } as PermitActivity));
+      const attributes = spudAttributes.get(row) as WellAttributes;
+      return breakdown === 'operator' ? operatorKey(attributes.operator) : attributes.type;
     };
     const approvals: WeeklyItem[] = permits.map((row) => ({ date: row.notice_date_determination as string, key: keyForPermit(row) }));
     const spudItems: WeeklyItem[] = tracker.filter((row) => row.spud_date).map((row) => ({ date: row.spud_date as string, key: keyForSpud(row) }));
@@ -92,7 +132,7 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
     const colorFor = (key: string) =>
       breakdown === 'operator' ? (key === OTHER ? CHART.other : operatorColor(key)) : FUNCTIONAL_TYPE_GROUPS.find((group) => group.label === key)?.color || CHART.other;
     return { keys, colorFor, ...weeklyBreakdown(approvals, spudItems, keys, rigCount?.weeks || [], startDate) };
-  }, [breakdown, operatorColor, permitByApi, permits, rigCount, startDate, tracker]);
+  }, [breakdown, operatorColor, permits, rigCount, spudAttributes, startDate, tracker]);
 
   const inventoryRows = useMemo(
     () => inventoryBy(permits, spuds, asOf, inventoryView === 'operator' ? rowOperatorDisplayName : (row) => row.field_name || 'Unknown'),
@@ -112,7 +152,7 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
           }}
         >
           <ArrowLeft size={14} />
-          Back to activity terminal
+          Back to permits review
         </a>
 
         <header className="border-b border-line pb-5">
@@ -124,10 +164,6 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
             Spud dates are published only for Kern County (CalGEM Drill Tracker, operator-reported
             {drillTracker?.updatedLabel ? `, updated ${drillTracker.updatedLabel}` : ''}).
           </p>
-          <div className="mt-2 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-wide">
-            <SourceLink href={DRILL_TRACKER_URL} label="Drill Tracker" />
-            {rigCount && <SourceLink href={rigCount.sourceUrl} label="Baker Hughes rig count" />}
-          </div>
         </header>
 
         {loading && (
@@ -144,11 +180,42 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
         )}
 
         {!loading && !error && drillTracker && (
-          <div className="mt-4 space-y-4">
+          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[230px_minmax(0,1fr)]">
+            <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start" aria-label="Drilling filters">
+              <section className="space-y-2 border border-line bg-panel/40 p-2.5">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-300">Filters</h2>
+                  {filtered && (
+                    <button type="button" className="text-[11px] text-slate-500 hover:text-accent" onClick={() => setFilters(NO_FILTERS)}>
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <MultiSelect label="Operator" options={facet('operators')} selected={filters.operators} colorFor={operatorColor} onChange={(operators) => setFilters({ ...filters, operators })} />
+                <MultiSelect label="Field" options={facet('fields')} selected={filters.fields} onChange={(fields) => setFilters({ ...filters, fields })} />
+                <MultiSelect label="Type" options={facet('types')} selected={filters.types} onChange={(types) => setFilters({ ...filters, types })} />
+              </section>
+              <section className="space-y-1.5 border border-line bg-panel/40 p-2.5 text-[11px] leading-5 text-slate-400">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-300">Data</h2>
+                <p>Kern New Drill permits approved since {startDate}; closed permits excluded.</p>
+                <p>Spuds: operator-reported{drillTracker.updatedLabel ? `, updated ${drillTracker.updatedLabel}` : ''}.</p>
+                {rigCount && <p>Rigs: Baker Hughes oil & gas, all operators{latestRigs ? `, week of ${latestRigs.date}` : ''}.</p>}
+                <div className="flex flex-col gap-1 pt-1 text-xs font-semibold uppercase tracking-wide">
+                  <SourceLink href={DRILL_TRACKER_URL} label="Drill Tracker" />
+                  {rigCount && <SourceLink href={rigCount.sourceUrl} label="Baker Hughes rig count" />}
+                </div>
+              </section>
+            </aside>
+          <div className="min-w-0 space-y-4">
             <section className="border-b border-line pb-4" aria-label="Drilling summary">
               <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
-                <Kpi label={`New Drill approved (${startDate.slice(0, 4)})`} value={permits.length.toLocaleString()} note="Kern, excludes closed permits" />
-                <Kpi label="Spudded" value={spudCounts.matched.toLocaleString()} note={`${percent(permits.length ? spudCounts.matched / permits.length : 0)} of those approvals`} />
+                <Kpi label={`New Drill approved (${startDate.slice(0, 4)})`} value={permits.length.toLocaleString()} note={filtered ? 'filtered' : 'Kern'} />
+                <Kpi
+                  label="Spudded"
+                  value={spudCounts.matched.toLocaleString()}
+                  note={`${percent(permits.length ? spudCounts.matched / permits.length : 0)} of approvals · ${spudCounts.total} spuds tracked`}
+                  title={`${spudCounts.total} tracked spuds: ${spudCounts.matched} on ${startDate.slice(0, 4)} approvals, ${spudCounts.approvedEarlier} on earlier permits, ${spudCounts.other} unmatched (e.g. closed permits)`}
+                />
                 <Kpi label="Approved, not spudded" value={inventory.total.toLocaleString()} note="undrilled inventory" />
                 <Kpi
                   label="Oil & gas rigs"
@@ -156,21 +223,17 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
                   note={latestRigs ? `Baker Hughes, week of ${latestRigs.date}` : 'rig count not in this snapshot'}
                 />
               </div>
-              <p className="mt-3 text-xs text-slate-500">
-                The tracker lists {spudCounts.total} spuds: {spudCounts.matched} on permits approved in {startDate.slice(0, 4)}
-                {spudCounts.approvedEarlier ? `, ${spudCounts.approvedEarlier} on permits approved earlier` : ''}
-                {spudCounts.other ? `, ${spudCounts.other} not matched to an approved ${startDate.slice(0, 4)} permit (for example closed permits)` : ''}.
-              </p>
+
             </section>
 
             <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-              <Panel title="Spudded wells by permit approval month" subtitle="Of each month's approved permits, how many have a reported spud so far.">
+              <Panel title="Spudded wells by permit approval month">
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={cohorts}>
                     <CartesianGrid stroke={CHART.grid} vertical={false} />
                     <XAxis dataKey="month" tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
                     <YAxis allowDecimals={false} width={32} tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
-                    <Tooltip content={<CompactChartTooltip />} cursor={{ fill: CHART.cursorFill }} />
+                    <Tooltip content={<CompactChartTooltip showTotal />} cursor={{ fill: CHART.cursorFill }} />
                     <Bar dataKey="spudded" name="Spudded" stackId="c" fill={SPUDDED} stroke={SURFACE.panel} strokeWidth={1} />
                     <Bar dataKey="waiting" name="Not yet spudded" stackId="c" fill={WAITING} stroke={SURFACE.panel} strokeWidth={1} />
                   </BarChart>
@@ -180,23 +243,23 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
 
               <Panel
                 title="Weekly activity"
-                subtitle="Kern New Drill approvals and reported spuds per week."
+                subtitle="New Drill approvals and reported spuds per week."
                 action={<Toggle value={breakdown} options={[['operator', 'Operator'], ['type', 'Well type']]} onChange={setBreakdown} />}
               >
                 <ChartLabel>Approvals</ChartLabel>
-                <ResponsiveContainer width="100%" height={120}>
+                <ResponsiveContainer width="100%" height={170}>
                   <BarChart data={weekly.approvals} syncId="weekly">
                     <CartesianGrid stroke={CHART.grid} vertical={false} />
                     <XAxis dataKey="week" tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} minTickGap={32} />
                     <YAxis allowDecimals={false} width={32} tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
-                    <Tooltip content={<CompactChartTooltip />} cursor={{ fill: CHART.cursorFill }} />
+                    <Tooltip content={<CompactChartTooltip showTotal />} cursor={{ fill: CHART.cursorFill }} />
                     {weekly.keys.map((key) => (
                       <Bar key={key} dataKey={key} name={key} stackId="a" fill={weekly.colorFor(key)} stroke={SURFACE.panel} strokeWidth={1} />
                     ))}
                   </BarChart>
                 </ResponsiveContainer>
                 <ChartLabel>Reported spuds{rigCount ? ' · line: oil & gas rigs (right axis)' : ''}</ChartLabel>
-                <ResponsiveContainer width="100%" height={140}>
+                <ResponsiveContainer width="100%" height={190}>
                   <ComposedChart data={weekly.spuds} syncId="weekly">
                     <CartesianGrid stroke={CHART.grid} vertical={false} />
                     <XAxis dataKey="week" tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} minTickGap={32} />
@@ -213,7 +276,7 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
                         label={{ value: 'rigs', angle: 90, position: 'insideRight', fill: RIG_COLOR, fontSize: 10 }}
                       />
                     )}
-                    <Tooltip content={<CompactChartTooltip />} cursor={{ fill: CHART.cursorFill }} />
+                    <Tooltip content={<CompactChartTooltip showTotal totalExclude={RIG_KEYS} />} cursor={{ fill: CHART.cursorFill }} />
                     {weekly.keys.map((key) => (
                       <Bar key={key} yAxisId="spuds" dataKey={key} name={key} stackId="s" fill={weekly.colorFor(key)} stroke={SURFACE.panel} strokeWidth={1} />
                     ))}
@@ -237,7 +300,7 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
             <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
               <Panel
                 title="Days from approval to spud"
-                subtitle="All Drill Tracker wells with both dates, in 30-day bins."
+                subtitle="30-day bins."
                 action={
                   lags.length ? (
                     <div className="text-right">
@@ -329,9 +392,24 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
               </div>
             </Panel>
           </div>
+          </div>
         )}
       </div>
     </main>
+  );
+}
+
+const FILTER_ATTRIBUTE: Record<keyof DrillFilters, keyof WellAttributes> = { operators: 'operator', fields: 'field', types: 'type' };
+
+function permitAttributes(row: PermitActivity): WellAttributes {
+  return { operator: rowOperatorDisplayName(row), field: row.field_name || 'Unknown', type: functionalTypeLabel(functionalTypeGroup(row)) };
+}
+
+function matches(attributes: WellAttributes, filters: DrillFilters) {
+  return (
+    (!filters.operators.length || filters.operators.includes(attributes.operator)) &&
+    (!filters.fields.length || filters.fields.includes(attributes.field)) &&
+    (!filters.types.length || filters.types.includes(attributes.type))
   );
 }
 
@@ -347,13 +425,13 @@ function useNoIndex() {
   }, []);
 }
 
-function Panel({ title, subtitle, action, children }: { title: string; subtitle: string; action?: React.ReactNode; children: React.ReactNode }) {
+function Panel({ title, subtitle, action, children }: { title: string; subtitle?: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="border border-line bg-panel/50 p-3">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">{title}</h2>
-          <p className="text-xs text-slate-500">{subtitle}</p>
+          {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
         </div>
         {action}
       </div>
@@ -388,9 +466,9 @@ function ColorBlock({ color }: { color: string }) {
   return <span className="inline-block h-2.5 w-2.5 shrink-0" style={{ backgroundColor: color }} />;
 }
 
-function Kpi({ label, value, note }: { label: string; value: string; note: string }) {
+function Kpi({ label, value, note, title }: { label: string; value: string; note: string; title?: string }) {
   return (
-    <div className="min-w-0">
+    <div className="min-w-0" title={title}>
       <div className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
       <div className="text-lg font-semibold text-slate-100">{value}</div>
       <div className="truncate text-[10px] text-slate-500">{note}</div>

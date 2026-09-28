@@ -52,10 +52,10 @@ export function applyFilters(rows: PermitActivity[], filters: Filters): PermitAc
       return false;
     }
     const date = permitDate(row);
-    if (filters.startDate && date && date < filters.startDate) {
+    if (filters.startDate && (!date || date < filters.startDate)) {
       return false;
     }
-    if (filters.endDate && date && date > filters.endDate) {
+    if (filters.endDate && (!date || date > filters.endDate)) {
       return false;
     }
     if (filters.directional !== 'all') {
@@ -86,4 +86,30 @@ function latestDate(a: string, b: string) {
   if (!a) return b;
   if (!b) return a;
   return a > b ? a : b;
+}
+
+export type FacetKey = 'operators' | 'fields' | 'counties' | 'districts' | 'wellStatuses';
+
+const FACET_VALUE: Record<FacetKey, (row: PermitActivity) => string> = {
+  operators: rowOperatorDisplayName,
+  fields: (row) => row.field_name || '',
+  counties: (row) => row.county || '',
+  districts: (row) => row.district || '',
+  wellStatuses: (row) => row.well_status || ''
+};
+
+// Options for one filter: values present under every *other* active filter (dates included),
+// with counts. Current selections stay listed so they can be cleared.
+export function facetOptions(rows: PermitActivity[], filters: Filters, key: FacetKey) {
+  const counts = new Map<string, number>();
+  applyFilters(rows, { ...filters, [key]: [] }).forEach((row) => {
+    const value = FACET_VALUE[key](row);
+    if (value && value !== 'Unknown') counts.set(value, (counts.get(value) || 0) + 1);
+  });
+  filters[key].forEach((value) => {
+    if (!counts.has(value)) counts.set(value, 0);
+  });
+  return Array.from(counts.entries())
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => a.value.localeCompare(b.value));
 }

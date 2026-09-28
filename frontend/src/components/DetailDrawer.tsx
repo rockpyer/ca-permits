@@ -65,7 +65,7 @@ export function DetailDrawer({ row, onClose }: Props) {
             ['Functional Type', functionalTypeLabel(functionalTypeGroup(row))],
             ['Source Type', sourceType(row)],
             ['Well Status', row.well_status],
-            ['Spud Date', row.spud_date],
+            ['Spud Date', isoDate(row.spud_date)],
             ['Directional', row.is_directionally_drilled]
           ]}
         />
@@ -125,4 +125,10 @@ function LinkButton({ href, label }: { href: string; label: string }) {
       <ExternalLink size={15} />
     </a>
   );
+}
+
+// WellSTAR spud dates arrive as MM/DD/YYYY; show ISO like every other date in the app.
+function isoDate(value: string | null) {
+  const match = value?.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return match ? `${match[3]}-${match[1].padStart(2, '0')}-${match[2].padStart(2, '0')}` : value;
 }
