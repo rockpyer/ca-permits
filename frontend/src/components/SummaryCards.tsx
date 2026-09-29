@@ -296,12 +296,15 @@ function FuelGauge({
 
   return (
       <svg viewBox="0 0 120 72" className={compact ? 'h-[38px] w-[58px] sm:h-[42px] sm:w-[64px]' : 'h-[58px] w-[86px]'} role="img" aria-label="Kern New Drill quota gauge">
-        <path d="M20 60 A40 40 0 0 1 100 60" fill="none" stroke={CHART.grid} strokeWidth="13" strokeLinecap="round" />
+        {/* Steel outline and end tick mark the unused quota ("left"); the used arc paints over the outline. */}
+        <path d="M20 60 A40 40 0 0 1 100 60" fill="none" stroke={ACCENT.steel} strokeWidth="15" strokeLinecap="round" />
+        <path d="M20 60 A40 40 0 0 1 100 60" fill="none" stroke={CHART.grid} strokeWidth="12" strokeLinecap="round" />
+        <line x1={needleX(100, 31)} y1="60" x2={needleX(100, 49)} y2="60" stroke={ACCENT.steel} strokeWidth="3" strokeLinecap="round" />
         <path
           d="M20 60 A40 40 0 0 1 100 60"
           fill="none"
           stroke={WORK_COLORS.new_drills}
-          strokeWidth="13"
+          strokeWidth="15"
           strokeLinecap="round"
           strokeDasharray={`${dash} ${circumference}`}
         />
@@ -330,7 +333,7 @@ function QuotaTooltip({
         against the {quota.quota.toLocaleString()} permit quota.
       </p>
       <p className="mt-2">
-        Gauge max is 2,000 permits under SB237. The superscript reference beside the quota heading opens the official
+        Gauge max is 2,000 permits under SB237; the blue outline and end tick mark what is left. The superscript reference beside the quota heading opens the official
         CalGEM page.
       </p>
       {sb237Stats && (

@@ -15,7 +15,7 @@ import {
   type FunctionalTypeGroup,
   type WorkActivityGroup
 } from './lib/grouping';
-import { loadSb237DrillTrackerStats, sb237StatsFromTracker, type Sb237DrillTrackerStats } from './lib/sb237';
+import { loadSb237DrillTrackerStats, SB237_DRILL_TRACKER_URL, sb237StatsFromTracker, type Sb237DrillTrackerStats } from './lib/sb237';
 import { operatorColorMap } from './lib/operatorColors';
 import { rowOperatorDisplayName } from './lib/operators';
 import { countByValue, shiftDate } from './lib/summary';
@@ -121,7 +121,7 @@ export function App() {
   if (path === '/about-methodology') {
     return (
       <Shell>
-        <AboutMethodology onNavigateHome={() => navigateTo('/', setPath)} />
+        <AboutMethodology onNavigateHome={() => navigateTo('/', setPath)} onNavigate={(next) => navigateTo(next, setPath)} />
       </Shell>
     );
   }
@@ -258,16 +258,25 @@ export function App() {
               </section>
               <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-xs text-slate-500">
                 <span>{filteredRows.length.toLocaleString()} filtered permits from {rows.length.toLocaleString()} loaded rows</span>
-                <a
-                  className="text-slate-500 transition hover:text-accent"
-                  href="/about-methodology"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    navigateTo('/about-methodology', setPath);
-                  }}
-                >
-                  About / Methodology
-                </a>
+                <nav className="flex flex-wrap gap-4" aria-label="More pages">
+                  {[
+                    ['/drilling', 'Drilling'],
+                    ['/prod', 'Production'],
+                    ['/about-methodology', 'About / Methodology']
+                  ].map(([href, label]) => (
+                    <a
+                      key={href}
+                      className="text-slate-500 transition hover:text-accent"
+                      href={href}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        navigateTo(href, setPath);
+                      }}
+                    >
+                      {label}
+                    </a>
+                  ))}
+                </nav>
               </footer>
             </div>
           )}
@@ -528,7 +537,7 @@ function PreviewNav() {
   );
 }
 
-function AboutMethodology({ onNavigateHome }: { onNavigateHome: () => void }) {
+function AboutMethodology({ onNavigateHome, onNavigate }: { onNavigateHome: () => void; onNavigate: (path: string) => void }) {
   return (
     <main id="activity-content" className="min-h-screen bg-ink px-4 py-6 text-slate-200 sm:px-6 lg:px-10" aria-label="About and methodology">
       <div className="mx-auto max-w-4xl">
@@ -540,58 +549,83 @@ function AboutMethodology({ onNavigateHome }: { onNavigateHome: () => void }) {
             onNavigateHome();
           }}
         >
-          Back to activity terminal
+          Back to permits review
         </a>
         <header className="border-b border-line pb-6">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Version 1 methodology</p>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Sources and method</p>
           <h1 className="product-title max-w-3xl">
             <span>About</span>
             <span> / Methodology</span>
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
-            A public oilfield activity analysis terminal for California permit notices, WellSTAR well metadata, and CalGEM
-            field boundaries. V1 is built to make current activity easier to explore, not to replace official records.
+            An independent view of approved California oil and gas well permits, built from public CalGEM and WellSTAR data to
+            show who is permitting, what kind of work, and where. Official state records remain the system of record.
           </p>
         </header>
 
         <div className="mt-8 grid gap-6 text-sm leading-6 text-slate-300 md:grid-cols-2">
-          <MethodBlock title="What This Project Is">
-            The tracker groups public permit notices by operator, field, county, district, work scope, and well type. The first
-            audience is people trying to understand active development and modification patterns quickly.
+          <MethodBlock title="What is counted">
+            Approved WellSTAR notices of intention (new drill, rework, sidetrack, deepen, abandonment), grouped by operator,
+            field, county, district, work type, and well type. Counts use the <strong>approval date</strong>. CalGEM&apos;s
+            dashboard counts by filed date, so its year-to-date totals can differ by a few permits.
           </MethodBlock>
-          <MethodBlock title="Data Sources">
-            Phase one uses public CalGEM and WellSTAR ArcGIS services for notices, wells, and field boundaries. Official source
-            pages remain the system of record.
+          <MethodBlock title="Data sources">
+            WellSTAR notices and wells, and CalGEM field boundaries (ArcGIS services); pool names from CalGEM&apos;s annual
+            wells file; Kern spud dates from CalGEM&apos;s Drill Tracker; rig counts from Baker Hughes.
             <SourceLinks />
           </MethodBlock>
-          <MethodBlock title="What A Notice Means">
-            A notice describes a requested or approved activity such as new drilling, deepening, sidetracking, rework, or
-            abandonment. It should not be over-interpreted as a complete geologic or commercial signal.
+          <MethodBlock title="Update cadence">
+            A GitHub Actions ingest runs every Monday and stores records in Supabase. Each run rebuilds a static data snapshot
+            that this site serves, so the header date is the latest weekly update.
           </MethodBlock>
-          <MethodBlock title="V1 Limitations">
-            Depth, completion interval, formation, pool code, casing, and liner details are not fully exposed in the current open
-            layers. V1 links users to WellSTAR for those official well details.
+          <MethodBlock title="Kern New Drill quota">
+            SB 237 caps Kern County New Drill permits at 2,000 a year. The meter shows year-to-date approvals, a straight-line
+            projection to year-end, what is left, and operator-reported spuds from the Drill Tracker.
           </MethodBlock>
-          <MethodBlock title="Known Gaps">
-            API numbers can vary by format, well joins can lag new permit records, operator names can vary, and public services can
-            change without notice. Weekly validation checks are used to catch obvious source changes.
+          <MethodBlock title="Limitations">
+            A permit is permission, not proof of drilling: many are never spudded or are spudded months later. Depth,
+            completion, and casing details are not in the public layers, so records link to WellSTAR. Operator names vary and
+            are normalized; well joins can lag new permits.
           </MethodBlock>
-          <MethodBlock title="Update Cadence">
-            The ingest is designed to run weekly through GitHub Actions and write public-read records to Supabase. The app displays
-            the latest permit date available in the loaded dataset.
+          <MethodBlock title="Use and credit">
+            Public data, provided as is for exploration and analysis. Check official CalGEM records before relying on any figure.
+            Built by{' '}
+            <a className="text-slate-200 underline decoration-line underline-offset-2 hover:text-accent" href="https://ryweller.com" target="_blank" rel="noreferrer">
+              Ryan Weller
+            </a>
+            .
           </MethodBlock>
         </div>
 
-        <section className="mt-8 border-t border-line pt-6">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Future Enrichment Roadmap</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-            V2 should inspect whether WellSTAR detail pages expose stable public payloads before attempting any rendered-page
-            extraction. Target fields include bottom-hole depths, plugback depths, completion intervals, formation, pool code,
-            wellbore direction, casing summaries, and depth datum.
-          </p>
+        <section className="mt-8 border-t border-line pt-6" aria-label="More views">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">More views (in development)</h2>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <ViewLink href="/drilling" title="Kern permits vs drilling" onNavigate={onNavigate}>
+              Spuds by approval month, approval-to-spud lag, undrilled inventory, and rig counts.
+            </ViewLink>
+            <ViewLink href="/prod" title="Production offset model" onNavigate={onNavigate}>
+              Can new drilling offset California&apos;s oil decline?
+            </ViewLink>
+          </div>
         </section>
       </div>
     </main>
+  );
+}
+
+function ViewLink({ href, title, onNavigate, children }: { href: string; title: string; onNavigate: (path: string) => void; children: React.ReactNode }) {
+  return (
+    <a
+      className="block border border-line bg-panel/40 p-3 transition hover:border-accent/60"
+      href={href}
+      onClick={(event) => {
+        event.preventDefault();
+        onNavigate(href);
+      }}
+    >
+      <span className="text-sm font-semibold text-slate-100">{title} →</span>
+      <span className="mt-1 block text-xs leading-5 text-slate-400">{children}</span>
+    </a>
   );
 }
 
@@ -605,20 +639,21 @@ function MethodBlock({ title, children }: { title: string; children: React.React
 }
 
 function SourceLinks() {
+  const links: Array<[string, string]> = [
+    ['https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Notices/MapServer/1', 'Notices'],
+    ['https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Wells/MapServer/0', 'Wells'],
+    ['https://gis.conservation.ca.gov/server/rest/services/CalGEM/Admin_Bounds/MapServer/0', 'Fields'],
+    [SB237_DRILL_TRACKER_URL, 'Drill Tracker'],
+    ['https://rigcount.bakerhughes.com/', 'Rig count'],
+    ['https://www.conservation.ca.gov/calgem/Pages/permits.aspx', 'CalGEM']
+  ];
   return (
     <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-wide">
-      <a className="text-slate-500 transition hover:text-accent" href="https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Notices/MapServer/1" target="_blank" rel="noreferrer">
-        Notices
-      </a>
-      <a className="text-slate-500 transition hover:text-accent" href="https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Wells/MapServer/0" target="_blank" rel="noreferrer">
-        Wells
-      </a>
-      <a className="text-slate-500 transition hover:text-accent" href="https://gis.conservation.ca.gov/server/rest/services/CalGEM/Admin_Bounds/MapServer/0" target="_blank" rel="noreferrer">
-        Fields
-      </a>
-      <a className="text-slate-500 transition hover:text-accent" href="https://conservation.ca.gov/calgem/Pages/permits.aspx" target="_blank" rel="noreferrer">
-        CalGEM
-      </a>
+      {links.map(([href, label]) => (
+        <a key={label} className="text-slate-500 transition hover:text-accent" href={href} target="_blank" rel="noreferrer">
+          {label}
+        </a>
+      ))}
     </div>
   );
 }

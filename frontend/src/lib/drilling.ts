@@ -57,12 +57,29 @@ export function spudLags(tracker: DrillTrackerRow[]) {
     .sort((a, b) => a - b);
 }
 
-export function lagHistogram(lags: number[], binDays = 30) {
-  if (!lags.length) return [];
-  const bins = Math.floor(lags[lags.length - 1] / binDays) + 1;
-  const counts = Array.from({ length: bins }, (_, index) => ({ label: `${index * binDays}–${(index + 1) * binDays - 1}`, wells: 0 }));
-  lags.forEach((days) => {
-    counts[Math.floor(days / binDays)].wells += 1;
+export type LagItem = { days: number; key: string };
+
+// Tracker rows with both dates, as lag-in-days items keyed for stacking (operator, well type, ...).
+export function spudLagItems(tracker: DrillTrackerRow[], keyFor: (row: DrillTrackerRow) => string): LagItem[] {
+  return tracker
+    .filter((row) => row.approval_date && row.spud_date)
+    .map((row) => ({ days: daysBetween(row.approval_date as string, row.spud_date as string), key: keyFor(row) }))
+    .filter((item) => item.days >= 0);
+}
+
+// 30-day bins; keyed items also get a per-key count on each bin for stacked bars.
+export function lagHistogram(lags: Array<number | LagItem>, binDays = 30) {
+  const items = lags.map((lag) => (typeof lag === 'number' ? { days: lag, key: '' } : lag));
+  if (!items.length) return [];
+  const bins = Math.floor(Math.max(...items.map((item) => item.days)) / binDays) + 1;
+  const counts: Array<{ label: string; wells: number } & Record<string, number | string>> = Array.from({ length: bins }, (_, index) => ({
+    label: `${index * binDays}–${(index + 1) * binDays - 1}`,
+    wells: 0
+  }));
+  items.forEach(({ days, key }) => {
+    const bin = counts[Math.floor(days / binDays)];
+    bin.wells += 1;
+    if (key) bin[key] = ((bin[key] as number) || 0) + 1;
   });
   return counts;
 }
@@ -85,7 +102,7 @@ export function undrilledInventory(permits: PermitActivity[], spuds: Map<string,
   return { total: waiting.length, buckets };
 }
 
-export function operatorScorecard(permits: PermitActivity[], spuds: Map<string, DrillTrackerRow>, asOf: string) {
+export function operatorInsights(permits: PermitActivity[], spuds: Map<string, DrillTrackerRow>, asOf: string) {
   const operators = new Map<string, { operator: string; approved: number; spudded: number; lags: number[]; oldestWaitingDays: number }>();
   permits.forEach((row) => {
     const operator = rowOperatorDisplayName(row);

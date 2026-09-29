@@ -17,7 +17,7 @@ The project is designed as an oilfield activity intelligence tool rather than a 
 - Map-based activity view where symbol shape represents functional well type and color represents work activity.
 - Shareable filter URLs for persistent operator, field, county, date, and permit-scope views.
 - Compact permit record table with expanded CSV export, determination/filed dates, and clickable WellSTAR detail links.
-- `/drilling`: Kern permits vs drilling activity (spudded wells by approval month, approval-to-spud lag, weekly approvals and spuds with rig counts, undrilled inventory, operator scorecard).
+- `/drilling`: Kern permits vs drilling activity (spudded wells by approval month, approval-to-spud lag, weekly approvals and spuds with rig counts, undrilled inventory, operator insights).
 - `/prod`: rough California oil decline and Kern County New Drill quota sensitivity model.
 - Pool names in the permit detail drawer.
 - Operator analysis panels for field concentration and cumulative drilling activity.

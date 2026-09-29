@@ -8,9 +8,10 @@ import {
   inventoryBy,
   kernNewDrillPermits,
   lagHistogram,
-  operatorScorecard,
+  operatorInsights,
   quantile,
   spudCohorts,
+  spudLagItems,
   spudLags,
   spudsByApi,
   undrilledInventory,
@@ -21,7 +22,7 @@ import {
 import { FUNCTIONAL_TYPE_GROUPS, functionalTypeGroup, functionalTypeLabel } from '../lib/grouping';
 import type { OperatorColor } from '../lib/operatorColors';
 import { operatorDisplayName, rowOperatorDisplayName } from '../lib/operators';
-import { CHART, SERIES, SURFACE, WORK_COLORS } from '../lib/palette';
+import { CHART, SURFACE, WORK_COLORS } from '../lib/palette';
 import { SB237_DRILL_TRACKER_URL as DRILL_TRACKER_URL } from '../lib/sb237';
 import type { DrillTracker, DrillTrackerRow, PermitActivity, RigCount } from '../lib/types';
 
@@ -52,6 +53,7 @@ const RIG_KEYS = ['kernRigs', 'californiaRigs'];
 // /drilling: Kern permits vs reported drilling.
 export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor, loading, error, onNavigateHome }: Props) {
   const [breakdown, setBreakdown] = useState<Breakdown>('operator');
+  const [lagBreakdown, setLagBreakdown] = useState<Breakdown>('operator');
   const [inventoryView, setInventoryView] = useState<'operator' | 'field'>('operator');
   const [filters, setFilters] = useState<DrillFilters>(NO_FILTERS);
   const startDate = `${(asOf || new Date().toISOString()).slice(0, 4)}-01-01`;
@@ -105,33 +107,46 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
   const spuds = useMemo(() => spudsByApi(tracker), [tracker]);
   const cohorts = useMemo(() => spudCohorts(permits, spuds), [permits, spuds]);
   const lags = useMemo(() => spudLags(tracker), [tracker]);
-  const histogram = useMemo(() => lagHistogram(lags), [lags]);
   const inventory = useMemo(() => undrilledInventory(permits, spuds, asOf), [permits, spuds, asOf]);
-  const scorecard = useMemo(() => operatorScorecard(permits, spuds, asOf), [permits, spuds, asOf]);
+  const insights = useMemo(() => operatorInsights(permits, spuds, asOf), [permits, spuds, asOf]);
   const spudCounts = useMemo(() => unmatchedSpuds(tracker, permits, startDate), [tracker, permits, startDate]);
   const latestRigs = rigCount?.weeks[rigCount.weeks.length - 1];
 
 
-  const weekly = useMemo(() => {
+  // Stack keys for a breakdown: top operators (else Other) or functional well type, in a stable order.
+  const stacking = useMemo(() => {
     const operatorKey = (name: string) => (operatorColor(name) === CHART.other ? OTHER : name);
-    const keyForPermit = (row: PermitActivity) =>
-      breakdown === 'operator' ? operatorKey(rowOperatorDisplayName(row)) : functionalTypeLabel(functionalTypeGroup(row));
-    const keyForSpud = (row: DrillTrackerRow) => {
-      const attributes = spudAttributes.get(row) as WellAttributes;
-      return breakdown === 'operator' ? operatorKey(attributes.operator) : attributes.type;
-    };
+    return (mode: Breakdown) => ({
+      keyForPermit: (row: PermitActivity) => (mode === 'operator' ? operatorKey(rowOperatorDisplayName(row)) : functionalTypeLabel(functionalTypeGroup(row))),
+      keyForSpud: (row: DrillTrackerRow) => {
+        const attributes = spudAttributes.get(row) as WellAttributes;
+        return mode === 'operator' ? operatorKey(attributes.operator) : attributes.type;
+      },
+      orderKeys: (keys: string[]) => {
+        const counts = new Map<string, number>();
+        keys.forEach((key) => counts.set(key, (counts.get(key) || 0) + 1));
+        return mode === 'operator'
+          ? [...Array.from(counts.keys()).filter((key) => key !== OTHER).sort((a, b) => (counts.get(b) || 0) - (counts.get(a) || 0)), ...(counts.has(OTHER) ? [OTHER] : [])]
+          : FUNCTIONAL_TYPE_GROUPS.map((group) => group.label).filter((label) => counts.has(label));
+      },
+      colorFor: (key: string) =>
+        mode === 'operator' ? (key === OTHER ? CHART.other : operatorColor(key)) : FUNCTIONAL_TYPE_GROUPS.find((group) => group.label === key)?.color || CHART.other
+    });
+  }, [operatorColor, spudAttributes]);
+
+  const weekly = useMemo(() => {
+    const { keyForPermit, keyForSpud, orderKeys, colorFor } = stacking(breakdown);
     const approvals: WeeklyItem[] = permits.map((row) => ({ date: row.notice_date_determination as string, key: keyForPermit(row) }));
     const spudItems: WeeklyItem[] = tracker.filter((row) => row.spud_date).map((row) => ({ date: row.spud_date as string, key: keyForSpud(row) }));
-    const counts = new Map<string, number>();
-    [...approvals, ...spudItems].forEach((item) => counts.set(item.key, (counts.get(item.key) || 0) + 1));
-    const keys =
-      breakdown === 'operator'
-        ? [...Array.from(counts.keys()).filter((key) => key !== OTHER).sort((a, b) => (counts.get(b) || 0) - (counts.get(a) || 0)), ...(counts.has(OTHER) ? [OTHER] : [])]
-        : FUNCTIONAL_TYPE_GROUPS.map((group) => group.label).filter((label) => counts.has(label));
-    const colorFor = (key: string) =>
-      breakdown === 'operator' ? (key === OTHER ? CHART.other : operatorColor(key)) : FUNCTIONAL_TYPE_GROUPS.find((group) => group.label === key)?.color || CHART.other;
+    const keys = orderKeys([...approvals, ...spudItems].map((item) => item.key));
     return { keys, colorFor, ...weeklyBreakdown(approvals, spudItems, keys, rigCount?.weeks || [], startDate) };
-  }, [breakdown, operatorColor, permits, rigCount, spudAttributes, startDate, tracker]);
+  }, [breakdown, permits, rigCount, stacking, startDate, tracker]);
+
+  const lagChart = useMemo(() => {
+    const { keyForSpud, orderKeys, colorFor } = stacking(lagBreakdown);
+    const items = spudLagItems(tracker, keyForSpud);
+    return { keys: orderKeys(items.map((item) => item.key)), colorFor, bins: lagHistogram(items) };
+  }, [lagBreakdown, stacking, tracker]);
 
   const inventoryRows = useMemo(
     () => inventoryBy(permits, spuds, asOf, inventoryView === 'operator' ? rowOperatorDisplayName : (row) => row.field_name || 'Unknown'),
@@ -225,10 +240,10 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
                     <YAxis allowDecimals={false} width={32} tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
                     <Tooltip content={<CompactChartTooltip showTotal />} cursor={{ fill: CHART.cursorFill }} />
                     <Bar dataKey="spudded" name="Spudded" stackId="c" fill={SPUDDED} stroke={SURFACE.panel} strokeWidth={1} />
-                    <Bar dataKey="waiting" name="Not yet spudded" stackId="c" fill={WAITING} stroke={SURFACE.panel} strokeWidth={1} />
+                    <Bar dataKey="waiting" name="Permitted, not yet spudded" stackId="c" fill={WAITING} stroke={SURFACE.panel} strokeWidth={1} />
                   </BarChart>
                 </ResponsiveContainer>
-                <Legend items={[['Spudded', SPUDDED], ['Not yet spudded', WAITING]]} />
+                <Legend items={[['Spudded', SPUDDED], ['Permitted, not yet spudded', WAITING]]} />
               </Panel>
 
               <Panel
@@ -295,22 +310,28 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
                   lags.length ? (
                     <div className="text-right">
                       <div className="text-lg font-semibold text-slate-100">{quantile(lags, 0.5)} days</div>
-                      <div className="text-[10px] text-slate-500">
+                      <div className="whitespace-nowrap text-[10px] text-slate-500">
                         median · middle half {quantile(lags, 0.25)}–{quantile(lags, 0.75)}
                       </div>
                     </div>
                   ) : null
                 }
               >
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={histogram}>
+                <div className="mb-1 flex justify-end">
+                  <Toggle value={lagBreakdown} options={[['operator', 'Operator'], ['type', 'Well type']]} onChange={setLagBreakdown} />
+                </div>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={lagChart.bins}>
                     <CartesianGrid stroke={CHART.grid} vertical={false} />
                     <XAxis dataKey="label" tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
                     <YAxis allowDecimals={false} width={32} tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
-                    <Tooltip content={<CompactChartTooltip />} cursor={{ fill: CHART.cursorFill }} />
-                    <Bar dataKey="wells" name="Wells" fill={SERIES[0]} radius={[2, 2, 0, 0]} />
+                    <Tooltip content={<CompactChartTooltip showTotal />} cursor={{ fill: CHART.cursorFill }} />
+                    {lagChart.keys.map((key) => (
+                      <Bar key={key} dataKey={key} name={key} stackId="l" fill={lagChart.colorFor(key)} stroke={SURFACE.panel} strokeWidth={1} />
+                    ))}
                   </BarChart>
                 </ResponsiveContainer>
+                <Legend items={lagChart.keys.map((key) => [key, lagChart.colorFor(key)] as [string, string])} />
               </Panel>
 
               <Panel
@@ -346,7 +367,7 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
               </Panel>
             </section>
 
-            <Panel title="Operator scorecard" subtitle={`Kern New Drill permits approved in ${startDate.slice(0, 4)}.`}>
+            <Panel title="Operator insights" subtitle={`Kern New Drill permits approved in ${startDate.slice(0, 4)}: how many have spudded, how long it took, and what is still waiting.`}>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[640px] text-left text-xs">
                   <thead className="text-[10px] uppercase tracking-wide text-slate-500">
@@ -361,7 +382,7 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
                     </tr>
                   </thead>
                   <tbody className="text-slate-300">
-                    {scorecard.map((entry) => (
+                    {insights.map((entry) => (
                       <tr key={entry.operator} className="border-b border-line/50">
                         <td className="py-1.5 pr-3 text-slate-100">
                           <span className="flex items-center gap-1.5">
@@ -455,7 +476,7 @@ function Toggle<T extends string>({ value, options, onChange }: { value: T; opti
           key={key}
           type="button"
           aria-pressed={value === key}
-          className={`px-2.5 py-1 ${value === key ? 'bg-panel text-white' : 'text-slate-500 hover:text-slate-200'}`}
+          className={`whitespace-nowrap px-2.5 py-1 ${value === key ? 'bg-panel text-white' : 'text-slate-500 hover:text-slate-200'}`}
           onClick={() => onChange(key)}
         >
           {label}

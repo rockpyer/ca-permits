@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { daysBetween, inventoryBy, kernNewDrillPermits, lagHistogram, operatorScorecard, spudCohorts, spudLags, spudsByApi, undrilledInventory, unmatchedSpuds, weeklyBreakdown } from './drilling';
+import { daysBetween, inventoryBy, kernNewDrillPermits, lagHistogram, operatorInsights, spudLagItems, spudCohorts, spudLags, spudsByApi, undrilledInventory, unmatchedSpuds, weeklyBreakdown } from './drilling';
 import type { DrillTrackerRow, PermitActivity } from './types';
 
 const permit = (api: string, date: string, operator = 'Alpha', extra: Partial<PermitActivity> = {}) =>
@@ -37,6 +37,8 @@ describe('drilling analysis', () => {
     const lags = spudLags(tracker);
     expect(lags).toEqual([30, 100]);
     expect(lagHistogram(lags).map((bin) => bin.wells)).toEqual([0, 1, 0, 1]);
+    const stacked = lagHistogram(spudLagItems(tracker, (row) => (row.api_10 === '1' ? 'Alpha' : 'Beta')));
+    expect(stacked.map((bin) => [bin.Alpha, bin.Beta])).toEqual([[undefined, undefined], [undefined, 1], [undefined, undefined], [1, undefined]]);
   });
 
   it('ages the undrilled inventory', () => {
@@ -46,7 +48,7 @@ describe('drilling analysis', () => {
   });
 
   it('scores operators', () => {
-    const [alpha, beta] = operatorScorecard(kern, spuds, '2026-05-01');
+    const [alpha, beta] = operatorInsights(kern, spuds, '2026-05-01');
     expect(alpha).toMatchObject({ operator: 'Alpha', approved: 2, spudded: 2, share: 1, medianLagDays: 65 });
     expect(beta).toMatchObject({ operator: 'Beta', approved: 1, spudded: 0, waiting: 1, oldestWaitingDays: 101, medianLagDays: null });
   });
