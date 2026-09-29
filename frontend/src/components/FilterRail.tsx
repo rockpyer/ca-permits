@@ -1,7 +1,7 @@
 import { PanelLeftClose, PanelLeftOpen, RotateCcw } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { defaultFilters, toggleListValue, uniqueValues } from '../lib/filters';
-import { activeOperatorDisplayNames } from '../lib/operators';
+import { defaultFilters, facetOptions, toggleListValue, type FacetKey } from '../lib/filters';
+import { MultiSelect } from './MultiSelect';
 import {
   FUNCTIONAL_TYPE_GROUPS,
   WORK_ACTIVITY_GROUPS,
@@ -20,9 +20,20 @@ type Props = {
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
   onChange: (filters: Filters) => void;
+  operatorColor?: (operator: string) => string;
 };
 
-export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedChange, onChange }: Props) {
+export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedChange, onChange, operatorColor }: Props) {
+  const facet = (key: FacetKey, label: string, colorFor?: (value: string) => string) => (
+    <MultiSelect
+      label={label}
+      options={facetOptions(rows, filters, key)}
+      selected={filters[key]}
+      colorFor={colorFor}
+      onChange={(values) => onChange({ ...filters, [key]: values })}
+    />
+  );
+
   return (
     <aside className="sticky top-0 z-40 flex min-h-0 flex-col border-b border-line bg-ink p-2.5 lg:static lg:h-full lg:border-b-0 lg:border-r">
       <div className="mb-2 flex items-center justify-between">
@@ -81,30 +92,10 @@ export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedCh
         </FilterSection>
 
         <FilterSection title="Well And Geography" defaultOpen>
-          <InlineSelect
-            label="Operator"
-            options={activeOperatorDisplayNames(rows, (dateBounds.maxDate || new Date().toISOString()).slice(0, 4), filters.operators)}
-            value={filters.operators[0] || ''}
-            onChange={(value) => onChange({ ...filters, operators: value ? [value] : [] })}
-          />
-          <InlineSelect
-            label="Field"
-            options={uniqueValues(rows, 'field_name')}
-            value={filters.fields[0] || ''}
-            onChange={(value) => onChange({ ...filters, fields: value ? [value] : [] })}
-          />
-          <InlineSelect
-            label="County"
-            options={uniqueValues(rows, 'county')}
-            value={filters.counties[0] || ''}
-            onChange={(value) => onChange({ ...filters, counties: value ? [value] : [] })}
-          />
-          <InlineSelect
-            label="District"
-            options={uniqueValues(rows, 'district')}
-            value={filters.districts[0] || ''}
-            onChange={(value) => onChange({ ...filters, districts: value ? [value] : [] })}
-          />
+          {facet('operators', 'Operator', operatorColor)}
+          {facet('fields', 'Field')}
+          {facet('counties', 'County')}
+          {facet('districts', 'District')}
         </FilterSection>
 
         <FilterSection
@@ -129,12 +120,7 @@ export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedCh
         </FilterSection>
 
         <FilterSection title="Well Details">
-          <InlineSelect
-            label="Status"
-            options={uniqueValues(rows, 'well_status')}
-            value={filters.wellStatuses[0] || ''}
-            onChange={(value) => onChange({ ...filters, wellStatuses: value ? [value] : [] })}
-          />
+          {facet('wellStatuses', 'Status')}
           <InlineSelect
             label="Direction"
             value={filters.directional}

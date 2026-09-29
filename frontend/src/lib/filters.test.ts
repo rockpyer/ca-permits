@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { applyFilters, defaultFilters, toggleListValue } from './filters';
+import { applyFilters, defaultFilters, facetOptions, toggleListValue } from './filters';
 import { functionalTypeGroup } from './grouping';
-import { activeOperatorDisplayNames, operatorParentName, rowOperatorDisplayName } from './operators';
+import { operatorParentName, rowOperatorDisplayName } from './operators';
 import type { PermitActivity } from './types';
 
 const baseRow: PermitActivity = {
@@ -88,13 +88,22 @@ describe('filters', () => {
   });
 });
 
-describe('activeOperatorDisplayNames', () => {
-  it('lists only operators with a permit in the year, keeping a selected one', () => {
+describe('facetOptions', () => {
+  it('lists values present under the other filters, with counts, keeping selections', () => {
     const rows = [
-      { ...baseRow, operator_name: 'Current Co', notice_date_determination: '2026-03-01' },
-      { ...baseRow, operator_name: 'Old Co', notice_date_determination: '2025-11-01', notice_dated: '2025-11-01' },
-      { ...baseRow, operator_name: 'Kept Co', notice_date_determination: '2024-01-01', notice_dated: '2024-01-01' }
+      { ...baseRow, operator_name: 'Current Co', field_name: 'A', notice_date_determination: '2026-03-01' },
+      { ...baseRow, operator_name: 'Current Co', field_name: 'B', notice_date_determination: '2026-03-02' },
+      { ...baseRow, operator_name: 'Old Co', field_name: 'A', notice_date_determination: '2025-11-01', notice_dated: '2025-11-01' },
+      { ...baseRow, operator_name: 'Abandon Co', field_name: 'A', notice_type: 'NOI - Abandon', notice_date_determination: '2026-03-01' }
     ];
-    expect(activeOperatorDisplayNames(rows, '2026', ['Kept Co'])).toEqual(['Current Co', 'Kept Co']);
+    const filters = { ...defaultFilters(), startDate: '2026-01-01', endDate: '2026-12-31', fields: ['A'], operators: ['Kept Co'] };
+    expect(facetOptions(rows, filters, 'operators')).toEqual([
+      { value: 'Current Co', count: 1 },
+      { value: 'Kept Co', count: 0 }
+    ]);
+    expect(facetOptions(rows, { ...filters, operators: [] }, 'fields')).toEqual([
+      { value: 'A', count: 1 },
+      { value: 'B', count: 1 }
+    ]);
   });
 });

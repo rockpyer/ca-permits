@@ -1,7 +1,13 @@
 import type { TooltipProps } from 'recharts';
 import type { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
 
-export function CompactChartTooltip({ active, label, payload }: TooltipProps<ValueType, NameType>) {
+type Extra = {
+  // Adds a Total row summing the stacked series; dataKeys in totalExclude (e.g. rig lines) are left out.
+  showTotal?: boolean;
+  totalExclude?: string[];
+};
+
+export function CompactChartTooltip({ active, label, payload, showTotal = false, totalExclude = [] }: TooltipProps<ValueType, NameType> & Extra) {
   if (!active || !payload?.length) return null;
 
   const rows = payload.filter((item) => {
@@ -11,10 +17,20 @@ export function CompactChartTooltip({ active, label, payload }: TooltipProps<Val
   });
 
   if (!rows.length) return null;
+  const total = showTotal
+    ? rows
+        .filter((item) => !totalExclude.includes(String(item.dataKey)))
+        .reduce((sum, item) => sum + (Number.isFinite(Number(item.value)) ? Number(item.value) : 0), 0)
+    : null;
 
   return (
     <div className="max-w-[240px] border border-line bg-ink/95 px-2 py-1.5 text-[11px] leading-tight text-slate-300 shadow-lg shadow-black/20">
-      {label !== undefined && <div className="mb-1 truncate font-semibold text-slate-100">{String(label)}</div>}
+      {label !== undefined && (
+        <div className="mb-1 flex justify-between gap-3 font-semibold text-slate-100">
+          <span className="truncate">{String(label)}</span>
+          {total !== null && <span className="tabular-nums">Total {total.toLocaleString()}</span>}
+        </div>
+      )}
       <div className="space-y-0.5">
         {rows.map((item) => (
           <div key={`${item.dataKey}-${String(item.name)}`} className="grid grid-cols-[10px_minmax(0,1fr)_auto] items-center gap-1.5">

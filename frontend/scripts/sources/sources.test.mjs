@@ -1,7 +1,7 @@
 import XLSX from 'xlsx';
 import { describe, expect, it } from 'vitest';
-import { parseDrillTracker } from './drill-tracker.mjs';
-import { parseRigCount } from './rig-count.mjs';
+import { parseDrillTracker, updatedDate } from './drill-tracker.mjs';
+import { parseRigCount, pickReportLink } from './rig-count.mjs';
 import { parseCsvLine, poolsByApi } from './well-pools.mjs';
 
 const workbook = (sheets) => {
@@ -20,7 +20,9 @@ describe('snapshot sources', () => {
       ]
     });
     const tracker = parseDrillTracker(buffer);
-    expect(tracker.updatedLabel).toBe('September 21, 2026');
+    expect(tracker.updatedLabel).toBe('2026-09-21');
+    expect(updatedDate('Septmenber 28 2026')).toBe('2026-09-28');
+    expect(updatedDate('sometime soon')).toBe('sometime soon');
     expect(tracker.rows[0]).toMatchObject({ api_10: '0403070042', approval_date: '2026-03-04', spud_date: '2026-03-13', sb237: true });
   });
 
@@ -50,5 +52,24 @@ describe('snapshot sources', () => {
     expect(pools.get('0403000001')).toEqual(['Tulare', 'Etchegoin, Upper']);
     expect(pools.has('0403000002')).toBe(false);
     expect(parseCsvLine('a,"b ""c""",d')).toEqual(['a', 'b "c"', 'd']);
+  });
+
+  it('finds the rig count report link by its text when the URL has no extension', () => {
+    const html = `
+      <a href="/static-files/aaa">U.S. Rig Count (Jan 2000 - Current)</a>
+      <a href="/static-files/bbb"><span>North America Rig Count Report</span></a>`;
+    expect(pickReportLink(html, 'https://rigcount.bakerhughes.com/na-rig-count')).toBe('https://rigcount.bakerhughes.com/static-files/bbb');
+    expect(() => pickReportLink('<a href="/static-files/ccc">Rig Count FAQs</a>')).toThrow(/candidates: "Rig Count FAQs"/);
+  });
+
+  it('excludes geothermal (Miscellaneous) rigs', () => {
+    const buffer = workbook({
+      'NAM Weekly': [
+        ['Country', 'County', 'DrillFor', 'State/Province', 'US_PublishDate', 'Rig Count Value'],
+        ['UNITED STATES', 'KERN', 'Oil', 'CALIFORNIA', new Date('2026-09-25T00:00:00Z'), 2],
+        ['UNITED STATES', 'LAKE', 'Miscellaneous', 'CALIFORNIA', new Date('2026-09-25T00:00:00Z'), 1]
+      ]
+    });
+    expect(parseRigCount(buffer).weeks).toEqual([{ date: '2026-09-25', california: 2, kern: 2 }]);
   });
 });

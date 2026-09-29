@@ -93,7 +93,7 @@ export function PermitMomentumPanel({ rows }: Props) {
             minTickGap={24}
           />
           <YAxis allowDecimals={false} tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
-          <Tooltip content={<CompactChartTooltip />} cursor={{ stroke: CHART.cursor }} />
+          <Tooltip content={<CompactChartTooltip showTotal />} cursor={{ stroke: CHART.cursor }} />
           {WORK_ACTIVITY_GROUPS.map((group) => (
             <Line
               key={group.key}

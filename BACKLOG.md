@@ -2,11 +2,31 @@
 
 Working list of ideas. ROADMAP.md holds the committed product direction; items move there once scoped.
 
+## To do
+
+- [ ] **Confirm the Baker Hughes rig count in production.** After a deploy, check `data/meta.json` → `sources.rigCount`. If it fails, the error lists the candidate links found on the page.
+- [ ] **Link `/drilling` from the main page** once the drilling data is ready to feature.
+- [ ] **Map tiles.** `tile.openstreetmap.org` isn't meant for production traffic ([tile policy](https://operations.osmfoundation.org/policies/tiles/)). Move to [OpenFreeMap](https://openfreemap.org/) (no key) or a free MapTiler plan.
+- [ ] **Say which date the counts use.** Add a "Filed / Approved" toggle or a "by approval date" label. It explains the gap with CalGEM's dashboard (419 vs 427 New Drill).
+- [ ] **Operator name variants.** CRC appears under several names. Offer the parent rollup in the operator filter, not just in Operator Analysis.
+- [ ] **Unmatched tracker spuds.** List the tracker spuds that don't match a current-year approved permit, so matching can be checked.
+- [ ] **Show the ingest date alongside the latest permit date**, so a stalled ingest is visible on the page.
+- [ ] **Mobile, second pass.** The KPI rows are tall on phones; consider a denser two-column layout and a collapsible drilling filter panel.
+- [ ] **Session links in two old commit messages on `main`** (from #4 and #5). Removing them needs a force-push, so it waits on the owner's approval.
+
+### Done
+- [x] README updated for the static snapshot, sources, previews, and workflows.
+- [x] Real pages for `/drilling`, `/prod`, `/about-methodology` (HTTP 200) with their own social cards.
+- [x] Map, `/drilling`, and `/prod` load on demand; the main bundle is about half its previous size.
+- [x] `keep-undead` workflow re-enables scheduled workflows.
+- [x] Keyboard navigation in the multi-select filters.
+- [x] Phone width: no horizontal scroll; drilling notes move below the charts.
+- [x] Pool names from the CalGEM wells CSV.
+
 ## Data
 
 - **Well status history.** Diff the Wells layer on each ingest and record `WellStatus` / `SpudDate` changes to get dated spudded, active, idle, and plugged transitions. Very low effort.
 - **First production month.** Use the monthly production/injection CSVs ([CalGEM public downloads](https://wellstar-public.conservation.ca.gov/General/PublicDownloads/Index)) as a completion proxy. They run about two months behind.
-- **Pool names.** `2026CaliforniaOilAndGasWells.csv` adds `PoolCode`, `PoolName`, and `PoolWellTypeStatus`, which the ArcGIS Wells layer lacks. It's monthly and roughly 40 MB.
 - **Depth and completion enrichment.** Data exists only on WellSTAR detail pages (robots.txt disallows crawling) or in the weekly 2.25 GB `WellDetailDatabase.BAK`. Ask CalGEM before scraping.
 
 ## Permits and NOIs
