@@ -1,11 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Github, Link as LinkIcon, Loader2, MapPinned } from 'lucide-react';
-import { ActivityMap } from './components/ActivityMap';
 import { DetailDrawer } from './components/DetailDrawer';
-import { DrillingPage } from './components/DrillingPage';
 import { FilterRail } from './components/FilterRail';
 import { PermitTable } from './components/PermitTable';
-import { ProductionPage } from './components/ProductionPage';
 import { RankingPanels } from './components/RankingPanels';
 import { ActivityNotes, ActivitySummaryStrip, FunctionalTypeMix, PermitMomentumPanel } from './components/SummaryCards';
 import { loadAppData } from './lib/data';
@@ -24,6 +21,11 @@ import { rowOperatorDisplayName } from './lib/operators';
 import { countByValue, shiftDate } from './lib/summary';
 import { hasSupabaseConfig } from './lib/supabase';
 import type { DrillTracker, EtlRun, FieldBoundary, Filters, PermitActivity, RigCount } from './lib/types';
+
+// The map library and secondary pages load on demand so first paint doesn't wait on them.
+const ActivityMap = lazy(() => import('./components/ActivityMap').then((module) => ({ default: module.ActivityMap })));
+const DrillingPage = lazy(() => import('./components/DrillingPage').then((module) => ({ default: module.DrillingPage })));
+const ProductionPage = lazy(() => import('./components/ProductionPage').then((module) => ({ default: module.ProductionPage })));
 
 export function App() {
   const [rows, setRows] = useState<PermitActivity[]>([]);
@@ -127,16 +129,18 @@ export function App() {
   if (path === '/drilling') {
     return (
       <Shell>
-        <DrillingPage
-          rows={rows}
-          drillTracker={drillTracker}
-          rigCount={rigCount}
-          asOf={dateBounds.maxDate}
-          operatorColor={operatorColor}
-          loading={loading}
-          error={error}
-          onNavigateHome={() => navigateTo('/', setPath)}
-        />
+        <Suspense fallback={<PageLoading />}>
+          <DrillingPage
+            rows={rows}
+            drillTracker={drillTracker}
+            rigCount={rigCount}
+            asOf={dateBounds.maxDate}
+            operatorColor={operatorColor}
+            loading={loading}
+            error={error}
+            onNavigateHome={() => navigateTo('/', setPath)}
+          />
+        </Suspense>
       </Shell>
     );
   }
@@ -144,7 +148,9 @@ export function App() {
   if (path === '/prod') {
     return (
       <Shell>
-        <ProductionPage rows={rows} loading={loading} error={error} sb237Stats={sb237Stats} onNavigateHome={() => navigateTo('/', setPath)} />
+        <Suspense fallback={<PageLoading />}>
+          <ProductionPage rows={rows} loading={loading} error={error} sb237Stats={sb237Stats} onNavigateHome={() => navigateTo('/', setPath)} />
+        </Suspense>
       </Shell>
     );
   }
@@ -233,7 +239,9 @@ export function App() {
                   aria-hidden="true"
                   title="Scroll area"
                 />
-                <ActivityMap rows={filteredRows} fields={fields} selected={selected} onSelect={setSelected} />
+                <Suspense fallback={<div className="h-[340px] border border-line bg-panel sm:h-[400px] xl:h-[460px]" aria-label="Loading map" />}>
+                  <ActivityMap rows={filteredRows} fields={fields} selected={selected} onSelect={setSelected} />
+                </Suspense>
               </section>
               <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,0.92fr)_360px]" aria-label="Permit momentum and activity notes">
                 <PermitMomentumPanel rows={filteredRows} />
@@ -479,6 +487,15 @@ function formatShortDate(date: string) {
   const parsed = new Date(`${date}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return date;
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(parsed);
+}
+
+function PageLoading() {
+  return (
+    <div className="flex min-h-screen items-center justify-center text-slate-300">
+      <Loader2 className="mr-2 animate-spin" size={20} />
+      Loading
+    </div>
+  );
 }
 
 function Shell({ children }: { children: React.ReactNode }) {

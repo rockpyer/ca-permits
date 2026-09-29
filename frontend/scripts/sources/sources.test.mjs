@@ -1,6 +1,6 @@
 import XLSX from 'xlsx';
 import { describe, expect, it } from 'vitest';
-import { parseDrillTracker } from './drill-tracker.mjs';
+import { parseDrillTracker, updatedDate } from './drill-tracker.mjs';
 import { parseRigCount, pickReportLink } from './rig-count.mjs';
 import { parseCsvLine, poolsByApi } from './well-pools.mjs';
 
@@ -20,7 +20,9 @@ describe('snapshot sources', () => {
       ]
     });
     const tracker = parseDrillTracker(buffer);
-    expect(tracker.updatedLabel).toBe('September 21, 2026');
+    expect(tracker.updatedLabel).toBe('2026-09-21');
+    expect(updatedDate('Septmenber 28 2026')).toBe('2026-09-28');
+    expect(updatedDate('sometime soon')).toBe('sometime soon');
     expect(tracker.rows[0]).toMatchObject({ api_10: '0403070042', approval_date: '2026-03-04', spud_date: '2026-03-13', sb237: true });
   });
 

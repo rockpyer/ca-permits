@@ -199,7 +199,7 @@ function CategoryStackPanel({ rows, primaryLabel: analysisOperatorLabel }: { row
             Stacked permit count: {primaryLabel} by {stackLabel.toLowerCase()}.
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
           <AxisSelect label="Bars" value={primaryKey} onChange={setPrimaryKey} exclude={stackKey} />
           <AxisSelect label="Stack" value={stackKey} onChange={setStackKey} exclude={primaryKey} />
         </div>
@@ -240,7 +240,7 @@ function AxisSelect({
   onChange: (value: CategoryFieldKey) => void;
 }) {
   return (
-    <label className="grid grid-cols-[44px_150px] items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+    <label className="grid grid-cols-[44px_minmax(0,150px)] items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
       <span>{label}</span>
       <select
         className="border border-line bg-panel px-2 py-1 text-xs normal-case tracking-normal text-slate-100 outline-none"

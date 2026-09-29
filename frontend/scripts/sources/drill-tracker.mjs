@@ -32,7 +32,18 @@ export function parseDrillTracker(buffer) {
     }))
     .filter((row) => row.api_10);
   if (!rows.length) throw new Error('drill tracker parsed 0 rows; columns may have changed');
-  return { updatedLabel: heading.match(/Updated\s+(.+)$/i)?.[1]?.trim() || '', rows };
+  return { updatedLabel: updatedDate(heading.match(/Updated\s+(.+)$/i)?.[1]?.trim() || ''), rows };
+}
+
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+// The heading is typed by hand ("Septmenber 28 2026"), so read the month by its prefix and
+// return ISO; fall back to the raw text if it doesn't parse.
+export function updatedDate(label) {
+  const match = label.match(/([A-Za-z]{3})[A-Za-z]*\.?\s+(\d{1,2}),?\s+(\d{4})/);
+  const month = match ? MONTHS.indexOf(match[1].toLowerCase()) : -1;
+  if (month < 0) return label;
+  return `${match[3]}-${String(month + 1).padStart(2, '0')}-${match[2].padStart(2, '0')}`;
 }
 
 function normalizeApi(value) {

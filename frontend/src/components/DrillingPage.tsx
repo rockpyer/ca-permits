@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ArrowLeft, ExternalLink, Loader2 } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { CompactChartTooltip } from './CompactChartTooltip';
@@ -49,9 +49,8 @@ type WellAttributes = { operator: string; field: string; type: string };
 const NO_FILTERS: DrillFilters = { operators: [], fields: [], types: [] };
 const RIG_KEYS = ['kernRigs', 'californiaRigs'];
 
-// Unlinked page (/drilling): Kern permits vs reported drilling. Not indexed.
+// /drilling: Kern permits vs reported drilling.
 export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor, loading, error, onNavigateHome }: Props) {
-  useNoIndex();
   const [breakdown, setBreakdown] = useState<Breakdown>('operator');
   const [inventoryView, setInventoryView] = useState<'operator' | 'field'>('operator');
   const [filters, setFilters] = useState<DrillFilters>(NO_FILTERS);
@@ -195,16 +194,7 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
                 <MultiSelect label="Field" options={facet('fields')} selected={filters.fields} onChange={(fields) => setFilters({ ...filters, fields })} />
                 <MultiSelect label="Type" options={facet('types')} selected={filters.types} onChange={(types) => setFilters({ ...filters, types })} />
               </section>
-              <section className="space-y-1.5 border border-line bg-panel/40 p-2.5 text-[11px] leading-5 text-slate-400">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-300">Data</h2>
-                <p>Kern New Drill permits approved since {startDate}; closed permits excluded.</p>
-                <p>Spuds: operator-reported{drillTracker.updatedLabel ? `, updated ${drillTracker.updatedLabel}` : ''}.</p>
-                {rigCount && <p>Rigs: Baker Hughes oil & gas, all operators{latestRigs ? `, week of ${latestRigs.date}` : ''}.</p>}
-                <div className="flex flex-col gap-1 pt-1 text-xs font-semibold uppercase tracking-wide">
-                  <SourceLink href={DRILL_TRACKER_URL} label="Drill Tracker" />
-                  {rigCount && <SourceLink href={rigCount.sourceUrl} label="Baker Hughes rig count" />}
-                </div>
-              </section>
+              <DataNotes className="hidden lg:block" startDate={startDate} trackerUpdated={drillTracker.updatedLabel} rigCount={rigCount} latestRigDate={latestRigs?.date} />
             </aside>
           <div className="min-w-0 space-y-4">
             <section className="border-b border-line pb-4" aria-label="Drilling summary">
@@ -391,6 +381,8 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
                 </table>
               </div>
             </Panel>
+            {/* On phones the notes follow the charts instead of pushing them down. */}
+            <DataNotes className="lg:hidden" startDate={startDate} trackerUpdated={drillTracker.updatedLabel} rigCount={rigCount} latestRigDate={latestRigs?.date} />
           </div>
           </div>
         )}
@@ -413,16 +405,31 @@ function matches(attributes: WellAttributes, filters: DrillFilters) {
   );
 }
 
-function useNoIndex() {
-  useEffect(() => {
-    const meta = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
-    if (!meta) return;
-    const previous = meta.content;
-    meta.content = 'noindex, nofollow';
-    return () => {
-      meta.content = previous;
-    };
-  }, []);
+function DataNotes({
+  className,
+  startDate,
+  trackerUpdated,
+  rigCount,
+  latestRigDate
+}: {
+  className: string;
+  startDate: string;
+  trackerUpdated: string;
+  rigCount: RigCount | null;
+  latestRigDate?: string;
+}) {
+  return (
+    <section className={`space-y-1.5 border border-line bg-panel/40 p-2.5 text-[11px] leading-5 text-slate-400 ${className}`}>
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-300">Data</h2>
+      <p>Kern New Drill permits approved since {startDate}; closed permits excluded.</p>
+      <p>Spuds: operator-reported{trackerUpdated ? `, updated ${trackerUpdated}` : ''}.</p>
+      {rigCount && <p>Rigs: Baker Hughes oil & gas, all operators{latestRigDate ? `, week of ${latestRigDate}` : ''}.</p>}
+      <div className="flex flex-col gap-1 pt-1 text-xs font-semibold uppercase tracking-wide">
+        <SourceLink href={DRILL_TRACKER_URL} label="Drill Tracker" />
+        {rigCount && <SourceLink href={rigCount.sourceUrl} label="Baker Hughes rig count" />}
+      </div>
+    </section>
+  );
 }
 
 function Panel({ title, subtitle, action, children }: { title: string; subtitle?: string; action?: React.ReactNode; children: React.ReactNode }) {
