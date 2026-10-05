@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Github, Link as LinkIcon, Loader2, MapPinned } from 'lucide-react';
+import { CalendarDays, Github, Loader2, MapPinned } from 'lucide-react';
 import { DetailDrawer } from './components/DetailDrawer';
 import { FilterRail } from './components/FilterRail';
 import { PermitTable } from './components/PermitTable';
@@ -166,37 +166,26 @@ export function App() {
           onCollapsedChange={setFiltersCollapsed}
           onChange={setFilters}
           operatorColor={operatorColor}
+          summary={activeQuerySummary(filters, dateBounds)}
         />
         <main id="activity-content" className="min-h-0 bg-ink lg:overflow-y-auto" aria-label="California permit activity explorer">
-          <header className="border-b border-line bg-ink/95 px-4 py-3 sm:px-5 sm:py-4">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <header className="border-b border-line bg-ink/95 px-3 py-2.5 sm:px-5 sm:py-4">
+            <div className="flex flex-col gap-1.5 sm:gap-4 xl:flex-row xl:items-end xl:justify-between">
               <div className="max-w-4xl">
                 <h1 className="product-title">
                   <span>California</span>
                   <span> well permit activity</span>
                 </h1>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">
-                  Approved CalGEM permits, WellSTAR well metadata, and field/type analysis.
+                <p className="mt-1 max-w-3xl text-sm leading-5 text-slate-400 sm:mt-2 sm:text-base sm:leading-6">
+                  Approved CalGEM permit activity and analysis.
                 </p>
               </div>
-              <div className="min-w-0 border-l-0 border-line text-sm text-slate-400 xl:min-w-[260px] xl:border-l xl:pl-5">
-                <div className="flex items-center gap-2 text-slate-300">
-                  <CalendarDays size={15} />
-                  <span>Last Weekly Update: {weeklyUpdateDate ? formatDisplayDate(weeklyUpdateDate) : 'Pending'}</span>
-                  <a
-                    className="text-slate-500 transition hover:text-accent"
-                    href="/about-methodology"
-                    title="Source data and methodology"
-                    aria-label="Source data and methodology"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      navigateTo('/about-methodology', setPath);
-                    }}
-                  >
-                    <LinkIcon size={14} />
-                  </a>
+              <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 border-l-0 border-line text-xs text-slate-400 sm:text-sm xl:block xl:min-w-[260px] xl:border-l xl:pl-5">
+                <div className="flex items-center gap-1.5 text-slate-300 sm:gap-2">
+                  <CalendarDays size={14} />
+                  <span>Weekly update: {weeklyUpdateDate ? formatDisplayDate(weeklyUpdateDate) : 'Pending'}</span>
                 </div>
-                <div className="mt-2 flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-500">
+                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-500 xl:mt-2">
                   <span>By</span>
                   <a className="author-link" href="https://ryweller.com" target="_blank" rel="noreferrer">
                     Ryan Weller
@@ -228,11 +217,20 @@ export function App() {
           {!loading && !error && (
             <div className="space-y-2.5 p-3 sm:space-y-3 sm:p-4">
               <section aria-label="Permit activity summary">
-                <ActivitySummaryStrip rows={filteredRows} quotaRows={rows} sb237Stats={sb237Stats} latestDate={dateBounds.maxDate}>
+                <ActivitySummaryStrip
+                  rows={filteredRows}
+                  quotaRows={rows}
+                  sb237Stats={sb237Stats}
+                  latestDate={dateBounds.maxDate}
+                  workActivities={filters.workActivities}
+                >
                   <QuickViews rows={rows} filters={filters} dateBounds={dateBounds} onChange={setFilters} />
                 </ActivitySummaryStrip>
               </section>
-              <ActiveQuery filters={filters} dateBounds={dateBounds} />
+              <div className="hidden lg:block">
+                <ActiveQuery filters={filters} dateBounds={dateBounds} />
+              </div>
+              <PermitMomentumPanel rows={filteredRows} workActivities={filters.workActivities} />
               <section className="xl:grid xl:grid-cols-[64px_minmax(0,1360px)] xl:gap-3" aria-label="Permit activity map">
                 <div
                   className="hidden border border-line/50 bg-panel/15 xl:block"
@@ -243,12 +241,9 @@ export function App() {
                   <ActivityMap rows={filteredRows} fields={fields} selected={selected} onSelect={setSelected} />
                 </Suspense>
               </section>
-              <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,0.92fr)_360px]" aria-label="Permit momentum and activity notes">
-                <PermitMomentumPanel rows={filteredRows} />
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
-                  <ActivityNotes rows={filteredRows} />
-                  <FunctionalTypeMix rows={filteredRows} />
-                </div>
+              <section className="grid grid-cols-1 gap-4 md:grid-cols-2" aria-label="Activity notes and functional type mix">
+                <ActivityNotes rows={filteredRows} />
+                <FunctionalTypeMix rows={filteredRows} />
               </section>
               <section aria-label="Operator and field trend analysis">
                 <RankingPanels rows={filteredRows} colorRows={colorRows} />
@@ -300,7 +295,7 @@ function navigateTo(path: string, setPath: (path: string) => void) {
   window.scrollTo({ top: 0 });
 }
 
-function ActiveQuery({ filters, dateBounds }: { filters: Filters; dateBounds: { minDate: string; maxDate: string } }) {
+function activeQueryParts(filters: Filters, dateBounds: DateBounds) {
   const work =
     filters.workActivities.length === WORK_ACTIVITY_GROUPS.length
       ? 'All work'
@@ -312,6 +307,19 @@ function ActiveQuery({ filters, dateBounds }: { filters: Filters; dateBounds: { 
   const operator = listLabel(filters.operators, 'All operators', 'operators');
   const field = listLabel(filters.fields, 'All fields', 'fields');
   const range = formatDateRange(filters.startDate || dateBounds.minDate, filters.endDate || dateBounds.maxDate);
+  return { work, type, operator, field, range };
+}
+
+// One-line summary for the collapsed mobile filter bar; omits "All ..." parts to stay short.
+function activeQuerySummary(filters: Filters, dateBounds: DateBounds) {
+  const { work, type, operator, field, range } = activeQueryParts(filters, dateBounds);
+  const extras = [type, operator, field].filter((part) => !part.startsWith('All '));
+  if (filters.counties.length) extras.push(listLabel(filters.counties, '', 'counties'));
+  return [work, ...extras, range].join(' · ');
+}
+
+function ActiveQuery({ filters, dateBounds }: { filters: Filters; dateBounds: DateBounds }) {
+  const { work, type, operator, field, range } = activeQueryParts(filters, dateBounds);
 
   return (
     <div className="flex flex-wrap items-center gap-2 px-0.5 py-0 text-xs text-slate-400">
@@ -331,7 +339,7 @@ function ActiveQuery({ filters, dateBounds }: { filters: Filters; dateBounds: { 
 
 type DateBounds = { minDate: string; maxDate: string };
 
-function quickViewPresets(rows: PermitActivity[], dateBounds: DateBounds): Array<{ label: string; filters: Filters }> {
+function quickViewPresets(rows: PermitActivity[], dateBounds: DateBounds): Array<{ label: string; filters: Filters; desktopOnly?: boolean }> {
   const base = defaultFilters(dateBounds);
   const daysBack = (days: number) => {
     const start = shiftDate(base.endDate, -(days - 1));
@@ -339,13 +347,14 @@ function quickViewPresets(rows: PermitActivity[], dateBounds: DateBounds): Array
   };
   const topOperator = countByValue(applyFilters(rows, base), rowOperatorDisplayName, 2).find((item) => item.name !== 'Unknown')?.name;
 
+  // `desktopOnly` presets are hidden on phones to keep the first screen short.
   return [
     { label: 'Year to date', filters: base },
     { label: 'Last 30 days', filters: { ...base, startDate: daysBack(30) } },
     { label: 'Kern New Drill', filters: { ...base, workActivities: ['new_drills'], counties: ['Kern'] } },
-    ...(topOperator ? [{ label: topOperator, filters: { ...base, operators: [topOperator] } }] : []),
-    { label: 'Injectors', filters: { ...base, functionalTypes: ['injector'] } },
-    { label: 'Abandonment, 90 days', filters: { ...base, workActivities: ['abandonment'], startDate: daysBack(90) } }
+    ...(topOperator ? [{ label: topOperator, filters: { ...base, operators: [topOperator] }, desktopOnly: true }] : []),
+    { label: 'Injectors', filters: { ...base, functionalTypes: ['injector'] }, desktopOnly: true },
+    { label: 'Abandonment, 90 days', filters: { ...base, workActivities: ['abandonment'], startDate: daysBack(90) }, desktopOnly: true }
   ];
 }
 
@@ -370,8 +379,8 @@ function QuickViews({
   if (!dateBounds.maxDate) return null;
 
   return (
-    <nav className="flex flex-wrap items-center gap-1.5 pt-1 text-xs" aria-label="Quick views">
-      <span className="mr-1 font-semibold uppercase tracking-wide text-slate-500">Quick Views</span>
+    <nav className="flex flex-nowrap items-center gap-1.5 overflow-x-auto pt-1 text-xs sm:flex-wrap sm:overflow-visible" aria-label="Quick views">
+      <span className="mr-1 hidden shrink-0 font-semibold uppercase tracking-wide text-slate-500 sm:inline">Quick Views</span>
       {presets.map((preset) => {
         const active = sameFilters(filters, preset.filters);
         return (
@@ -379,7 +388,7 @@ function QuickViews({
             key={preset.label}
             type="button"
             aria-pressed={active}
-            className={`border px-2 py-0.5 transition ${
+            className={`shrink-0 whitespace-nowrap border px-2 py-0.5 transition ${preset.desktopOnly && !active ? 'hidden sm:inline-block' : ''} ${
               active ? 'border-accent/60 bg-accent/10 text-slate-100' : 'border-line text-slate-400 hover:border-slate-500 hover:text-slate-200'
             }`}
             onClick={() => onChange(preset.filters)}

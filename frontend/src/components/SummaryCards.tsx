@@ -30,13 +30,29 @@ type Props = {
   rows: PermitActivity[];
 };
 
+// Work groups the current filter includes; excluded groups would only ever read 0.
+function activeWorkGroups(workActivities?: string[]) {
+  if (!workActivities?.length) return WORK_ACTIVITY_GROUPS;
+  return WORK_ACTIVITY_GROUPS.filter((group) => workActivities.includes(group.key));
+}
+
 export function ActivitySummaryStrip({
   rows,
   quotaRows = rows,
   sb237Stats,
   latestDate,
+  workActivities,
   children
-}: Props & { quotaRows?: PermitActivity[]; sb237Stats?: Sb237DrillTrackerStats | null; latestDate: string; children?: ReactNode }) {
+}: Props & {
+  quotaRows?: PermitActivity[];
+  sb237Stats?: Sb237DrillTrackerStats | null;
+  latestDate: string;
+  workActivities?: string[];
+  children?: ReactNode;
+}) {
+  const groups = activeWorkGroups(workActivities);
+  // Phones show two columns; let "Since last week" fill the row when it would sit alone.
+  const sinceWeekWide = (1 + groups.length + 1) % 2 === 1;
   const counts = workActivityCounts(rows);
   const operatorCount = new Set(rows.map(rowOperatorDisplayName).filter((name) => name !== 'Unknown')).size;
   const totalDelta = fourWeekDelta(rows);
@@ -45,7 +61,7 @@ export function ActivitySummaryStrip({
     <section className="py-1" aria-label="Activity context">
       <div className="grid grid-cols-2 items-start gap-x-4 gap-y-2 text-sm md:grid-cols-3 xl:grid-cols-[repeat(6,minmax(0,1fr))_minmax(260px,300px)]">
         <Stat label="Permits" value={rows.length} delta={totalDelta.delta} />
-        {WORK_ACTIVITY_GROUPS.map((group) => (
+        {groups.map((group) => (
           <Stat
             key={group.key}
             label={group.label}
@@ -55,7 +71,7 @@ export function ActivitySummaryStrip({
           />
         ))}
         <Stat label="Operators" value={operatorCount} className="hidden sm:block" />
-        <SinceLastWeek rows={rows} latestDate={latestDate} />
+        <SinceLastWeek rows={rows} latestDate={latestDate} className={sinceWeekWide ? 'col-span-2 sm:col-span-1' : ''} />
         <NewDrillQuotaGauge rows={quotaRows} sb237Stats={sb237Stats} compact />
         {children && <div className="col-span-2 md:col-span-3 xl:col-span-6 xl:row-start-2">{children}</div>}
       </div>
@@ -63,18 +79,19 @@ export function ActivitySummaryStrip({
   );
 }
 
-export function PermitMomentumPanel({ rows }: Props) {
+export function PermitMomentumPanel({ rows, workActivities }: Props & { workActivities?: string[] }) {
   const trend = weeklyGroupedTrend(rows, 52);
+  const groups = activeWorkGroups(workActivities);
 
   return (
-    <section className="h-[250px] border border-line bg-panel/50 p-3" aria-label="Permit momentum">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+    <section className="flex h-[210px] flex-col border border-line bg-panel/50 p-2.5 sm:h-[250px] sm:p-3" aria-label="Permit momentum">
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 sm:mb-2">
         <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Permit Momentum</h2>
-          <p className="text-xs text-slate-500">Weekly work activity over the filtered period.</p>
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-300 sm:text-sm">Permit Momentum</h2>
+          <p className="hidden text-xs text-slate-500 sm:block">Weekly work activity over the filtered period.</p>
         </div>
         <div className="flex flex-wrap gap-3 text-xs text-slate-400">
-          {WORK_ACTIVITY_GROUPS.map((group) => (
+          {groups.map((group) => (
             <span key={group.key} className="inline-flex items-center gap-1.5">
               <span className="h-2.5 w-2.5" style={{ backgroundColor: group.color }} />
               {group.label}
@@ -82,8 +99,9 @@ export function PermitMomentumPanel({ rows }: Props) {
           ))}
         </div>
       </div>
-      <ResponsiveContainer width="100%" height="78%">
-        <LineChart data={trend}>
+      <div className="min-h-0 flex-1">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={trend} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
           <CartesianGrid stroke={CHART.grid} vertical={false} />
           <XAxis
             dataKey="week"
@@ -92,9 +110,9 @@ export function PermitMomentumPanel({ rows }: Props) {
             axisLine={false}
             minTickGap={24}
           />
-          <YAxis allowDecimals={false} tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
+          <YAxis allowDecimals={false} width={30} tick={{ fill: CHART.axis, fontSize: 10 }} tickLine={false} axisLine={false} />
           <Tooltip content={<CompactChartTooltip showTotal />} cursor={{ stroke: CHART.cursor }} />
-          {WORK_ACTIVITY_GROUPS.map((group) => (
+          {groups.map((group) => (
             <Line
               key={group.key}
               type="linear"
@@ -108,6 +126,7 @@ export function PermitMomentumPanel({ rows }: Props) {
           ))}
         </LineChart>
       </ResponsiveContainer>
+      </div>
     </section>
   );
 }
@@ -186,9 +205,10 @@ export function NewDrillQuotaGauge({
         className="col-span-2 border-t border-line/70 pt-2 md:col-span-3 xl:col-span-1 xl:col-start-7 xl:row-span-2 xl:row-start-1 xl:border-l xl:border-t-0 xl:py-0 xl:pl-3"
         aria-label="Kern County New Drill quota meter"
       >
+        <div className="flex min-w-0 items-center gap-3 xl:block">
           <div className="min-w-0">
             <QuotaHeading />
-          <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs xl:flex-col xl:items-start xl:gap-x-0 xl:gap-y-0.5">
+          <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs xl:mt-1 xl:flex-col xl:items-start xl:gap-x-0">
             <span className="text-accent">
               <strong>{quota.ytdCount.toLocaleString()}</strong> permitted
             </span>
@@ -204,7 +224,9 @@ export function NewDrillQuotaGauge({
               </span>
             )}
           </div>
-          <div className="group relative mt-1 inline-block">
+          </div>
+          {/* Beside the numbers on phones and tablets; below them in the desktop column. */}
+          <div className="group relative order-first shrink-0 xl:mt-1 xl:inline-block">
             <FuelGauge usedPct={quota.ytdUsedPct} projectedPct={projectedMarker} spuddedPct={spuddedPct} compact />
             <QuotaTooltip quota={quota} sb237Stats={sb237Stats} />
           </div>
@@ -388,19 +410,19 @@ function Stat({ label, value, color, delta, className = '' }: { label: string; v
   );
 }
 
-function SinceLastWeek({ rows, latestDate }: { rows: PermitActivity[]; latestDate: string }) {
+function SinceLastWeek({ rows, latestDate, className = '' }: { rows: PermitActivity[]; latestDate: string; className?: string }) {
   const week = sinceLastWeek(rows, latestDate);
   const operatorTitle = week.newOperators.length ? `First permit in the current query: ${week.newOperators.join(', ')}` : undefined;
 
   return (
-    <div className="min-w-0" title={latestDate ? `7 days ending ${latestDate}` : undefined}>
+    <div className={`min-w-0 ${className}`} title={latestDate ? `7 days ending ${latestDate}` : undefined}>
       <div className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">Since Last Week</div>
-      <div className="flex items-baseline gap-2">
+      <div className="flex flex-wrap items-baseline gap-x-2">
         <span className="text-base font-semibold text-slate-100 sm:text-lg">+{week.current.toLocaleString()}</span>
         <span className={deltaClass(week.current - week.previous)}>{formatDelta(week.current - week.previous)} vs prior wk</span>
-      </div>
-      <div className="truncate text-[10px] text-slate-500" title={operatorTitle}>
-        {week.newDrills.toLocaleString()} new drill · {week.newOperators.length} new operator{week.newOperators.length === 1 ? '' : 's'}
+        <span className="truncate text-[10px] text-slate-500" title={operatorTitle}>
+          {week.newDrills.toLocaleString()} new drill · {week.newOperators.length} new operator{week.newOperators.length === 1 ? '' : 's'}
+        </span>
       </div>
     </div>
   );

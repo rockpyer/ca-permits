@@ -21,9 +21,11 @@ type Props = {
   onCollapsedChange: (collapsed: boolean) => void;
   onChange: (filters: Filters) => void;
   operatorColor?: (operator: string) => string;
+  /** Active query shown in the collapsed mobile bar. */
+  summary?: string;
 };
 
-export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedChange, onChange, operatorColor }: Props) {
+export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedChange, onChange, operatorColor, summary }: Props) {
   const facet = (key: FacetKey, label: string, colorFor?: (value: string) => string) => (
     <MultiSelect
       label={label}
@@ -35,8 +37,12 @@ export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedCh
   );
 
   return (
-    <aside className="sticky top-0 z-40 flex min-h-0 flex-col border-b border-line bg-ink p-2.5 lg:static lg:h-full lg:border-b-0 lg:border-r">
-      <div className="mb-2 flex items-center justify-between">
+    <aside
+      className={`sticky top-0 z-40 flex min-h-0 flex-col border-b border-line bg-ink lg:static lg:h-full lg:border-b-0 lg:border-r lg:p-2.5 ${
+        collapsed ? 'px-3 py-1.5' : 'p-2.5'
+      }`}
+    >
+      <div className={`flex items-center justify-between gap-2 ${collapsed ? 'lg:mb-2' : 'mb-2'}`}>
         {!collapsed && (
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wide text-white">Filters</h2>
@@ -44,14 +50,19 @@ export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedCh
           </div>
         )}
         {collapsed && (
-          <div className="lg:hidden">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-white">Filters</h2>
-            <p className="text-xs text-slate-500">Tap to expand controls</p>
-          </div>
-        )}
-        <div className={`flex gap-2 ${collapsed ? 'lg:flex-col' : ''}`}>
           <button
-            className="icon-button"
+            type="button"
+            className="flex min-w-0 flex-1 items-baseline gap-2 text-left lg:hidden"
+            onClick={() => onCollapsedChange(false)}
+            aria-label="Expand filters"
+          >
+            <h2 className="shrink-0 text-xs font-semibold uppercase tracking-wide text-white">Filters</h2>
+            <span className="truncate text-xs text-slate-400">{summary}</span>
+          </button>
+        )}
+        <div className={`flex shrink-0 gap-2 ${collapsed ? 'lg:flex-col' : ''}`}>
+          <button
+            className={`icon-button ${collapsed ? 'h-8 w-8 lg:h-9 lg:w-9' : ''}`}
             title="Reset filters"
             onClick={() => onChange(defaultFilters(dateBounds))}
             type="button"
@@ -59,7 +70,7 @@ export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedCh
             <RotateCcw size={16} />
           </button>
           <button
-            className="icon-button border-slate-500 bg-panel/80"
+            className={`icon-button border-slate-500 bg-panel/80 ${collapsed ? 'h-8 w-8 lg:h-9 lg:w-9' : ''}`}
             title={collapsed ? 'Expand filters' : 'Collapse filters'}
             onClick={() => onCollapsedChange(!collapsed)}
             type="button"
