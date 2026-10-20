@@ -5,19 +5,19 @@
 ```mermaid
 flowchart LR
   CalGEM["CalGEM ArcGIS REST"] --> Actions["GitHub Actions weekly ingest"]
-  Actions --> Supabase["Supabase Postgres"]
-  Supabase --> React["React + Vite frontend"]
+  Actions --> Store["data/*.jsonl in the repo"]
+  Store --> React["React + Vite frontend (build-time snapshot)"]
   React --> Pages["GitHub Pages"]
   Pages --> Domain["permits.ryweller.com"]
 ```
 
 ## Backend
 
-The backend is a set of Python ingest scripts, not a long-running service. Scripts validate source fields, paginate ArcGIS REST responses, normalize API numbers, dedupe permit records, generate official links, and upsert into Supabase.
+The backend is a set of Python ingest scripts, not a long-running service. Scripts validate source fields, paginate ArcGIS REST responses, normalize API numbers, dedupe permit records, generate official links, and merge the results into JSON Lines files under `data/`, which the workflow commits. Permits and wells are merged by key so records that leave the CalGEM layers are kept; only wells referenced by a permit are stored.
 
 ## Frontend
 
-The frontend uses Supabase JS with the anon key against public read policies. It queries the `permit_activity` view with explicit 1,000-row pages and performs V1 filtering client-side.
+The build (`frontend/scripts/snapshot-data.mjs`) joins each stored permit to its well, with well attributes taking precedence, and writes static JSON under `public/data/`. The app loads those files and performs V1 filtering client-side.
 
 The frontend intentionally keeps layout constraints local:
 
@@ -29,8 +29,8 @@ The frontend intentionally keeps layout constraints local:
 
 ## Security
 
-The Supabase anon key is safe for frontend read access because RLS permits only `select`. The service role key is used only in local `.env` files or GitHub Actions secrets.
+There are no runtime credentials. The ingest reads public ArcGIS services and pushes with the workflow's `GITHUB_TOKEN`.
 
 ## Deployment
 
-GitHub Pages serves static files from `frontend/dist` through the custom domain `permits.ryweller.com`. GitHub Actions keeps Supabase refreshed weekly. No Render/Railway/FastAPI service is required for V1.
+GitHub Pages serves static files from `frontend/dist` through the custom domain `permits.ryweller.com`. GitHub Actions refreshes the data store weekly and redeploys. No Render/Railway/FastAPI service is required for V1.

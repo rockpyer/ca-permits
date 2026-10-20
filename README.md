@@ -42,9 +42,9 @@ This app uses public California data services and does not require private CalGE
 V1 is a working prototype with:
 
 - React + Vite + TypeScript + Tailwind frontend.
-- Supabase (free tier) Postgres with public-read tables/views, written by the weekly ingest.
+- A repo-backed data store: the weekly ingest merges permits, matched wells, and field boundaries into `data/*.jsonl` and commits them. No database or secrets are needed.
 - Python ingest scripts for CalGEM ArcGIS REST services.
-- A static data snapshot: the build (`frontend/scripts/snapshot-data.mjs`) bakes permits, fields, the Drill Tracker, pool names, and rig counts into `public/data/*.json`, so page visits don't query Supabase. Supplementary sources are optional; if one fails, that dataset is dropped and the build continues. Results are logged in `data/meta.json` under `sources`.
+- A static data snapshot: the build (`frontend/scripts/snapshot-data.mjs`) joins the stored permits to their wells and bakes them with fields, the Drill Tracker, pool names, and rig counts into `public/data/*.json`. Supplementary sources are optional; if one fails, that dataset is dropped and the build continues. Results are logged in `data/meta.json` under `sources`.
 - GitHub Pages hosting at `permits.ryweller.com`, redeployed after each successful weekly ingest.
 
 Depth and completion interval data are intentionally treated as a future enrichment step. V1 stores placeholder depth/target fields and links users to the official WellSTAR detail page when those values are not available in the public ArcGIS layers.
@@ -54,43 +54,25 @@ See [ROADMAP.md](ROADMAP.md) for the product direction and [BACKLOG.md](BACKLOG.
 ## Repository Layout
 
 ```text
-backend/                 Python ingest and Supabase upsert scripts
+backend/                 Python ingest scripts that write the data store
+data/                    Data store: permits, matched wells, fields, ingest runs (JSON Lines)
 frontend/                React/Vite app
 frontend/scripts/        Build-time data snapshot, source fetchers, route pages
-supabase/migrations/     Database schema and RLS setup
 docs/                    Product, architecture, and data notes
 tests/                   Python ingest/normalization tests
 .github/workflows/       Weekly ingest automation
 ```
-
-## Local Setup
-
-Create a Supabase project first, then run the initial migration from:
-
-```text
-supabase/migrations/001_initial_schema.sql
-```
-
-Copy `.env.example` to `.env` and fill in:
-
-```bash
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-secret-or-service-role-key
-```
-
-Newer Supabase projects may call the private write key a secret key and show it with an `sb_secret_` prefix. Older projects may show a JWT-style `service_role` key. Do not commit `.env`.
 
 ## Run The App Locally
 
 ```bash
 cd frontend
 npm install
+npm run snapshot
 npm run dev
 ```
 
-Open the local Vite URL, usually `http://localhost:5173` or `http://localhost:5174`. Without a snapshot the app queries Supabase directly; run `npm run snapshot` to build `public/data/` locally.
+Open the local Vite URL, usually `http://localhost:5173` or `http://localhost:5174`. `npm run snapshot` builds `public/data/` from the committed `data/` store; re-run it after an ingest.
 
 To test the rig count without network access to Baker Hughes, point the snapshot at a downloaded report:
 
@@ -117,7 +99,12 @@ pip install -r backend/requirements.txt
 python backend/run_ingest.py
 ```
 
-The ingest loads wells, permits, and fields, normalizes API numbers, deduplicates permit records, validates expected source fields, pages ArcGIS REST responses, and upserts into Supabase.
+The ingest validates expected source fields, pages ArcGIS REST responses, normalizes API numbers, and deduplicates permit records. It then writes `data/`:
+
+- `permits.jsonl`: merged by `source_key`. Permits that drop out of the CalGEM layer stay in the history.
+- `wells.jsonl`: only the wells that permits reference (the full layer is ~240k wells), merged by `api_10`.
+- `fields.jsonl`: field boundaries, replaced each run.
+- `etl_runs.jsonl`: the latest ingest runs, newest first.
 
 ## Tests
 
@@ -131,21 +118,13 @@ npm run build
 
 ## GitHub Actions
 
-Add these repository secrets before enabling the weekly ingest workflow:
-
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-
-Add these repository secrets before deploying the frontend with GitHub Pages:
-
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
+No repository secrets are required.
 
 Workflows:
 
-- `weekly-ingest.yml`: Monday ingest into Supabase; triggers a redeploy when it succeeds.
+- `weekly-ingest.yml`: Monday ingest; commits changes under `data/` to `main` and triggers a redeploy when it succeeds.
 - `deploy.yml`: builds the snapshot and site, then publishes to GitHub Pages. It runs on pushes to `main` and after each successful ingest.
-- `keepalive.yml`: a small Thursday read that keeps the free Supabase project active and fails if the last ingest is more than 9 days old.
+- `keepalive.yml`: a Thursday check that fails if the last recorded ingest in `data/etl_runs.jsonl` is more than 9 days old.
 - `keep-undead.yml`: re-enables the scheduled workflows twice a month, because GitHub disables them after 60 days without repository activity.
 
 ## GitHub Pages Deployment

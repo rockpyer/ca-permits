@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from arcgis import ArcGISLayer, query_features
 from config import PERMITS_LAYER_URL
-from database import fail_if_count_collapsed, get_supabase, insert_etl_run, upsert_rows
+from store import fail_if_count_collapsed, merge_rows, read_jsonl, record_run, write_jsonl
 from normalize import arcgis_date, generated_links, normalize_api, notice_type_label, stable_source_key
 
 PERMIT_FIELDS = [
@@ -87,23 +87,21 @@ def permit_row(feature: dict) -> dict:
     }
 
 
-def ingest() -> int:
+def ingest() -> list[dict]:
     rows = [permit_row(feature) for feature in query_features(PERMIT_LAYER)]
     by_key = {row["source_key"]: row for row in rows}
     deduped = list(by_key.values())
     fail_if_count_collapsed("permits", len(deduped), 1)
-    client = get_supabase()
-    count = upsert_rows(client, "permits", deduped, "source_key")
-    insert_etl_run(
-        client,
-        source="permits",
-        status="success",
+    merged = merge_rows(read_jsonl("permits.jsonl"), deduped, "source_key")
+    write_jsonl("permits.jsonl", merged, "source_key")
+    record_run(
+        "permits",
         source_count=len(rows),
-        upsert_count=count,
-        details={"deduped_count": len(deduped)},
+        upsert_count=len(deduped),
+        details={"deduped_count": len(deduped), "stored_count": len(merged)},
     )
-    return count
+    return merged
 
 
 if __name__ == "__main__":
-    print(f"Upserted {ingest()} permit rows")
+    print(f"Stored {len(ingest())} permit rows")

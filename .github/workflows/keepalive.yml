@@ -1,7 +1,7 @@
-name: Midweek Supabase check
+name: Midweek freshness check
 
-# One tiny read between weekly ingests so the free-tier project never sits idle
-# for 7 days, and a freshness check that fails loudly if the ingest has stalled.
+# Fails loudly if the weekly ingest has stalled (for example, GitHub disabled the
+# schedule or CalGEM changed a layer) instead of letting the site go quietly stale.
 on:
   workflow_dispatch:
   schedule:
@@ -12,19 +12,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Query latest ingest run
-        env:
-          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      - uses: actions/checkout@v5
+
+      - name: Check latest ingest run
         run: |
           set -euo pipefail
-          body=$(curl -sfS --retry 3 --retry-delay 10 \
-            "$SUPABASE_URL/rest/v1/etl_runs?select=finished_at&status=eq.success&order=finished_at.desc&limit=1" \
-            -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY")
-          echo "Latest successful ingest: $body"
-          last=$(echo "$body" | jq -r '.[0].finished_at // empty')
+          last=$(head -n 1 data/etl_runs.jsonl | jq -r '.finished_at // empty')
+          echo "Latest successful ingest: $last"
           if [ -z "$last" ]; then
-            echo "::error::No successful ingest run found"
+            echo "::error::No ingest run recorded in data/etl_runs.jsonl"
             exit 1
           fi
           age_days=$(( ( $(date -u +%s) - $(date -u -d "$last" +%s) ) / 86400 ))
