@@ -4,6 +4,7 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildDigest } from './digest.mjs';
 import { fetchDrillTracker } from './sources/drill-tracker.mjs';
 import { fetchRigCount } from './sources/rig-count.mjs';
 import { fetchWellPools } from './sources/well-pools.mjs';
@@ -90,6 +91,9 @@ try {
   }
   if (rigCount) await writeFile(resolve(outDir, 'rig-count.json'), JSON.stringify({ sourceUrl: rigCount.sourceUrl, weeks: rigCount.weeks }));
   await writeFile(resolve(outDir, 'fields.json'), JSON.stringify(fields.map(compactField)));
+  // Read by the weekly email Worker (worker/src/digest.mjs).
+  const digest = buildDigest(permits, { generatedAt: meta.generatedAt });
+  if (digest) await writeFile(resolve(outDir, 'digest.json'), JSON.stringify(digest));
   await writeFile(resolve(outDir, 'meta.json'), JSON.stringify(meta));
   console.log(`snapshot: ${permits.length} permits, ${fields.length} fields, through ${meta.dateBounds.maxDate}`);
   console.log(`snapshot sources: ${JSON.stringify(sources)}`);

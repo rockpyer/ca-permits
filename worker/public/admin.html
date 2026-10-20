@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Permits Admin</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%23B4541E'/%3E%3C/svg%3E">
+<style>
+:root{--ground:#EDF0F3;--panel:#FFFFFF;--ink:#172029;--muted:#5C6975;--line:#D5DBE2;--accent:#B4541E;--accent-ink:#FFFFFF;--focus:#2B6CB0;--err:#B42318;--ok:#2F7D4F;--bar:#B4541E;--grid:#E6EAEE;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ground:#12161B;--panel:#1B2128;--ink:#E4E9EE;--muted:#93A0AD;--line:#2E3740;--accent:#E07A3E;--accent-ink:#12161B;--focus:#6AA6E8;--err:#F97066;--ok:#5FBF85;--bar:#D9703A;--grid:#28313A;color-scheme:dark}}
+:root[data-theme="dark"]{--ground:#12161B;--panel:#1B2128;--ink:#E4E9EE;--muted:#93A0AD;--line:#2E3740;--accent:#E07A3E;--accent-ink:#12161B;--focus:#6AA6E8;--err:#F97066;--ok:#5FBF85;--bar:#D9703A;--grid:#28313A;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1100px;margin:0 auto;padding:20px 16px 48px}
+header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+h1{font-size:20px;margin:0;flex:1}
+h2{font-size:15px;margin:0 0 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+h2 .n{color:var(--muted);font-weight:400}
+a{color:var(--focus)}
+button,select,input,textarea{font:inherit;color:inherit;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:5px 10px}
+button{cursor:pointer}button:hover{border-color:var(--muted)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button.danger{color:var(--err)}
+:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+nav{display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--line);overflow-x:auto}
+nav button{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;padding:8px 12px;color:var(--muted);white-space:nowrap}
+nav button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px 16px;margin-bottom:14px;min-width:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-bottom:14px}.grid .card{margin:0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 14px}
+.tile b{display:block;font-size:22px;font-variant-numeric:tabular-nums}.tile span{color:var(--muted);font-size:12px}
+.wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:4px 6px;border-bottom:1px solid var(--line);font-weight:600}
+td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.hint{color:var(--muted);font-size:12px;margin:6px 0 0}
+.err{color:var(--err);font-size:13px;min-height:1em;margin:4px 0}
+.okmsg{color:var(--ok);font-size:13px;min-height:1em;margin:4px 0}
+#login{max-width:340px;margin:12vh auto}
+#login label{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--muted);margin-bottom:10px}
+.empty{color:var(--muted)}
+.chart svg{display:block;width:100%;height:160px}
+.chart .bar{fill:var(--bar)}.chart text{fill:var(--muted);font-size:11px}
+.chart .gl{stroke:var(--grid)}
+.chip{display:inline-block;font-size:11px;border-radius:9px;padding:0 7px;margin:1px 3px 1px 0;border:1px solid var(--line);white-space:nowrap}
+.st-active{color:var(--ok);border-color:var(--ok)}.st-pending{color:var(--muted)}.st-unsubscribed{color:var(--err);border-color:var(--err)}
+.org{display:block;font-size:12px;color:var(--muted)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row input[type=search]{flex:1;min-width:160px}
+iframe{width:100%;height:70vh;border:1px solid var(--line);border-radius:6px;background:#fff}
+code{font-size:12px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <form id="login" class="card" hidden>
+    <h1 style="margin-bottom:12px">Permits admin</h1>
+    <label>Username <input name="username" autocomplete="username" required></label>
+    <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+    <p class="err" id="loginErr"></p>
+    <button class="primary" type="submit">Sign in</button>
+  </form>
+
+  <div id="app" hidden>
+    <header>
+      <h1>permits.ryweller.com admin</h1>
+      <select id="days" aria-label="Period"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option><option value="365">1 year</option></select>
+      <button id="refresh" type="button">Refresh</button>
+      <button id="logout" type="button">Sign out</button>
+    </header>
+    <nav role="tablist">
+      <button role="tab" data-tab="visitors" aria-selected="true">Visitors</button>
+      <button role="tab" data-tab="subs" aria-selected="false">Subscribers</button>
+      <button role="tab" data-tab="digest" aria-selected="false">Weekly email</button>
+      <button role="tab" data-tab="audit" aria-selected="false">Audit log</button>
+    </nav>
+
+    <section data-panel="visitors">
+      <div class="tiles" id="tiles"></div>
+      <div class="card"><h2>Visits per day</h2><div class="chart" id="chart"></div></div>
+      <div class="card"><h2>Who is visiting <span class="n">by network owner (company, agency, university, ISP)</span></h2><div class="wrap" id="orgs"></div></div>
+      <div class="grid">
+        <div class="card"><h2>Pages</h2><div class="wrap" id="paths"></div></div>
+        <div class="card"><h2>Referrers</h2><div class="wrap" id="referrers"></div></div>
+      </div>
+      <div class="grid">
+        <div class="card"><h2>US states</h2><div class="wrap" id="states"></div></div>
+        <div class="card"><h2>Countries</h2><div class="wrap" id="countries"></div></div>
+      </div>
+      <div class="card"><h2>Features used</h2><div class="wrap" id="events"></div></div>
+      <div class="card"><h2>Recent visits <span class="n">latest 150</span></h2><div class="wrap" id="recent"></div>
+        <p class="hint" id="ownerNote"></p></div>
+    </section>
+
+    <section data-panel="subs" hidden>
+      <div class="tiles" id="subTiles"></div>
+      <div class="card">
+        <div class="row" style="margin-bottom:10px">
+          <input type="search" id="q" placeholder="Search email, name, notes" aria-label="Search subscribers">
+          <select id="status" aria-label="Status"><option value="">All</option><option value="active">Active</option><option value="pending">Pending</option><option value="unsubscribed">Unsubscribed</option></select>
+          <a id="csv" href="/api/admin/subscribers.csv" download><button type="button">Export CSV</button></a>
+        </div>
+        <div class="wrap" id="subs"></div>
+        <p class="hint">Only the subscriber's own click on the confirmation link makes them active. Unsubscribe stops email and keeps the record; Erase deletes the person entirely (use it for deletion requests). Both are recorded in the audit log.</p>
+      </div>
+    </section>
+
+    <section data-panel="digest" hidden>
+      <div class="card">
+        <h2>This week's email <span class="n" id="mailMode"></span></h2>
+        <div class="row">
+          <input type="email" id="testTo" placeholder="you@example.com" aria-label="Send a test to">
+          <button type="button" id="sendTest">Send test</button>
+          <button type="button" class="primary" id="sendNow">Send to all active now</button>
+        </div>
+        <p class="okmsg" id="digestMsg"></p>
+        <p class="hint">It sends automatically every Monday at 10:23 AM PDT, after the data refresh. Sending again in the same week only reaches people who have not had it yet.</p>
+      </div>
+      <div class="card"><h2>History</h2><div class="wrap" id="history"></div></div>
+      <div class="card"><h2>Preview</h2><iframe id="preview" title="Digest preview" sandbox></iframe></div>
+    </section>
+
+    <section data-panel="audit" hidden>
+      <div class="card"><h2>Audit log <span class="n">append-only; people appear as an email hash</span></h2><div class="wrap" id="audit"></div>
+        <button type="button" id="moreAudit" hidden>Older</button></div>
+    </section>
+  </div>
+</main>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const fmt = (n) => Number(n || 0).toLocaleString('en-US');
+  const dur = (s) => { s = +s || 0; return s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}m` : `${(s / 3600).toFixed(1)}h`; };
+  // Times shown in Mountain Time.
+  const when = (t) => t ? new Date(t).toLocaleString('en-US', { timeZone: 'America/Denver', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }) : '';
+  async function api(method, path, body) {
+    const r = await fetch(path, { method, headers: { 'x-permits': '1', ...(body && { 'content-type': 'application/json' }) }, body: body && JSON.stringify(body), credentials: 'same-origin' });
+    if (r.status === 401) { show(false); throw new Error('Sign in first'); }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    return j;
+  }
+  const table = (cols, rows, empty = 'Nothing yet.') => rows.length
+    ? `<table><thead><tr>${cols.map((c) => `<th class="${c.num ? 'num' : ''}">${esc(c.h)}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${cols.map((c) => `<td class="${c.num ? 'num' : ''}">${c.f ? c.f(r) : esc(r[c.k])}</td>`).join('')}</tr>`).join('')}</tbody></table>`
+    : `<p class="empty">${empty}</p>`;
+
+  function show(signedIn) { $('#login').hidden = signedIn; $('#app').hidden = !signedIn; }
+  $('#login').addEventListener('submit', async (e) => {
+    e.preventDefault(); $('#loginErr').textContent = '';
+    const f = new FormData(e.target);
+    try { await api('POST', '/api/login', { username: f.get('username'), password: f.get('password') }); show(true); markOwner(); load(); }
+    catch (err) { $('#loginErr').textContent = err.message; }
+  });
+  $('#logout').onclick = async () => { await api('POST', '/api/logout'); show(false); };
+  // Marks this network as the owner's so its visits to the site are not counted (the site's visitor id lives on
+  // another origin, so the browser itself cannot be marked from here).
+  const markOwner = () => api('POST', '/api/admin/me', {}).catch(() => {});
+
+  /* ----- Tabs ----- */
+  let tab = 'visitors';
+  document.querySelectorAll('nav button').forEach((b) => b.onclick = () => {
+    tab = b.dataset.tab;
+    document.querySelectorAll('nav button').forEach((x) => x.setAttribute('aria-selected', x === b));
+    document.querySelectorAll('[data-panel]').forEach((p) => p.hidden = p.dataset.panel !== tab);
+    load();
+  });
+  $('#refresh').onclick = () => load();
+  $('#days').onchange = () => load();
+
+  function load() { ({ visitors, subs: loadSubs, digest: loadDigest, audit: () => loadAudit(true) })[tab]().catch((e) => console.error(e)); }
+
+  /* ----- Visitors ----- */
+  function chart(daily, days) {
+    const map = new Map(daily.map((d) => [d.day, d])), out = [];
+    for (let i = days - 1; i >= 0; i--) { const d = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10); out.push({ day: d, v: map.get(d)?.visits || 0 }); }
+    const max = Math.max(1, ...out.map((d) => d.v)), W = 1000, H = 160, bw = W / out.length;
+    return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Visits per day">
+      <line class="gl" x1="0" x2="${W}" y1="${H - 18}" y2="${H - 18}"/>
+      ${out.map((d, i) => `<rect class="bar" x="${i * bw + bw * 0.15}" width="${bw * 0.7}" y="${H - 18 - (d.v / max) * (H - 34)}" height="${(d.v / max) * (H - 34)}"><title>${d.day}: ${d.v}</title></rect>`).join('')}
+      <text x="0" y="${H - 2}">${out[0].day.slice(5)}</text><text x="${W}" y="${H - 2}" text-anchor="end">${out.at(-1).day.slice(5)}</text><text x="0" y="12">${max}</text></svg>`;
+  }
+  async function visitors() {
+    const days = +$('#days').value, s = await api('GET', `/api/admin/stats?days=${days}`), t = s.totals;
+    const subs = s.subscribers;
+    $('#tiles').innerHTML = [[t.visits, 'visits'], [t.visitors, 'visitors'], [t.returners, 'returning visitors'], [t.engaged, 'visits over 1 min'],
+      [dur(t.visits ? Math.round(t.seconds / t.visits) : 0), 'average time'], [`${t.visits ? Math.round(100 * t.mobile / t.visits) : 0}%`, 'on phones'],
+      [subs.active || 0, 'active subscribers']].map(([v, l]) => `<div class="tile"><b>${typeof v === 'number' ? fmt(v) : v}</b><span>${l}</span></div>`).join('');
+    $('#chart').innerHTML = chart(s.daily, Math.min(days, 90));
+    $('#orgs').innerHTML = table([
+      { h: 'Network', f: (r) => `${esc(r.org)}<span class="org">${esc((r.places || '').split(',').slice(0, 3).join(' · '))}</span>` },
+      { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 }, { h: 'Over 1 min', k: 'engaged', num: 1 },
+      { h: 'Time', f: (r) => dur(r.seconds), num: 1 }, { h: 'Last', f: (r) => esc(when(r.last)), num: 1 }], s.orgs);
+    $('#paths').innerHTML = table([{ h: 'Page', k: 'path' }, { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 }, { h: 'Time', f: (r) => dur(r.seconds), num: 1 }], s.paths);
+    $('#referrers').innerHTML = table([{ h: 'From', k: 'referrer' }, { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 }], s.referrers);
+    $('#states').innerHTML = table([{ h: 'State', f: (r) => esc(r.region || r.code) }, { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 }, { h: 'Time', f: (r) => dur(r.seconds), num: 1 }], s.states);
+    $('#countries').innerHTML = table([{ h: 'Country', k: 'country' }, { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 }], s.countries);
+    $('#events').innerHTML = table([{ h: 'Feature', k: 'name' }, { h: 'Uses', k: 'uses', num: 1 }, { h: 'Visits', k: 'visits', num: 1 }], s.events, 'No feature events recorded yet.');
+    $('#recent').innerHTML = table([
+      { h: 'When', f: (r) => esc(when(r.started_at)) }, { h: 'Page', k: 'path' },
+      { h: 'Where', f: (r) => `${esc([r.city, r.code || r.country].filter(Boolean).join(' '))}<span class="org">${esc(r.org || '')}</span>` },
+      { h: 'From', f: (r) => esc(r.referrer || '') }, { h: 'Time', f: (r) => dur(r.seconds), num: 1 }, { h: 'Clicks', k: 'clicks', num: 1 },
+      { h: 'Visit #', f: (r) => `${r.nth}${r.mobile ? ' 📱' : ''}`, num: 1 }], s.recent);
+    const ip = s.owner.find((o) => o.kind === 'ip');
+    $('#ownerNote').textContent = `Your own visits are left out: ${ip ? ip.n : 0} network(s) marked as yours (refreshed whenever you open this page).`;
+  }
+
+  /* ----- Subscribers ----- */
+  let subRows = [];
+  async function loadSubs() {
+    const st = $('#status').value;
+    subRows = (await api('GET', `/api/admin/subscribers${st ? `?status=${st}` : ''}`)).subscribers;
+    $('#csv').href = `/api/admin/subscribers.csv${st ? `?status=${st}` : ''}`;
+    const c = (s) => subRows.filter((r) => r.status === s).length;
+    $('#subTiles').innerHTML = st ? '' : [[c('active'), 'active'], [c('pending'), 'waiting to confirm'], [c('unsubscribed'), 'unsubscribed']].map(([v, l]) => `<div class="tile"><b>${fmt(v)}</b><span>${l}</span></div>`).join('');
+    renderSubs();
+  }
+  function renderSubs() {
+    const q = $('#q').value.trim().toLowerCase();
+    const rows = q ? subRows.filter((r) => `${r.email} ${r.name || ''} ${r.notes}`.toLowerCase().includes(q)) : subRows;
+    $('#subs').innerHTML = table([
+      { h: 'Email', f: (r) => `${esc(r.email)}<span class="org">${esc(r.name || '')}</span>` },
+      { h: 'Status', f: (r) => `<span class="chip st-${esc(r.status)}">${esc(r.status)}</span>` },
+      { h: 'Signed up', f: (r) => `${esc(when(r.created_at))}<span class="org">${esc(r.consent_source || '')} · ${esc(r.consent_version)}</span>` },
+      { h: 'Confirmed', f: (r) => esc(when(r.confirmed_at)) },
+      { h: 'Where', f: (r) => esc([r.region_code, r.country].filter(Boolean).join(', ')) },
+      { h: 'Sent', f: (r) => `${fmt(r.sends)}<span class="org">${esc(when(r.last_sent_at))}</span>`, num: 1 },
+      { h: 'Notes', f: (r) => `<input data-notes="${esc(r.id)}" value="${esc(r.notes)}" aria-label="Notes" style="width:10em">` },
+      { h: '', f: (r) => `${r.status !== 'unsubscribed' ? `<button data-unsub="${esc(r.id)}">Unsubscribe</button> ` : ''}<button class="danger" data-erase="${esc(r.id)}">Erase</button>` }
+    ], rows, 'No subscribers yet.');
+  }
+  $('#q').oninput = renderSubs;
+  $('#status').onchange = () => loadSubs();
+  $('#subs').addEventListener('click', async (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const row = subRows.find((r) => r.id === (b.dataset.unsub || b.dataset.erase));
+    if (b.dataset.unsub && confirm(`Unsubscribe ${row.email}?`)) await api('PATCH', `/api/admin/subscribers/${row.id}`, { status: 'unsubscribed' });
+    else if (b.dataset.erase && confirm(`Erase ${row.email} permanently? This cannot be undone.`)) await api('DELETE', `/api/admin/subscribers/${row.id}`);
+    else return;
+    loadSubs();
+  });
+  $('#subs').addEventListener('change', (e) => {
+    const id = e.target.dataset.notes; if (id) api('PATCH', `/api/admin/subscribers/${id}`, { notes: e.target.value }).catch((err) => alert(err.message));
+  });
+
+  /* ----- Weekly email ----- */
+  async function loadDigest() {
+    const h = await api('GET', '/api/admin/digest/history');
+    $('#mailMode').textContent = h.mail === 'live' ? '' : '(dry run: RESEND_API_KEY is not set, so nothing is actually sent)';
+    $('#history').innerHTML = table([{ h: 'Week ending', k: 'week' }, { h: 'Started', f: (r) => esc(when(r.started_at)) },
+      { h: 'Recipients', k: 'recipients', num: 1 }, { h: 'Sent', k: 'sent', num: 1 }, { h: 'Failed', k: 'failed', num: 1 }], h.digests, 'No weekly email sent yet.');
+    // srcdoc, not src: a sandboxed frame would not carry the session cookie.
+    fetch('/api/admin/digest/preview', { credentials: 'same-origin' }).then((r) => r.text()).then((h) => { $('#preview').srcdoc = h; });
+  }
+  const digestMsg = (t, bad) => { $('#digestMsg').textContent = t; $('#digestMsg').className = bad ? 'err' : 'okmsg'; };
+  $('#sendTest').onclick = async () => {
+    try { const r = await api('POST', '/api/admin/digest/test', { to: $('#testTo').value }); digestMsg(r.dryRun ? 'Dry run: logged, not sent.' : 'Test sent.'); }
+    catch (e) { digestMsg(e.message, true); }
+  };
+  $('#sendNow').onclick = async () => {
+    if (!confirm('Send this week\'s email to every active subscriber who has not had it?')) return;
+    try {
+      const r = await api('POST', '/api/admin/digest/send', {});
+      digestMsg(r.skipped ? `Skipped: ${r.skipped} (site data from ${r.generatedAt}).` : `Week ending ${r.week}: ${r.sent} sent, ${r.failed} failed${r.dryRun ? ' (dry run)' : ''}.`, !!r.skipped || r.failed > 0);
+      loadDigest();
+    } catch (e) { digestMsg(e.message, true); }
+  };
+
+  /* ----- Audit ----- */
+  let auditRows = [];
+  async function loadAudit(reset) {
+    const before = reset || !auditRows.length ? '' : `?before=${auditRows.at(-1).seq}`;
+    const r = await api('GET', `/api/admin/audit${before}`);
+    auditRows = reset ? r.entries : auditRows.concat(r.entries);
+    $('#moreAudit').hidden = r.entries.length < 200;
+    $('#audit').innerHTML = table([{ h: '#', k: 'seq', num: 1 }, { h: 'When', f: (e) => esc(when(e.at)) }, { h: 'Who', k: 'actor' }, { h: 'Action', k: 'action' },
+      { h: 'Subject', f: (e) => `<code>${esc((e.subject || '').slice(0, 12))}</code>` },
+      { h: 'Detail', f: (e) => `<code>${esc(Object.keys(e.detail).length ? JSON.stringify(e.detail) : '')}</code>` }], auditRows);
+  }
+  $('#moreAudit').onclick = () => loadAudit(false);
+
+  fetch('/api/me', { credentials: 'same-origin' }).then((r) => r.json()).then((m) => { show(!!m.user); if (m.user) { markOwner(); load(); } }).catch(() => show(false));
+})();
+</script>
+</body>
+</html>
