@@ -18,7 +18,7 @@ import {
   stackedMatrix,
   truncateLabel
 } from '../lib/summary';
-import { operatorNameForView, rowOperatorDisplayName, type OperatorView } from '../lib/operators';
+import { operatorAnalysisRows, operatorNameForView, rowOperatorDisplayName, type OperatorView } from '../lib/operators';
 import {
   functionalTypeColor,
   functionalTypeGroup,
@@ -68,12 +68,16 @@ const CATEGORY_FIELDS: CategoryField[] = [
   { key: 'well_status', label: 'Well Status', kind: 'standard', get: (row) => row.well_status || 'Unknown' }
 ];
 
-export function RankingPanels({ rows, colorRows }: { rows: PermitActivity[]; colorRows: PermitActivity[] }) {
-  const [operatorView, setOperatorView] = useState<OperatorView>('operator');
-  const analysisRows = useMemo(
-    () => rows.map((row) => ({ ...row, operator_name: operatorNameForView(row, operatorView) })),
-    [operatorView, rows]
-  );
+export function RankingPanels({
+  rows,
+  colorRows,
+  operatorView
+}: {
+  rows: PermitActivity[];
+  colorRows: PermitActivity[];
+  operatorView: OperatorView;
+}) {
+  const analysisRows = useMemo(() => operatorAnalysisRows(rows, operatorView), [operatorView, rows]);
   const operatorColor = useMemo(
     () => operatorColorMap(colorRows, (row) => operatorNameForView(row, operatorView)),
     [colorRows, operatorView]
@@ -85,33 +89,13 @@ export function RankingPanels({ rows, colorRows }: { rows: PermitActivity[]; col
 
   return (
     <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3 xl:col-span-2">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Operator Analysis</h2>
-          <p className="text-xs text-slate-500">
-            {operatorView === 'parent'
-              ? 'Parent view rolls Aera, California Resources, Tidelands, THUMS, Elk Hills Power, and Berry into CRC. Source operators remain unchanged in records.'
-              : 'Using CalGEM source operator names. Switch to Parent for the CRC company-family rollup.'}
-          </p>
-        </div>
-        <div className="inline-flex border border-line bg-ink p-0.5 text-xs" aria-label="Operator analysis grouping">
-          <button
-            type="button"
-            className={`px-2.5 py-1.5 ${operatorView === 'operator' ? 'bg-panel text-white' : 'text-slate-500 hover:text-slate-200'}`}
-            aria-pressed={operatorView === 'operator'}
-            onClick={() => setOperatorView('operator')}
-          >
-            By Operator
-          </button>
-          <button
-            type="button"
-            className={`px-2.5 py-1.5 ${operatorView === 'parent' ? 'bg-accent/15 text-accent' : 'text-slate-500 hover:text-slate-200'}`}
-            aria-pressed={operatorView === 'parent'}
-            onClick={() => setOperatorView('parent')}
-          >
-            By Parent
-          </button>
-        </div>
+      <div className="border-b border-line pb-3 xl:col-span-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">Operator Analysis</h2>
+        <p className="text-xs text-slate-500">
+          {operatorView === 'parent'
+            ? 'Grouped by parent company: Aera, Berry, California Resources, Elk Hills Power, THUMS and Tidelands roll up to California Resources Corp. Permit records keep the CalGEM operator.'
+            : 'Grouped by CalGEM operator name. Switch to Parent company in the filters for the California Resources Corp. rollup.'}
+        </p>
       </div>
       <StackedBarPanel
         title={`${operatorLabel} By Field`}
@@ -125,7 +109,6 @@ export function RankingPanels({ rows, colorRows }: { rows: PermitActivity[]; col
         data={fieldByOperator}
         colorFor={operatorColor}
       />
-      <CategoryStackPanel rows={analysisRows} primaryLabel={operatorView === 'parent' ? 'Parent Company' : 'Operator'} />
       <OperatorTrendPanel
         data={cumulativeTrend.data}
         operators={cumulativeTrend.operators}
@@ -181,7 +164,7 @@ function StackedBarPanel({
   );
 }
 
-function CategoryStackPanel({ rows, primaryLabel: analysisOperatorLabel }: { rows: PermitActivity[]; primaryLabel: string }) {
+export function CategoryStackPanel({ rows, primaryLabel: analysisOperatorLabel }: { rows: PermitActivity[]; primaryLabel: string }) {
   const [primaryKey, setPrimaryKey] = useState<CategoryFieldKey>('operator');
   const [stackKey, setStackKey] = useState<CategoryFieldKey>('source_type');
   const matrix = useMemo(() => categoricalStackedMatrix(rows, primaryKey, stackKey, 10, fieldFor(stackKey).kind === 'standard' ? STACK_COLORS.length - 1 : 12), [primaryKey, rows, stackKey]);
@@ -191,7 +174,7 @@ function CategoryStackPanel({ rows, primaryLabel: analysisOperatorLabel }: { row
   const stackLabel = fieldLabel(stackKey);
 
   return (
-    <div className="h-[430px] border border-line bg-panel/60 p-3 xl:col-span-2">
+    <div className="h-[430px] border border-line bg-panel/60 p-3 sm:h-[460px]">
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-300">{primaryLabel} Well Types</h2>

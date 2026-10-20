@@ -1,5 +1,5 @@
 import { DEFAULT_WORK_ACTIVITY_GROUPS, functionalTypeGroup, workActivityGroup } from './grouping';
-import { rowOperatorDisplayName } from './operators';
+import { operatorParentName, rowOperatorDisplayName, type OperatorView } from './operators';
 import { permitDate } from './permitDates';
 import type { Filters, PermitActivity } from './types';
 
@@ -36,7 +36,12 @@ export function applyFilters(rows: PermitActivity[], filters: Filters): PermitAc
     if (filters.functionalTypes.length && !filters.functionalTypes.includes(functionalTypeGroup(row))) {
       return false;
     }
-    if (filters.operators.length && !filters.operators.includes(rowOperatorDisplayName(row))) {
+    // A selected parent company (e.g. California Resources Corp.) matches all of its operator entities.
+    if (
+      filters.operators.length &&
+      !filters.operators.includes(rowOperatorDisplayName(row)) &&
+      !filters.operators.includes(operatorParentName(row.operator_name))
+    ) {
       return false;
     }
     if (filters.fields.length && (!row.field_name || !filters.fields.includes(row.field_name))) {
@@ -100,10 +105,11 @@ const FACET_VALUE: Record<FacetKey, (row: PermitActivity) => string> = {
 
 // Options for one filter: values present under every *other* active filter (dates included),
 // with counts. Current selections stay listed so they can be cleared.
-export function facetOptions(rows: PermitActivity[], filters: Filters, key: FacetKey) {
+export function facetOptions(rows: PermitActivity[], filters: Filters, key: FacetKey, operatorView: OperatorView = 'operator') {
   const counts = new Map<string, number>();
+  const valueFor = key === 'operators' && operatorView === 'parent' ? (row: PermitActivity) => operatorParentName(row.operator_name) : FACET_VALUE[key];
   applyFilters(rows, { ...filters, [key]: [] }).forEach((row) => {
-    const value = FACET_VALUE[key](row);
+    const value = valueFor(row);
     if (value && value !== 'Unknown') counts.set(value, (counts.get(value) || 0) + 1);
   });
   filters[key].forEach((value) => {

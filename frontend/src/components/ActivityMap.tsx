@@ -13,7 +13,10 @@ import {
   type FunctionalTypeGroup,
   type WorkActivityGroup
 } from '../lib/grouping';
-import { SURFACE, WORK_COLORS } from '../lib/palette';
+import { BRAND, SURFACE } from '../lib/palette';
+
+// Field outlines stay neutral so green keeps meaning New Drill.
+const FIELD_COLOR = '#5c6975';
 import type { FieldBoundary, PermitActivity } from '../lib/types';
 import { rowOperatorDisplayName } from '../lib/operators';
 
@@ -39,8 +42,8 @@ const MAP_STYLE = {
       id: 'osm',
       type: 'raster',
       source: 'osm',
-      // Slightly calm the OSM raster so it sits in the dark UI while staying legible.
-      paint: { 'raster-saturation': -0.15, 'raster-brightness-max': 0.95 }
+      // Mute the OSM raster so permit symbols carry the color.
+      paint: { 'raster-saturation': -0.55, 'raster-contrast': -0.1 }
     }
   ]
 } as maplibregl.StyleSpecification;
@@ -169,7 +172,7 @@ export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
   }, [selected]);
 
   return (
-    <div className="relative h-[340px] min-h-[300px] max-w-[1360px] overflow-hidden border border-line bg-panel sm:h-[400px] xl:h-[460px]">
+    <div className="relative h-[340px] min-h-[300px] overflow-hidden border border-line bg-panel sm:h-[430px] xl:h-[460px]">
       <div ref={containerRef} className="absolute inset-0" />
       <div className="absolute left-3 top-3 z-30 flex flex-wrap gap-2 border border-line bg-ink/90 p-2 text-xs text-slate-300">
         <label className="map-control">
@@ -203,8 +206,8 @@ function addFieldLayers(
     type: 'fill',
     source: 'fields',
     paint: {
-      'fill-color': WORK_COLORS.new_drills,
-      'fill-opacity': 0.12
+      'fill-color': FIELD_COLOR,
+      'fill-opacity': 0.1
     }
   });
   map.addLayer({
@@ -212,8 +215,8 @@ function addFieldLayers(
     type: 'line',
     source: 'fields',
     paint: {
-      'line-color': WORK_COLORS.new_drills,
-      'line-opacity': 0.65,
+      'line-color': FIELD_COLOR,
+      'line-opacity': 0.6,
       'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.7, 9, 1.4, 12, 2]
     }
   });
@@ -235,9 +238,9 @@ function addPermitLayers(map: maplibregl.Map, data: GeoJSON.FeatureCollection<Ge
       filter: ['==', ['get', 'selected'], true],
       paint: {
         'circle-radius': 14,
-        'circle-color': '#f8fafc',
-        'circle-opacity': 0.82,
-        'circle-stroke-color': SURFACE.ink,
+        'circle-color': SURFACE.panel,
+        'circle-opacity': 0.9,
+        'circle-stroke-color': BRAND.ink,
         'circle-stroke-width': 2
       }
     });
@@ -250,9 +253,9 @@ function addPermitLayers(map: maplibregl.Map, data: GeoJSON.FeatureCollection<Ge
       source: 'permits',
       paint: {
         'circle-radius': ['case', ['==', ['get', 'selected'], true], 16, 10],
-        'circle-color': SURFACE.ink,
-        'circle-opacity': ['case', ['==', ['get', 'selected'], true], 0.86, 0.62],
-        'circle-stroke-color': ['case', ['==', ['get', 'selected'], true], '#f1f5f3', '#b7c0bc'],
+        'circle-color': SURFACE.panel,
+        'circle-opacity': ['case', ['==', ['get', 'selected'], true], 0.95, 0.8],
+        'circle-stroke-color': ['case', ['==', ['get', 'selected'], true], BRAND.ink, '#8a96a3'],
         'circle-stroke-opacity': ['case', ['==', ['get', 'selected'], true], 1, 0.7],
         'circle-stroke-width': ['case', ['==', ['get', 'selected'], true], 2.5, 1]
       }
