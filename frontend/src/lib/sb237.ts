@@ -34,8 +34,12 @@ export async function loadSb237DrillTrackerStats(): Promise<Sb237DrillTrackerSta
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   if (!sheet) return { spuddedCount: 0, updatedLabel: '' };
 
-  const heading = String(sheet.A1?.v || '');
-  const rows = XLSX.utils.sheet_to_json<DrillTrackerRow>(sheet, { range: 1, defval: null });
+  // Same header search as scripts/sources/drill-tracker.mjs: lines above the header vary.
+  const lines = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null });
+  const headerIndex = lines.findIndex((cells) => cells.some((cell) => /^API$/i.test(String(cell ?? '').trim())));
+  if (headerIndex < 0) return { spuddedCount: 0, updatedLabel: '' };
+  const heading = lines.slice(0, headerIndex).flat().map((cell) => String(cell ?? '')).find((cell) => /Updated\s/i.test(cell)) || '';
+  const rows = XLSX.utils.sheet_to_json<DrillTrackerRow>(sheet, { range: headerIndex, defval: null });
   const spuddedCount = rows.filter((row) => {
     const sb237 = String(row['SB-237 (Y/N)'] || '').trim().toUpperCase();
     return sb237 === 'Y' && Boolean(row['Spud Date (preliminary and self-reported by operators)']);

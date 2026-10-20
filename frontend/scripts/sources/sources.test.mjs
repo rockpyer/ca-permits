@@ -26,6 +26,31 @@ describe('snapshot sources', () => {
     expect(tracker.rows[0]).toMatchObject({ api_10: '0403070042', approval_date: '2026-03-04', spud_date: '2026-03-13', sb237: true });
   });
 
+  it('finds the drill tracker header below a disclaimer line', () => {
+    const buffer = workbook({
+      Sheet1: [
+        ['Disclaimer: This contains drill dates provided directly by operators, and may be subject to changes and updates.'],
+        ['Preliminary Spud (Drill) Dates as reported by operators in Kern County - Updated October 19, 2026'],
+        ['API', 'Well Designation', 'Operator', 'Field', 'Well Type', 'Permit Approval Date', 'Spud Date (preliminary and self-reported by operators)', 'SB-237 (Y/N)'],
+        [403069933, 'King 1021LVH', 'California Resources Production Corporation', 'Mount Poso', 'Oil & Gas', new Date('2026-01-20T00:00:00Z'), new Date('2026-04-08T00:00:00Z'), 'Y']
+      ]
+    });
+    const tracker = parseDrillTracker(buffer);
+    expect(tracker.updatedLabel).toBe('2026-10-19');
+    expect(tracker.rows).toEqual([
+      {
+        api_10: '0403069933',
+        well_name: 'King 1021LVH',
+        operator: 'California Resources Production Corporation',
+        field: 'Mount Poso',
+        well_type: 'Oil & Gas',
+        approval_date: '2026-01-20',
+        spud_date: '2026-04-08',
+        sb237: true
+      }
+    ]);
+  });
+
   it('sums weekly California and Kern rigs from a pivot sheet', () => {
     const buffer = workbook({
       Notes: [['About this file']],
