@@ -13,8 +13,13 @@ export async function fetchDrillTracker(url = DRILL_TRACKER_URL) {
 export function parseDrillTracker(buffer) {
   const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const heading = String(sheet?.A1?.v || '');
-  const raw = XLSX.utils.sheet_to_json(sheet, { range: 1, defval: null });
+  // Title and disclaimer lines sit above the header and come and go, so find the
+  // header by its API column and the "Updated <date>" line by its text.
+  const lines = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null });
+  const headerIndex = lines.findIndex((cells) => cells.some((cell) => /^API$/i.test(String(cell ?? '').trim())));
+  if (headerIndex < 0) throw new Error('drill tracker has no API header row; layout may have changed');
+  const heading = lines.slice(0, headerIndex).flat().map((cell) => String(cell ?? '')).find((cell) => /Updated\s/i.test(cell)) || '';
+  const raw = XLSX.utils.sheet_to_json(sheet, { range: headerIndex, defval: null });
   const pick = (row, pattern) => {
     const key = Object.keys(row).find((name) => pattern.test(name));
     return key ? row[key] : null;
@@ -22,7 +27,7 @@ export function parseDrillTracker(buffer) {
   const rows = raw
     .map((row) => ({
       api_10: normalizeApi(pick(row, /^API$/i)),
-      well_name: text(pick(row, /well name/i)),
+      well_name: text(pick(row, /well (name|designation)/i)),
       operator: text(pick(row, /operator/i)),
       field: text(pick(row, /field/i)),
       well_type: text(pick(row, /well type/i)),
