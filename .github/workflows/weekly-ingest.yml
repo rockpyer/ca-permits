@@ -9,6 +9,9 @@ concurrency:
   group: "weekly-calgem-ingest"
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   ingest:
     runs-on: ubuntu-latest
@@ -25,25 +28,29 @@ jobs:
       - name: Install backend dependencies
         run: pip install -r backend/requirements.txt
 
-      - name: Validate Supabase ingest secrets
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: |
-          if [ -z "$SUPABASE_URL" ]; then
-            echo "::error::Missing GitHub Actions secret: SUPABASE_URL"
-            exit 1
-          fi
-          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-            echo "::error::Missing GitHub Actions secret: SUPABASE_SERVICE_ROLE_KEY"
-            exit 1
-          fi
-
       - name: Run tests
         run: pytest tests
 
       - name: Run public data ingest
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python backend/run_ingest.py
+
+      # The data commit is pushed with GITHUB_TOKEN, which does not start a push
+      # deploy; deploy.yml redeploys from this workflow's success instead. The
+      # weekly commit also counts as repository activity for scheduled workflows.
+      - name: Commit data store
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add data
+          if git diff --cached --quiet; then
+            echo "No data changes"
+            exit 0
+          fi
+          git commit -m "Weekly CalGEM ingest $(date -u +%Y-%m-%d)"
+          for attempt in 1 2 3; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            sleep $((attempt * 10))
+          done
+          echo "::error::Could not push the data commit"
+          exit 1

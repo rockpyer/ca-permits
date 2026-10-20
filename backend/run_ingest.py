@@ -6,10 +6,10 @@ from ingest_wells import ingest as ingest_wells
 
 
 def main() -> None:
-    wells = ingest_wells()
     permits = ingest_permits()
+    wells = ingest_wells({row["api_10"] for row in permits if row.get("api_10")})
     fields = ingest_fields()
-    print(f"Completed ingest: wells={wells}, permits={permits}, fields={fields}")
+    print(f"Completed ingest: permits={len(permits)}, wells={wells}, fields={fields}")
 
 
 if __name__ == "__main__":

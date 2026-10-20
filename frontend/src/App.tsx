@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Github, Loader2, MapPinned } from 'lucide-react';
+import { CalendarDays, Loader2 } from 'lucide-react';
 import { DetailDrawer } from './components/DetailDrawer';
 import { FilterRail } from './components/FilterRail';
 import { PermitTable } from './components/PermitTable';
@@ -19,7 +19,6 @@ import { loadSb237DrillTrackerStats, SB237_DRILL_TRACKER_URL, sb237StatsFromTrac
 import { operatorColorMap } from './lib/operatorColors';
 import { rowOperatorDisplayName } from './lib/operators';
 import { countByValue, shiftDate } from './lib/summary';
-import { hasSupabaseConfig } from './lib/supabase';
 import type { DrillTracker, EtlRun, FieldBoundary, Filters, PermitActivity, RigCount } from './lib/types';
 
 // The map library and secondary pages load on demand so first paint doesn't wait on them.
@@ -37,7 +36,7 @@ export function App() {
   const [filters, setFilters] = useState<Filters>(() => filtersFromUrl(defaultFilters()));
   const urlDateRef = useRef(hasUrlDateFilters());
   const [selected, setSelected] = useState<PermitActivity | null>(null);
-  const [loading, setLoading] = useState(hasSupabaseConfig);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filtersCollapsed, setFiltersCollapsed] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 1023px)').matches : false
@@ -59,7 +58,6 @@ export function App() {
   }, [dateBounds]);
 
   useEffect(() => {
-    if (!hasSupabaseConfig) return;
     loadAppData()
       .then((data) => {
         setRows(data.permits);
@@ -71,7 +69,7 @@ export function App() {
         if (data.drillTracker) {
           setSb237Stats(sb237StatsFromTracker(data.drillTracker));
         } else {
-          // Live/dev mode: try the browser fetch (blocked by CORS on most origins).
+          // Drill Tracker dropped from the snapshot: try the browser fetch (blocked by CORS on most origins).
           loadSb237DrillTrackerStats()
             .then(setSb237Stats)
             .catch(() => setSb237Stats(null));
@@ -109,14 +107,6 @@ export function App() {
   const operatorColor = useMemo(() => operatorColorMap(colorRows), [colorRows]);
   const lastRun = etlRuns[0];
   const weeklyUpdateDate = dateBounds.maxDate || lastRun?.finished_at?.slice(0, 10) || '';
-
-  if (!hasSupabaseConfig) {
-    return (
-      <Shell>
-        <SetupState />
-      </Shell>
-    );
-  }
 
   if (path === '/about-methodology') {
     return (
@@ -664,26 +654,5 @@ function SourceLinks() {
         </a>
       ))}
     </div>
-  );
-}
-
-function SetupState() {
-  return (
-    <main id="activity-content" className="flex min-h-screen items-center justify-center p-6" aria-label="Supabase setup required">
-      <div className="max-w-2xl border border-line bg-panel p-6">
-        <div className="mb-4 flex items-center gap-3 text-accent">
-          <MapPinned size={24} />
-          <h1 className="text-2xl font-semibold text-white">California well permit activity</h1>
-        </div>
-        <p className="mb-4 text-slate-300">
-          Add Supabase settings to run the app: <code>VITE_SUPABASE_URL</code> and{' '}
-          <code>VITE_SUPABASE_ANON_KEY</code>.
-        </p>
-        <a className="button inline-flex" href="https://github.com/" target="_blank" rel="noreferrer">
-          <Github size={16} />
-          Deployment README
-        </a>
-      </div>
-    </main>
   );
 }

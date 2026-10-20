@@ -1,6 +1,6 @@
-// Bakes the weekly Supabase data into static files under public/data so page
-// visits are served by GitHub Pages instead of Supabase egress. The app falls
-// back to live Supabase queries when these files are absent (local dev).
+// Bakes the repo data store (data/*.jsonl, written by the weekly ingest) plus
+// supplementary public sources into static files under public/data, which the
+// app loads at runtime.
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,7 +12,6 @@ const here = dirname(fileURLToPath(import.meta.url));
 const outDir = resolve(here, '../public/data');
 const cacheDir = resolve(here, '../.cache');
 const required = process.env.SNAPSHOT_REQUIRED === '1';
-const PAGE_SIZE = 1000;
 // Must match generated_links() in backend/normalize.py and linkFor() in src/lib/data.ts.
 const WELLSTAR_URL = 'https://wellstar-public.conservation.ca.gov/Well/Well/Detail';
 const WELLFINDER_URL = 'https://maps.conservation.ca.gov/doggr/wellfinder/';
@@ -28,21 +27,24 @@ const PERMIT_COLUMNS = [
   'depth_data_status', 'wellstar_url', 'wellfinder_url'
 ];
 
-const env = { ...(await readDotEnv(resolve(here, '../../.env'))), ...process.env };
-const url = env.VITE_SUPABASE_URL;
-const key = env.VITE_SUPABASE_ANON_KEY;
-
-if (!url || !key) {
-  if (required) fail('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY');
-  console.warn('snapshot: no Supabase config, skipping (app will query live).');
-  process.exit(0);
-}
+const dataDir = resolve(here, '../../data');
 
 try {
-  const permits = await fetchAll(`permit_activity?select=${PERMIT_COLUMNS.join(',')}&order=notice_date_determination.desc.nullslast,source_key.asc`);
-  const fields = await fetchAll('fields?select=source_object_id,field_name,field_code,district,district_label,area_acre,geometry&order=field_name.asc,source_object_id.asc');
-  const etlRuns = await get('etl_runs?select=id,source,status,source_count,upsert_count,finished_at&order=created_at.desc&limit=5');
-  if (permits.length === 0) throw new Error('permit_activity returned 0 rows');
+  const wells = new Map((await readJsonl('wells.jsonl')).map((well) => [well.api_10, well]));
+  const permits = (await readJsonl('permits.jsonl')).map((permit) => permitActivity(permit, wells.get(permit.api_10)));
+  permits.sort(byDeterminationDesc);
+  const fields = (await readJsonl('fields.jsonl')).sort(
+    (a, b) => compareText(a.field_name, b.field_name) || a.source_object_id - b.source_object_id
+  );
+  const etlRuns = (await readJsonl('etl_runs.jsonl')).slice(0, 5).map((run, index) => ({
+    id: `${run.source}-${run.finished_at}-${index}`,
+    source: run.source,
+    status: run.status,
+    source_count: run.source_count,
+    upsert_count: run.upsert_count,
+    finished_at: run.finished_at
+  }));
+  if (permits.length === 0) throw new Error('data/permits.jsonl has 0 rows');
   const shortKeys = new Set(permits.map((row) => String(row.source_key).slice(0, 12)));
   if (shortKeys.size !== permits.length) throw new Error('source_key prefix collision; lengthen the prefix');
 
@@ -93,7 +95,7 @@ try {
   console.log(`snapshot sources: ${JSON.stringify(sources)}`);
 } catch (error) {
   if (required) fail(error instanceof Error ? error.message : String(error));
-  console.warn(`snapshot: ${error instanceof Error ? error.message : error}; skipping (app will query live).`);
+  console.warn(`snapshot: ${error instanceof Error ? error.message : error}; skipping.`);
 }
 
 async function optional(sources, name, load) {
@@ -108,19 +110,55 @@ async function optional(sources, name, load) {
   }
 }
 
-async function get(path, headers = {}) {
-  const response = await fetch(`${url}/rest/v1/${path}`, { headers: { apikey: key, Authorization: `Bearer ${key}`, ...headers } });
-  if (!response.ok) throw new Error(`${path.split('?')[0]}: HTTP ${response.status} ${await response.text()}`);
-  return response.json();
+async function readJsonl(name) {
+  const text = await readFile(resolve(dataDir, name), 'utf8');
+  return text.split('\n').filter((line) => line.trim()).map((line) => JSON.parse(line));
 }
 
-async function fetchAll(path) {
-  const rows = [];
-  for (let offset = 0; ; offset += PAGE_SIZE) {
-    const page = await get(path, { Range: `${offset}-${offset + PAGE_SIZE - 1}` });
-    rows.push(...page);
-    if (page.length < PAGE_SIZE) return rows;
+// Joins a stored permit to its well, as the old permit_activity database view did:
+// well attributes win where present, permit attributes fill the gaps.
+function permitActivity(permit, well) {
+  const pick = (column) => well?.[column] ?? permit[column] ?? null;
+  return {
+    ...permit,
+    lease_name: pick('lease_name'),
+    well_number: pick('well_number'),
+    well_designation: pick('well_designation'),
+    well_type: pick('well_type'),
+    well_type_label: pick('well_type_label'),
+    well_status: well?.well_status ?? null,
+    operator_name: pick('operator_name'),
+    operator_code: pick('operator_code'),
+    field_name: pick('field_name'),
+    area_name: pick('area_name'),
+    district: pick('district'),
+    county: pick('county'),
+    latitude: pick('latitude'),
+    longitude: pick('longitude'),
+    is_directionally_drilled: well?.is_directionally_drilled ?? null,
+    spud_date: well?.spud_date ?? null,
+    join_status: well ? 'matched' : 'permit_only',
+    wellstar_url: pick('wellstar_url'),
+    wellfinder_url: pick('wellfinder_url')
+  };
+}
+
+// Newest determination first, undated last, then source_key for a stable order.
+function byDeterminationDesc(a, b) {
+  const left = a.notice_date_determination;
+  const right = b.notice_date_determination;
+  if (left !== right) {
+    if (!left) return 1;
+    if (!right) return -1;
+    return left < right ? 1 : -1;
   }
+  return compareText(a.source_key, b.source_key);
+}
+
+function compareText(a, b) {
+  const left = a ?? '';
+  const right = b ?? '';
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 // Trims values the browser can rebuild. source_key is a sha256 used only as a row
@@ -158,21 +196,6 @@ function compactField(field) {
 
 function round5(value) {
   return Math.round(value * 1e5) / 1e5;
-}
-
-async function readDotEnv(path) {
-  try {
-    const text = await readFile(path, 'utf8');
-    return Object.fromEntries(
-      text
-        .split('\n')
-        .map((line) => line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/))
-        .filter(Boolean)
-        .map(([, name, value]) => [name, value.replace(/^['"]|['"]$/g, '')])
-    );
-  } catch {
-    return {};
-  }
 }
 
 function fail(message) {
