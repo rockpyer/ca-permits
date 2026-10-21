@@ -113,7 +113,7 @@ export function PermitTable({ rows, selected, onSelect }: Props) {
             {table.getRowModel().rows.map((row) => (
               <tr
                 key={row.original.source_key}
-                className={`cursor-pointer border-b border-line/70 text-slate-200 hover:bg-white/5 ${
+                className={`cursor-pointer border-b border-line/70 text-slate-200 hover:bg-slate-900/60 ${
                   selected?.source_key === row.original.source_key ? 'bg-accent/10' : ''
                 }`}
                 onClick={() => onSelect(row.original)}

@@ -24,8 +24,8 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="min-h-screen bg-ink p-6 text-slate-100">
           <div className="border border-danger bg-danger/10 p-4">
-            <h1 className="mb-2 text-lg font-semibold text-white">The app hit a rendering error.</h1>
-            <p className="text-sm text-red-100">{this.state.error.message}</p>
+            <h1 className="mb-2 text-lg font-semibold text-slate-50">The app hit a rendering error.</h1>
+            <p className="text-sm text-danger">{this.state.error.message}</p>
           </div>
         </div>
       );

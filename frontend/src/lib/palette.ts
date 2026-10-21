@@ -1,32 +1,40 @@
-// Dark-surface palette. Categorical steps were checked with a CVD/contrast
-// validator against the panel surface (#141e1b): work activity passes all-pairs
-// (map use), SERIES passes adjacent pairs (stacks, lines). Keep order fixed.
+// Light-surface palette, shared with Weller Logs (IBM Plex, slate ink, burnt-orange accent).
+// Work activity colors carry meaning everywhere: New Drill green, Existing deep blue,
+// Abandonment brown. SERIES is for unordered categories (operators, fields, well types)
+// and avoids those three hues where it can. Keep order fixed.
 export const SURFACE = {
-  ink: '#0f1816',
-  panel: '#141e1b',
-  line: '#24302d'
+  ink: '#edf0f3',
+  panel: '#ffffff',
+  line: '#d5dbe2'
 };
 
 export const CHART = {
-  grid: '#232f2c',
-  axis: '#8a9894',
-  label: '#b6c0bc',
-  cursor: 'rgba(124, 137, 133, 0.35)',
-  cursorFill: 'rgba(124, 137, 133, 0.08)',
-  other: '#66736f'
+  grid: '#e6eaee',
+  axis: '#5c6975',
+  label: '#3c4752',
+  cursor: 'rgba(92, 105, 117, 0.45)',
+  cursorFill: 'rgba(92, 105, 117, 0.08)',
+  other: '#a3adb8'
 };
 
 export const WORK_COLORS = {
-  new_drills: '#17ad8e',
-  existing: '#9684df',
-  abandonment: '#d27d2f'
+  new_drills: '#15803d',
+  existing: '#1e3a8a',
+  abandonment: '#8b5e34'
 };
 
-export const SERIES = ['#5498d8', '#d27d2f', '#17ad8e', '#9684df', '#ac8e00', '#d66b9d'];
+export const SERIES = ['#2b6cb0', '#c2410c', '#0e7490', '#7c3aed', '#a16207', '#be185d'];
 
 export const ACCENT = {
-  steel: '#7caadb',
-  gold: '#c9a437',
-  coral: '#cf6761',
-  neutral: '#b7c0bc'
+  steel: '#2b6cb0',
+  gold: '#a16207',
+  coral: '#b42318',
+  neutral: '#172029'
+};
+
+export const BRAND = {
+  ink: '#172029',
+  muted: '#5c6975',
+  accent: '#b4541e',
+  title: '#2b6cb0'
 };
