@@ -572,7 +572,7 @@ function AboutMethodology({ onNavigateHome, onNavigate }: { onNavigateHome: () =
             <SourceLinks />
           </MethodBlock>
           <MethodBlock title="Update cadence">
-            A GitHub Actions ingest runs every Monday and stores records in Supabase. Each run rebuilds a static data snapshot
+            A GitHub Actions ingest runs every Monday and commits the records to the site&apos;s repository. Each run rebuilds a static data snapshot
             that this site serves, so the header date is the latest weekly update.
           </MethodBlock>
           <MethodBlock title="Kern New Drill quota">
