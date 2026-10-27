@@ -10,13 +10,13 @@ import {
   workActivityColor,
   workActivityGroup,
   workActivityLabel,
-  type FunctionalTypeGroup,
-  type WorkActivityGroup
+  type FunctionalTypeGroup
 } from '../lib/grouping';
 import { BRAND, SURFACE } from '../lib/palette';
 
 // Field outlines stay neutral so green keeps meaning New Drill.
 const FIELD_COLOR = '#5c6975';
+const SELECTED = ['==', ['get', 'selected'], true] as maplibregl.ExpressionSpecification;
 import type { FieldBoundary, PermitActivity } from '../lib/types';
 import { rowOperatorDisplayName } from '../lib/operators';
 
@@ -42,8 +42,8 @@ const MAP_STYLE = {
       id: 'osm',
       type: 'raster',
       source: 'osm',
-      // Mute the OSM raster so permit symbols carry the color.
-      paint: { 'raster-saturation': -0.55, 'raster-contrast': -0.1 }
+      // Grayscale and lift the OSM raster to a pale base so only permits carry color.
+      paint: { 'raster-saturation': -1, 'raster-brightness-min': 0.22, 'raster-contrast': -0.08 }
     }
   ]
 } as maplibregl.StyleSpecification;
@@ -251,13 +251,13 @@ function addPermitLayers(map: maplibregl.Map, data: GeoJSON.FeatureCollection<Ge
       id: 'permit-symbol-backplates',
       type: 'circle',
       source: 'permits',
+      // Solid disc in the work-activity color; the white functional-type glyph sits on top.
       paint: {
-        'circle-radius': ['case', ['==', ['get', 'selected'], true], 16, 10],
-        'circle-color': SURFACE.panel,
-        'circle-opacity': ['case', ['==', ['get', 'selected'], true], 0.95, 0.8],
-        'circle-stroke-color': ['case', ['==', ['get', 'selected'], true], BRAND.ink, '#8a96a3'],
-        'circle-stroke-opacity': ['case', ['==', ['get', 'selected'], true], 1, 0.7],
-        'circle-stroke-width': ['case', ['==', ['get', 'selected'], true], 2.5, 1]
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, ['case', SELECTED, 11, 6], 8, ['case', SELECTED, 13, 8], 11, ['case', SELECTED, 16, 11]],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': 0.95,
+        'circle-stroke-color': ['case', SELECTED, BRAND.ink, SURFACE.panel],
+        'circle-stroke-width': ['case', SELECTED, 2.5, 1.25]
       }
     });
   }
@@ -269,7 +269,7 @@ function addPermitLayers(map: maplibregl.Map, data: GeoJSON.FeatureCollection<Ge
       source: 'permits',
       layout: {
         'icon-image': ['get', 'icon'],
-        'icon-size': ['case', ['==', ['get', 'selected'], true], 0.72, 0.55],
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 5, ['case', SELECTED, 0.6, 0.34], 8, ['case', SELECTED, 0.66, 0.44], 11, ['case', SELECTED, 0.72, 0.58]],
         'icon-allow-overlap': true,
         'icon-ignore-placement': true
       }
@@ -351,7 +351,7 @@ function buildPermitGeojson(rows: PermitActivity[], selected: PermitActivity | n
             workActivity: workActivityLabel(workActivity),
             noticeType: noticeType(row),
             color,
-            icon: iconId(functionalType, workActivity),
+            icon: iconId(functionalType),
             selected: selected?.source_key === row.source_key,
             operator_name: row.operator_name,
             field_name: row.field_name,
@@ -380,15 +380,13 @@ function activeWorkActivityDefinitions(rows: PermitActivity[]) {
 
 async function loadPermitSymbolImages(map: maplibregl.Map) {
   await Promise.all(
-    FUNCTIONAL_TYPE_GROUPS.flatMap((symbol) =>
-      WORK_ACTIVITY_GROUPS.map(async (activity) => {
-        const id = iconId(symbol.key, activity.key);
-        if (map.hasImage(id)) return;
-        const svg = await fetch(`${import.meta.env.BASE_URL}map-symbols/${symbol.symbol}`).then((response) => response.text());
-        const imageData = await svgToImageData(svg.replace(/currentColor/g, activity.color));
-        map.addImage(id, imageData, { pixelRatio: 2 });
-      })
-    )
+    FUNCTIONAL_TYPE_GROUPS.map(async (symbol) => {
+      const id = iconId(symbol.key);
+      if (map.hasImage(id)) return;
+      const svg = await fetch(`${import.meta.env.BASE_URL}map-symbols/${symbol.symbol}`).then((response) => response.text());
+      const imageData = await svgToImageData(svg.replace(/currentColor/g, SURFACE.panel));
+      map.addImage(id, imageData, { pixelRatio: 2 });
+    })
   );
 }
 
@@ -420,8 +418,8 @@ function svgToImageData(svg: string) {
   });
 }
 
-function iconId(symbol: FunctionalTypeGroup, activity: WorkActivityGroup) {
-  return `${symbol}-${activity}`;
+function iconId(symbol: FunctionalTypeGroup) {
+  return `${symbol}-glyph`;
 }
 
 function renderTooltip(row: PermitActivity) {
