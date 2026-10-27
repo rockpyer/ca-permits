@@ -186,7 +186,7 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
             Loading
           </div>
         )}
-        {error && <div className="mt-4 border border-danger bg-danger/10 p-4 text-sm text-red-200">{error}</div>}
+        {error && <div className="mt-4 border border-danger bg-danger/10 p-4 text-sm text-danger">{error}</div>}
         {!loading && !error && !drillTracker && (
           <div className="mt-4 border border-line bg-panel/50 p-4 text-sm text-slate-400">
             The Drill Tracker is not in this build&apos;s data snapshot, so drilling views are unavailable.
@@ -476,7 +476,7 @@ function Toggle<T extends string>({ value, options, onChange }: { value: T; opti
           key={key}
           type="button"
           aria-pressed={value === key}
-          className={`whitespace-nowrap px-2.5 py-1 ${value === key ? 'bg-panel text-white' : 'text-slate-500 hover:text-slate-200'}`}
+          className={`whitespace-nowrap px-2.5 py-1 ${value === key ? 'bg-panel text-slate-50' : 'text-slate-500 hover:text-slate-200'}`}
           onClick={() => onChange(key)}
         >
           {label}

@@ -3,7 +3,7 @@ import { CalendarDays, Loader2 } from 'lucide-react';
 import { DetailDrawer } from './components/DetailDrawer';
 import { FilterRail } from './components/FilterRail';
 import { PermitTable } from './components/PermitTable';
-import { RankingPanels } from './components/RankingPanels';
+import { CategoryStackPanel, RankingPanels } from './components/RankingPanels';
 import { ActivityNotes, ActivitySummaryStrip, FunctionalTypeMix, PermitMomentumPanel } from './components/SummaryCards';
 import { loadAppData } from './lib/data';
 import { applyFilters, dateRangeForRows, defaultFilters } from './lib/filters';
@@ -17,7 +17,7 @@ import {
 } from './lib/grouping';
 import { loadSb237DrillTrackerStats, SB237_DRILL_TRACKER_URL, sb237StatsFromTracker, type Sb237DrillTrackerStats } from './lib/sb237';
 import { operatorColorMap } from './lib/operatorColors';
-import { rowOperatorDisplayName } from './lib/operators';
+import { CRC_PARENT_NAME, operatorAnalysisRows, rowOperatorDisplayName, type OperatorView } from './lib/operators';
 import { countByValue, shiftDate } from './lib/summary';
 import type { DrillTracker, EtlRun, FieldBoundary, Filters, PermitActivity, RigCount } from './lib/types';
 
@@ -43,6 +43,7 @@ export function App() {
   );
   const [dateBounds, setDateBounds] = useState<{ minDate: string; maxDate: string }>({ minDate: '', maxDate: '' });
   const [path, setPath] = useState(() => normalizedPath());
+  const [operatorView, setOperatorView] = useState<OperatorView>('parent');
 
   useEffect(() => {
     const handlePopState = () => {
@@ -105,6 +106,7 @@ export function App() {
     return rows.filter((row) => (row.notice_date_determination || row.notice_dated || '').startsWith(year));
   }, [rows, dateBounds.maxDate]);
   const operatorColor = useMemo(() => operatorColorMap(colorRows), [colorRows]);
+  const analysisRows = useMemo(() => operatorAnalysisRows(filteredRows, operatorView), [filteredRows, operatorView]);
   const lastRun = etlRuns[0];
   const weeklyUpdateDate = dateBounds.maxDate || lastRun?.finished_at?.slice(0, 10) || '';
 
@@ -156,6 +158,8 @@ export function App() {
           onCollapsedChange={setFiltersCollapsed}
           onChange={setFilters}
           operatorColor={operatorColor}
+          operatorView={operatorView}
+          onOperatorViewChange={setOperatorView}
           summary={activeQuerySummary(filters, dateBounds)}
         />
         <main id="activity-content" className="min-h-0 bg-ink lg:overflow-y-auto" aria-label="California permit activity explorer">
@@ -202,7 +206,7 @@ export function App() {
             </div>
           )}
 
-          {error && <div className="m-4 border border-danger bg-danger/10 p-4 text-sm text-red-200">{error}</div>}
+          {error && <div className="m-4 border border-danger bg-danger/10 p-4 text-sm text-danger">{error}</div>}
 
           {!loading && !error && (
             <div className="space-y-2.5 p-3 sm:space-y-3 sm:p-4">
@@ -221,22 +225,18 @@ export function App() {
                 <ActiveQuery filters={filters} dateBounds={dateBounds} />
               </div>
               <PermitMomentumPanel rows={filteredRows} workActivities={filters.workActivities} />
-              <section className="xl:grid xl:grid-cols-[64px_minmax(0,1360px)] xl:gap-3" aria-label="Permit activity map">
-                <div
-                  className="hidden border border-line/50 bg-panel/15 xl:block"
-                  aria-hidden="true"
-                  title="Scroll area"
-                />
-                <Suspense fallback={<div className="h-[340px] border border-line bg-panel sm:h-[400px] xl:h-[460px]" aria-label="Loading map" />}>
+              <section className="grid grid-cols-1 gap-3 xl:grid-cols-2" aria-label="Permit activity map and well types">
+                <Suspense fallback={<div className="h-[340px] border border-line bg-panel sm:h-[430px] xl:h-[460px]" aria-label="Loading map" />}>
                   <ActivityMap rows={filteredRows} fields={fields} selected={selected} onSelect={setSelected} />
                 </Suspense>
+                <CategoryStackPanel rows={analysisRows} primaryLabel={operatorView === 'parent' ? 'Parent Company' : 'Operator'} />
               </section>
               <section className="grid grid-cols-1 gap-4 md:grid-cols-2" aria-label="Activity notes and functional type mix">
                 <ActivityNotes rows={filteredRows} />
                 <FunctionalTypeMix rows={filteredRows} />
               </section>
               <section aria-label="Operator and field trend analysis">
-                <RankingPanels rows={filteredRows} colorRows={colorRows} />
+                <RankingPanels rows={filteredRows} colorRows={colorRows} operatorView={operatorView} />
               </section>
               <section aria-label="Permit records">
                 <PermitTable rows={filteredRows} selected={selected} onSelect={setSelected} />
@@ -244,11 +244,8 @@ export function App() {
               <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-xs text-slate-500">
                 <span>{filteredRows.length.toLocaleString()} filtered permits from {rows.length.toLocaleString()} loaded rows</span>
                 <nav className="flex flex-wrap gap-4" aria-label="More pages">
-                  {[
-                    ['/drilling', 'Drilling'],
-                    ['/prod', 'Production'],
-                    ['/about-methodology', 'About / Methodology']
-                  ].map(([href, label]) => (
+                  {/* /drilling and /prod still route; their links are hidden for now. */}
+                  {[['/about-methodology', 'About / Methodology']].map(([href, label]) => (
                     <a
                       key={href}
                       className="text-slate-500 transition hover:text-accent"
@@ -342,6 +339,7 @@ function quickViewPresets(rows: PermitActivity[], dateBounds: DateBounds): Array
     { label: 'Year to date', filters: base },
     { label: 'Last 30 days', filters: { ...base, startDate: daysBack(30) } },
     { label: 'Kern New Drill', filters: { ...base, workActivities: ['new_drills'], counties: ['Kern'] } },
+    { label: CRC_PARENT_NAME, filters: { ...base, operators: [CRC_PARENT_NAME] }, desktopOnly: true },
     ...(topOperator ? [{ label: topOperator, filters: { ...base, operators: [topOperator] }, desktopOnly: true }] : []),
     { label: 'Injectors', filters: { ...base, functionalTypes: ['injector'] }, desktopOnly: true },
     { label: 'Abandonment, 90 days', filters: { ...base, workActivities: ['abandonment'], startDate: daysBack(90) }, desktopOnly: true }
@@ -596,6 +594,8 @@ function AboutMethodology({ onNavigateHome, onNavigate }: { onNavigateHome: () =
           </MethodBlock>
         </div>
 
+        {/* Drilling and Production views are hidden outside preview builds for now. */}
+        {import.meta.env.VITE_PREVIEW === '1' && (
         <section className="mt-8 border-t border-line pt-6" aria-label="More views">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">More views (in development)</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -607,6 +607,7 @@ function AboutMethodology({ onNavigateHome, onNavigate }: { onNavigateHome: () =
             </ViewLink>
           </div>
         </section>
+        )}
       </div>
     </main>
   );
