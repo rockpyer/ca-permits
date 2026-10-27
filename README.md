@@ -60,6 +60,7 @@ frontend/                React/Vite app
 frontend/scripts/        Build-time data snapshot, source fetchers, route pages
 docs/                    Product, architecture, and data notes
 tests/                   Python ingest/normalization tests
+worker/                  Cloudflare Worker: email sign-up, weekly digest, visit analytics, admin page
 .github/workflows/       Weekly ingest automation
 ```
 

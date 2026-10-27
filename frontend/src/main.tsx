@@ -4,6 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import './styles/index.css';
 import { App } from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { startVisitBeacon } from './lib/visits';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -12,3 +13,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </ErrorBoundary>
   </React.StrictMode>
 );
+
+startVisitBeacon();

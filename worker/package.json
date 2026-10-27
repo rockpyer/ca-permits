@@ -1,0 +1,9 @@
+{
+  "name": "ca-permits-api",
+  "private": true,
+  "type": "module",
+  "license": "CC-BY-SA-4.0",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  }
+}
