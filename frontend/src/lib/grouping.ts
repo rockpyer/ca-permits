@@ -1,13 +1,13 @@
-import { ACCENT, CHART, SERIES, WORK_COLORS } from './palette';
+import { ACCENT, CHART, SERIES, WORK_COLORS, WORK_TEXT_COLORS } from './palette';
 import type { PermitActivity } from './types';
 
 export type WorkActivityGroup = 'new_drills' | 'existing' | 'abandonment';
 export type FunctionalTypeGroup = 'producer' | 'thermal_producer' | 'injector' | 'observation' | 'other';
 
-export const WORK_ACTIVITY_GROUPS: Array<{ key: WorkActivityGroup; label: string; color: string }> = [
-  { key: 'new_drills', label: 'New Drill', color: WORK_COLORS.new_drills },
-  { key: 'existing', label: 'Existing', color: WORK_COLORS.existing },
-  { key: 'abandonment', label: 'Abandonment', color: WORK_COLORS.abandonment }
+export const WORK_ACTIVITY_GROUPS: Array<{ key: WorkActivityGroup; label: string; color: string; textColor: string }> = [
+  { key: 'new_drills', label: 'New Drill', color: WORK_COLORS.new_drills, textColor: WORK_TEXT_COLORS.new_drills },
+  { key: 'existing', label: 'Existing', color: WORK_COLORS.existing, textColor: WORK_TEXT_COLORS.existing },
+  { key: 'abandonment', label: 'Abandonment', color: WORK_COLORS.abandonment, textColor: WORK_TEXT_COLORS.abandonment }
 ];
 
 export const FUNCTIONAL_TYPE_GROUPS: Array<{ key: FunctionalTypeGroup; label: string; symbol: string; color: string }> = [
@@ -50,6 +50,11 @@ export function workActivityLabel(group: WorkActivityGroup) {
 
 export function workActivityColor(group: WorkActivityGroup) {
   return WORK_ACTIVITY_GROUPS.find((item) => item.key === group)?.color || CHART.other;
+}
+
+/** Darker variant of the work color for text (4.5:1 on white). */
+export function workActivityTextColor(group: WorkActivityGroup) {
+  return WORK_ACTIVITY_GROUPS.find((item) => item.key === group)?.textColor || CHART.axis;
 }
 
 export function functionalTypeLabel(group: FunctionalTypeGroup) {

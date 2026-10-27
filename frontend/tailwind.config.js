@@ -13,7 +13,7 @@ export default {
         danger: '#b42318',
         steel: '#2b6cb0',
         gold: '#a16207',
-        drill: '#15803d',
+        drill: '#047857',
         // Inverted for the light theme: low steps are dark ink, high steps are light,
         // so components written as "text-slate-200 on dark" read as dark text on light.
         // 500 stays at 5:1+ on white for secondary text.
