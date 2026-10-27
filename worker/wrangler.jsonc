@@ -23,7 +23,7 @@
     "SITE_URL": "https://permits.ryweller.com",
     "API_URL": "https://permits-api.ryweller.com",
     "ALLOWED_ORIGINS": "https://permits.ryweller.com,http://localhost:5173,http://localhost:5174",
-    "MAIL_FROM": "California Permits <updates@permits.ryweller.com>",
+    "MAIL_FROM": "California Permits <updates@ryweller.com>",
     "MAIL_REPLY_TO": "",
     // CAN-SPAM requires a valid postal address (a PO box or registered mailbox is fine) in every commercial email.
     "POSTAL_ADDRESS": ""

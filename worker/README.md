@@ -48,9 +48,9 @@ Content-Type: application/json
 
 ## Setup (one time)
 
-1. **Resend.** Sign up at [resend.com](https://resend.com), **Domains → Add domain** `permits.ryweller.com`, and add the
-   DNS records it lists to the `ryweller.com` zone in Cloudflare (DKIM TXT, `send` MX and SPF TXT). Then **API Keys →
-   Create** with *Sending access*. Free plan: 3,000 emails a month, 100 a day.
+1. **Resend.** Uses the already-verified `ryweller.com` domain (sender `updates@ryweller.com`). **API Keys → Create API
+   key**, name `ca-permits`, permission *Sending access*, domain `ryweller.com`. A key of its own can be revoked without
+   touching anything else. Free plan: 3,000 emails a month, 100 a day.
 2. **Deploy the Worker.** Cloudflare dashboard (account `b04dc71e…`, the one with `weller-logs`) → **Workers & Pages →
    Create → Import a repository** → `rockpyer/ca-permits`, **Root directory** `worker`, production branch `main`.
    Workers Builds then deploys on every push to `main` and attaches `permits-api.ryweller.com`.
