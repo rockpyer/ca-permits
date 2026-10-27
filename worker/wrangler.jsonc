@@ -24,9 +24,9 @@
     "API_URL": "https://permits-api.ryweller.com",
     "ALLOWED_ORIGINS": "https://permits.ryweller.com,http://localhost:5173,http://localhost:5174",
     "MAIL_FROM": "California Permits <updates@ryweller.com>",
-    "MAIL_REPLY_TO": "",
+    "MAIL_REPLY_TO": "ryan@ryweller.com",
     // CAN-SPAM requires a valid postal address (a PO box or registered mailbox is fine) in every commercial email.
-    "POSTAL_ADDRESS": ""
+    "POSTAL_ADDRESS": "PO BOX 1431\nNederland, CO 80466"
   },
   "observability": { "enabled": true },
   // Required by `wrangler preview`, which Workers Builds runs for branches other than main. Empty: previews use the
