@@ -17,7 +17,7 @@ import {
 } from './lib/grouping';
 import { loadSb237DrillTrackerStats, SB237_DRILL_TRACKER_URL, sb237StatsFromTracker, type Sb237DrillTrackerStats } from './lib/sb237';
 import { operatorColorMap } from './lib/operatorColors';
-import { operatorAnalysisRows, rowOperatorDisplayName, type OperatorView } from './lib/operators';
+import { CRC_PARENT_NAME, operatorAnalysisRows, rowOperatorDisplayName, type OperatorView } from './lib/operators';
 import { countByValue, shiftDate } from './lib/summary';
 import type { DrillTracker, EtlRun, FieldBoundary, Filters, PermitActivity, RigCount } from './lib/types';
 
@@ -339,6 +339,7 @@ function quickViewPresets(rows: PermitActivity[], dateBounds: DateBounds): Array
     { label: 'Year to date', filters: base },
     { label: 'Last 30 days', filters: { ...base, startDate: daysBack(30) } },
     { label: 'Kern New Drill', filters: { ...base, workActivities: ['new_drills'], counties: ['Kern'] } },
+    { label: CRC_PARENT_NAME, filters: { ...base, operators: [CRC_PARENT_NAME] }, desktopOnly: true },
     ...(topOperator ? [{ label: topOperator, filters: { ...base, operators: [topOperator] }, desktopOnly: true }] : []),
     { label: 'Injectors', filters: { ...base, functionalTypes: ['injector'] }, desktopOnly: true },
     { label: 'Abandonment, 90 days', filters: { ...base, workActivities: ['abandonment'], startDate: daysBack(90) }, desktopOnly: true }

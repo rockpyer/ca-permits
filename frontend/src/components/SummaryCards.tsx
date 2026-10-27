@@ -84,10 +84,10 @@ export function PermitMomentumPanel({ rows, workActivities }: Props & { workActi
   const groups = activeWorkGroups(workActivities);
 
   return (
-    <section className="flex h-[210px] flex-col border border-line bg-panel/50 p-2.5 sm:h-[250px] sm:p-3" aria-label="Permit momentum">
+    <section className="flex h-[210px] flex-col border border-line bg-panel/50 p-2.5 sm:h-[250px] sm:p-3" aria-label="Weekly approved permits by work activity">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 sm:mb-2">
         <div>
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-300 sm:text-sm">Permit Momentum</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-300 sm:text-sm">Weekly Approved Permits by Work Activity</h2>
           <p className="hidden text-xs text-slate-500 sm:block">Weekly work activity over the filtered period.</p>
         </div>
         <div className="flex flex-wrap gap-3 text-xs text-slate-400">
