@@ -3,11 +3,12 @@
 // request comes here.
 //   /api/subscribe, /api/visit   called by the public site (CORS: ALLOWED_ORIGINS)
 //   /confirm, /unsubscribe       links in emails
+//   /img/map-<week>.png          each week's email map
 //   /api/login, /api/admin/*     the admin page (public/admin.html), signed in as ADMIN_USER
 // The cron trigger sends the weekly digest (src/digest.mjs).
 import { handleAdmin } from './admin.mjs';
 import { login, logout, sessionUser } from './auth.mjs';
-import { runWeekly } from './digest.mjs';
+import { runWeekly, serveImage } from './digest.mjs';
 import { confirm, subscribe, unsubscribe } from './subscribe.mjs';
 import { recordVisit } from './visits.mjs';
 import { corsHeaders, json } from './util.mjs';
@@ -19,6 +20,7 @@ export async function handle(req, env) {
   if (path === '/') return Response.redirect(env.SITE_URL, 302);
   if (path === '/confirm') return confirm(req, env);
   if (path === '/unsubscribe') return unsubscribe(req, env);
+  if (path.startsWith('/img/') && req.method === 'GET') return serveImage(env, path.slice(5));
   if (!path.startsWith('/api/')) return new Response('Not found', { status: 404 });
 
   // Public endpoints the site calls from another origin.

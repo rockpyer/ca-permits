@@ -60,17 +60,3 @@ export async function throttled(env, kind, who, limit, minutes) {
 }
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-
-// A small standalone page for the confirm and unsubscribe links.
-export function page(title, body, status = 200) {
-  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex"><title>${esc(title)}</title><style>
-:root{--bg:#f4f6f8;--panel:#fff;--ink:#16202a;--muted:#5b6875;--line:#d6dde4;--accent:#b4541e;color-scheme:light}
-@media (prefers-color-scheme:dark){:root{--bg:#10151a;--panel:#19212a;--ink:#e3e9ee;--muted:#93a0ad;--line:#2d3742;--accent:#e07a3e;color-scheme:dark}}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,sans-serif}
-main{max-width:460px;margin:12vh auto;padding:24px 16px}.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:22px}
-h1{font-size:20px;margin:0 0 10px}p{margin:0 0 14px;color:var(--muted)}a{color:var(--accent)}
-button{font:inherit;background:var(--accent);color:#fff;border:0;border-radius:6px;padding:9px 16px;cursor:pointer}
-</style></head><body><main><div class="card"><h1>${esc(title)}</h1>${body}</div></main></body></html>`,
-  { status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer' } });
-}
