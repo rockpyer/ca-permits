@@ -29,5 +29,10 @@
     "POSTAL_ADDRESS": ""
   },
   "observability": { "enabled": true },
+  // Required by `wrangler preview`, which Workers Builds runs for branches other than main. Empty: previews use the
+  // same settings.
+  "previews": {},
+  // Preview links on workers.dev for those branches (off by default when a custom domain is set).
+  "preview_urls": true,
   "routes": [{ "pattern": "permits-api.ryweller.com", "custom_domain": true }]
 }
