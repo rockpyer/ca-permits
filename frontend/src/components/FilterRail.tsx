@@ -6,7 +6,7 @@ import {
   FUNCTIONAL_TYPE_GROUPS,
   WORK_ACTIVITY_GROUPS,
   functionalTypeLabel,
-  workActivityColor,
+  workActivityTextColor,
   workActivityLabel,
   type WorkActivityGroup,
   type FunctionalTypeGroup
@@ -101,7 +101,7 @@ export function FilterRail({
             options={WORK_ACTIVITY_GROUPS.map((item) => item.key)}
             selected={filters.workActivities}
             labelFor={(value) => workActivityLabel(value as WorkActivityGroup)}
-            colorFor={(value) => workActivityColor(value as WorkActivityGroup)}
+            colorFor={(value) => workActivityTextColor(value as WorkActivityGroup)}
             onToggle={(value) => onChange({ ...filters, workActivities: toggleListValue(filters.workActivities, value) })}
           />
         </FilterSection>
