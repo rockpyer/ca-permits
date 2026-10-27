@@ -83,8 +83,21 @@ describe('filters', () => {
 
     expect(rowOperatorDisplayName(aera)).toBe('Aera Energy LLC');
     expect(applyFilters([aera, elkHills, other], { ...defaultFilters(), operators: ['Aera Energy LLC'] })).toEqual([aera]);
-    expect(operatorParentName(aera.operator_name)).toBe('CRC');
-    expect(operatorParentName(elkHills.operator_name)).toBe('CRC');
+    expect(operatorParentName(aera.operator_name)).toBe('California Resources Corp.');
+    expect(operatorParentName(elkHills.operator_name)).toBe('California Resources Corp.');
+  });
+
+  it('matches every operator entity when a parent company is selected', () => {
+    const aera = { ...baseRow, operator_name: 'Aera Energy LLC' };
+    const berry = { ...baseRow, source_key: '2', operator_name: 'Berry Petroleum Company, LLC' };
+    const other = { ...baseRow, source_key: '3', operator_name: 'Chevron U.S.A. Inc.' };
+    const filters = { ...defaultFilters(), startDate: '2026-01-01', endDate: '2026-12-31', operators: ['California Resources Corp.'] };
+
+    expect(applyFilters([aera, berry, other], filters)).toEqual([aera, berry]);
+    expect(facetOptions([aera, berry, other], { ...filters, operators: [] }, 'operators', 'parent')).toEqual([
+      { value: 'California Resources Corp.', count: 2 },
+      { value: 'Chevron U.S.A. Inc.', count: 1 }
+    ]);
   });
 });
 

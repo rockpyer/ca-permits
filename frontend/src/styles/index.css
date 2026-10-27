@@ -8,31 +8,42 @@
 
 body {
   margin: 0;
-  background: #0f1816;
-  color: #d7dedb;
+  background: #edf0f3;
+  color: #172029;
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: #f6dccb;
+  color: #172029;
+}
+
+:focus-visible {
+  outline: 2px solid #b4541e;
+  outline-offset: 2px;
 }
 
 .font-display {
   font-family:
-    "Aptos Display", "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    "IBM Plex Sans Condensed", "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   letter-spacing: 0;
 }
 
 .product-title {
   max-width: 920px;
-  color: #e6ecea;
+  color: #172029;
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-size: clamp(2rem, 4.1vw, 3.7rem);
-  font-weight: 760;
-  letter-spacing: -0.035em;
-  line-height: 0.98;
+    "IBM Plex Sans Condensed", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(2rem, 4.1vw, 3.4rem);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1;
 }
 
 .product-title span:first-child {
-  color: #93a39d;
+  color: #2b6cb0;
 }
 
 @media (max-width: 640px) {
@@ -43,13 +54,13 @@ body {
 }
 
 .author-link {
-  color: #9fb1a9;
+  color: #5c6975;
   text-decoration: none;
   transition: color 160ms ease;
 }
 
 .author-link:hover {
-  color: #d6e5df;
+  color: #172029;
 }
 
 .linkedin-mark {
@@ -79,7 +90,7 @@ input {
 }
 
 .button {
-  @apply inline-flex items-center justify-center gap-2 border border-line bg-accent px-3 py-2 text-sm font-semibold text-ink transition hover:brightness-110;
+  @apply inline-flex items-center justify-center gap-2 border border-line bg-accent px-3 py-2 text-sm font-semibold text-white transition hover:brightness-110;
 }
 
 .secondary-button {
@@ -122,17 +133,17 @@ input {
 }
 
 .well-map-popup .maplibregl-popup-content {
-  border: 1px solid #24302d;
-  border-radius: 0;
-  background: rgb(15 24 22 / 94%);
-  box-shadow: 0 10px 24px rgb(0 0 0 / 35%);
-  color: #cbd5e1;
+  border: 1px solid #d5dbe2;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 97%);
+  box-shadow: 0 6px 18px rgb(23 32 41 / 16%);
+  color: #3c4752;
   padding: 0;
 }
 
 .well-map-popup .maplibregl-popup-tip {
-  border-top-color: rgb(15 24 22 / 94%);
-  border-bottom-color: rgb(15 24 22 / 94%);
+  border-top-color: rgb(255 255 255 / 97%);
+  border-bottom-color: rgb(255 255 255 / 97%);
 }
 
 .well-map-popup__body {
@@ -144,13 +155,13 @@ input {
 
 .well-map-popup__title {
   margin-bottom: 3px;
-  color: #e6ecea;
+  color: #172029;
   font-weight: 700;
 }
 
 .well-map-popup__muted {
   margin-top: 3px;
-  color: #94a3b8;
+  color: #5c6975;
 }
 
 @media (max-width: 640px) {
@@ -174,9 +185,9 @@ code {
   top: 12px;
   z-index: 9999;
   transform: translateY(-160%);
-  border: 1px solid #223833;
-  background: #17ad8e;
-  color: #0f1816;
+  border: 1px solid #8f4318;
+  background: #b4541e;
+  color: #ffffff;
   padding: 8px 12px;
   font-size: 13px;
   font-weight: 700;
@@ -186,15 +197,15 @@ code {
 
 .skip-link:focus {
   transform: translateY(0);
-  outline: 2px solid #ffffff;
+  outline: 2px solid #172029;
   outline-offset: 2px;
 }
 
 .maplibregl-ctrl-attrib.maplibregl-compact {
-  background: rgb(15 24 22 / 80%);
-  color: #93a39d;
+  background: rgb(255 255 255 / 85%);
+  color: #5c6975;
 }
 
 .maplibregl-ctrl-attrib a {
-  color: #93a39d;
+  color: #5c6975;
 }
