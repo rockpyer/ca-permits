@@ -21,7 +21,7 @@ import { loadSb237DrillTrackerStats, SB237_DRILL_TRACKER_URL, SB237_PAGE_URL, sb
 import { operatorColorMap } from './lib/operatorColors';
 import { CRC_PARENT_MEMBERS, CRC_PARENT_NAME, operatorAnalysisRows, rowOperatorDisplayName, type OperatorView } from './lib/operators';
 import { countByValue, shiftDate } from './lib/summary';
-import { ACCENT, BRAND, CHART, CRC_MEMBER_SHADES, FUNCTIONAL_TYPE_COLORS, NEUTRAL_RAMP, NOTICE_TYPE_COLORS, OPERATOR_SLOTS, SOURCE_TYPE_COLORS, SURFACE, WORK_COLORS } from './lib/palette';
+import { ACCENT, BRAND, CHART, CRC_MEMBER_SHADES, FUNCTIONAL_TYPE_COLORS, FIELD_COLORS, NOTICE_TYPE_COLORS, OPERATOR_SLOTS, SOURCE_TYPE_COLORS, SURFACE, WORK_COLORS } from './lib/palette';
 import type { DrillTracker, EtlRun, FieldBoundary, Filters, PermitActivity, RigCount } from './lib/types';
 
 // The map library and secondary pages load on demand so first paint doesn't wait on them.
@@ -790,9 +790,12 @@ function ChartColors() {
       <p>
         Colors mean the same thing on every page. Each group has one hue, and its members are shades of that hue, so an
         operator of record reads as part of its parent company and a CalGEM well type reads as part of its functional
-        type. Gray is always Other. Fields, counties, districts and permit age have no fixed color; they use a gray ramp,
-        darkest for the largest. Operator colors are fixed for California Resources, Chevron and Sentinel Peak; the next
-        two largest parent companies by this year&apos;s New Drill and Existing permits take amber and purple.
+        type. Gray is always Other. Where the industry has a convention, the colors follow it: injectors are water blue,
+        gas is red, steam is orange, and oil is black. California Resources blue and Chevron red come from their logos.
+        Operator colors are fixed for California Resources, Chevron and Sentinel Peak; the next two largest parent
+        companies by this year&apos;s New Drill and Existing permits take amber and purple. Fields, counties and districts
+        have no fixed color; each chart gives its largest six a distinct color in a fixed order, and the rest are
+        Other.
       </p>
       <div className="mt-3 grid gap-4 sm:grid-cols-3">
         {COLOR_FAMILIES.map((family) => (
@@ -834,18 +837,18 @@ function ChartColors() {
             </div>
           ))}
           <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-2 text-xs sm:grid-cols-[130px_minmax(0,1fr)]">
-            <span className="text-slate-400">Field, by rank</span>
+            <span className="text-slate-400">Fields, by rank</span>
             <div className="flex h-5" style={{ gap: 2 }}>
-              {[...NEUTRAL_RAMP, CHART.other].map((color, index) => (
-                <div key={color} style={{ width: `${[34, 24, 17, 12, 13][index]}%`, backgroundColor: color }} />
+              {[...FIELD_COLORS, CHART.other].map((color, index) => (
+                <div key={color} style={{ width: `${[26, 19, 15, 12, 9, 7, 12][index]}%`, backgroundColor: color }} />
               ))}
             </div>
           </div>
         </div>
         <figcaption className="mt-2 text-[11px] text-slate-500">
           Example with illustrative counts: one field&apos;s permits stacked by operator of record, then rolled up to parent
-          company. California Resources operators keep the CRC blue in both views. The last bar shows the gray ramp used
-          for fields and other ranked categories, with Other as the lightest step.
+          company. California Resources operators keep the CRC blue in both views. The last bar shows the order of field
+          colors, largest first, then Other.
         </figcaption>
       </figure>
     </>
