@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import worker from '../src/worker.mjs';
 import { hashPassword } from '../src/auth.mjs';
-import { runWeekly } from '../src/digest.mjs';
+import { lead, runWeekly } from '../src/digest.mjs';
 
 // D1 stand-in on SQLite with the real migrations.
 function d1() {
@@ -156,7 +156,10 @@ test('weekly digest reaches active subscribers once per week and skips stale dat
   for (const m of state.mail.slice(0, 2)) await c('POST', `/confirm?t=${tokenFrom(m)}`); // the third stays pending
   state.mail.length = 0;
   assert.deepEqual(await runWeekly(env), { week: '2026-10-19', recipients: 2, sent: 2, failed: 0, dryRun: false });
-  assert.match(state.mail[0].subject, /14 New Drill, 86 total/);
+  assert.equal(state.mail[0].subject, 'Weekly permit tracker update, Oct 13–Oct 19: development permits up 4 to 29');
+  assert.match(state.mail[0].html, /permits, (up 4 from 25|4 more than the 25) the week before\. 14 were New Drill, led by Aera &lt;Energy&gt; LLC at Belridge, South \(2\)\./);
+  assert.match(state.mail[0].html, /not produced, reviewed or endorsed by CalGEM/);
+  assert.match(state.mail[0].text, /not produced, reviewed or endorsed by CalGEM/);
   assert.match(state.mail[0].html, /Weekly approved permits by work activity/);
   assert.match(state.mail[0].html, /<img src="https:\/\/permits-api\.ryweller\.com\/img\/map-2026-10-19\.png"/);
   assert.match(state.mail[0].html, /Kern New Drill permits vs\. SB 237 annual cap[\s\S]*456<\/b> permitted/);
@@ -239,4 +242,15 @@ test('each week\'s map is copied once and served from the Worker', async () => {
   assert.match(r.headers.get('cache-control'), /immutable/);
   assert.deepEqual(new Uint8Array(await r.arrayBuffer()), PNG);
   assert.equal((await worker.fetch(new Request('https://permits-api.ryweller.com/img/..%2Fx.png'), env)).status, 404);
+});
+
+test('the opening line says whether development permitting rose, fell or held', () => {
+  const d = (now, before, nd = 0) => ({ weekStart: '2026-10-13', weekEnd: '2026-10-19', week: { new_drills: nd, existing: now - nd }, prior: { new_drills: 0, existing: before }, newDrillGroups: [] });
+  assert.equal(lead(d(40, 39)).trend, 'same'); // within 5%
+  assert.equal(lead(d(44, 39)).trend, 'up');
+  assert.equal(lead(d(30, 39)).trend, 'down');
+  assert.equal(lead(d(0, 0)).trend, 'same');
+  assert.match(lead(d(10, 4)).text, /No New Drill permits were approved\.$/);
+  assert.match(lead(d(10, 4, 1)).text, /1 was New Drill\.$/);
+  assert.doesNotMatch(lead(d(44, 39)).subject, /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
 });

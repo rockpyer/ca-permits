@@ -9,6 +9,38 @@ import { audit, esc, iso } from './util.mjs';
 const MAX_AGE_DAYS = 4; // Skip the send if the site data is older than this (the ingest or deploy stalled).
 const change = (now, before) => (now === before ? 'the same as' : now > before ? `up ${fmt(now - before)} from` : `down ${fmt(before - now)} from`);
 const REASON = 'You get this because you signed up for the weekly summary at permits.ryweller.com.';
+const INDEPENDENT = 'Independent summary by Ryan Weller, compiled from public CalGEM WellSTAR data. It is not produced, reviewed or endorsed by CalGEM.';
+
+// The opening line and subject: whether development permitting (New Drill plus existing-well rework, sidetrack and
+// deepen; abandonments left out) rose, fell or held this week, then where most New Drill permits went. Rule-based,
+// no model: changes within 5% of the prior week (at least 1 permit) count as unchanged. Wording rotates by week so
+// consecutive emails don't read the same.
+const LEADS = {
+  up: [
+    (n, b, x) => `Development permitting rose this week: ${n} New Drill and existing-well permits, up ${x} from ${b} the week before.`,
+    (n, b, x) => `More development permits this week: ${n} New Drill and existing-well permits, ${x} more than the ${b} the week before.`
+  ],
+  down: [
+    (n, b, x) => `Development permitting slowed this week: ${n} New Drill and existing-well permits, down ${x} from ${b} the week before.`,
+    (n, b, x) => `Fewer development permits this week: ${n} New Drill and existing-well permits, ${x} fewer than the ${b} the week before.`
+  ],
+  same: [
+    (n, b) => `Development permitting held steady this week: ${n} New Drill and existing-well permits, against ${b} the week before.`,
+    (n, b) => `Development permitting was about level this week: ${n} New Drill and existing-well permits, against ${b} the week before.`
+  ]
+};
+export function lead(d) {
+  const now = d.week.new_drills + d.week.existing, before = d.prior.new_drills + d.prior.existing, diff = now - before;
+  const trend = Math.abs(diff) <= Math.max(1, Math.round(0.05 * before)) ? 'same' : diff > 0 ? 'up' : 'down';
+  const variants = LEADS[trend], pick = Math.floor(Date.parse(`${d.weekEnd}T12:00:00Z`) / (7 * 864e5)) % variants.length;
+  const first = variants[pick](fmt(now), fmt(before), fmt(Math.abs(diff)));
+  const top = Array.isArray(d.newDrillGroups) ? d.newDrillGroups[0] : null;
+  const second = !d.week.new_drills ? 'No New Drill permits were approved.'
+    : top && top.count > 1 ? `${fmt(d.week.new_drills)} were New Drill, led by ${top.operator} at ${top.field} (${fmt(top.count)}).`
+      : `${fmt(d.week.new_drills)} ${d.week.new_drills === 1 ? 'was' : 'were'} New Drill.`;
+  const tease = trend === 'same' ? `development permits steady at ${fmt(now)}` : `development permits ${trend} ${fmt(Math.abs(diff))} to ${fmt(now)}`;
+  return { trend, text: `${first} ${second}`, subject: `Weekly permit tracker update, ${range(d)}: ${tease}` };
+}
 
 export async function loadDigest(env, fetchFn = fetch) {
   const r = await fetchFn(`${env.SITE_URL}/data/digest.json`, { cf: { cacheTtl: 0 }, headers: { 'cache-control': 'no-cache' } });
@@ -81,11 +113,12 @@ function newDrillRows(d) {
 // Subject, HTML and text for one digest. unsub is the recipient's unsubscribe link; mapSrc the stored map's URL.
 export function renderDigest(d, env, unsub, mapSrc = null) {
   const site = env.SITE_URL, w = d.week, pr = d.prior;
-  const subject = `California permits, ${range(d)}: ${fmt(w.new_drills)} New Drill, ${fmt(w.total)} total`;
-  const summary = `${fmt(w.total)} approved permits for ${range(d)}, ${change(w.total, pr.total)} the prior week. ${d.ytd.year} to date: ${fmt(d.ytd.new_drills)} New Drill, ${fmt(d.ytd.total)} total.`;
+  const opening = lead(d), subject = opening.subject;
+  const summary = `All work: ${fmt(w.total)} approved permits for ${range(d)}, ${change(w.total, pr.total)} the prior week. ${d.ytd.year} to date: ${fmt(d.ytd.new_drills)} New Drill, ${fmt(d.ytd.total)} total.`;
   const body = [
     masthead(env, d),
-    p(esc(summary), 'margin-bottom:16px'),
+    p(esc(opening.text), 'font-size:16px;margin-bottom:8px'),
+    p(esc(summary), `font-size:13px;color:${C.muted};margin-bottom:16px`),
     kpiStrip(d),
     mapBlock(env, d, mapSrc),
     section('New Drill permits by operator and field', `Approved ${range(d)}. API numbers link to WellSTAR.`),
@@ -97,19 +130,20 @@ export function renderDigest(d, env, unsub, mapSrc = null) {
     operatorRows(d),
     d.newOperators.length ? `${section('Operators with their first permit in the data')}${p(esc(d.newOperators.join(', ')))}` : '',
     `<div style="margin-top:26px">${button(site, 'Open the permit map')}</div>`,
-    note(`Source: CalGEM WellSTAR approved notices of intention, counted by approval date. Data refreshed ${esc(d.generatedAt.slice(0, 10))}.`)
+    note(`Source: CalGEM WellSTAR approved notices of intention, counted by approval date. Data refreshed ${esc(d.generatedAt.slice(0, 10))}.`),
+    note(esc(INDEPENDENT))
   ].join('\n');
-  const html = emailHtml(env, { preheader: summary, body, unsub, reason: REASON });
+  const html = emailHtml(env, { preheader: opening.text, body, unsub, reason: REASON });
   const groups = Array.isArray(d.newDrillGroups) ? d.newDrillGroups : [];
   const text = [
-    `California well permit activity, weekly update: ${range(d)}`, `Open the site: ${site}`, '', summary, '',
+    `California well permit activity, weekly update: ${range(d)}`, `Open the site: ${site}`, '', opening.text, '', summary, '',
     ...[['Permits', 'total'], ['New Drill', 'new_drills'], ['Existing', 'existing'], ['Abandonment', 'abandonment']].map(([l, k]) => `  ${l}: ${fmt(w[k])} (prior week ${fmt(pr[k])})`), '',
     groups.length ? ['New Drill permits by operator and field:', ...groups.map((g) => `  ${g.count}  ${g.operator}, ${g.field}: ${g.wells.map((x) => x.api).join(', ')}`), ''].join('\n') : '',
     weeklyChartText(d), '',
     d.kern ? `Kern New Drill permits vs. SB 237 cap (${d.kern.year}): ${fmt(d.kern.ytd)} permitted, ${fmt(d.kern.projected)} projected, cap ${fmt(d.kern.quota)}${d.kern.spudded != null ? `, ${fmt(d.kern.spudded)} spudded` : ''}.\n` : '',
     ['Most active operators:', ...d.topOperators.filter((o) => o.total > 0).slice(0, 6).map((o) => `  ${o.name}: ${fmt(o.total)} (${fmt(o.new_drills)} New Drill)`), ''].join('\n'),
     d.newOperators.length ? `Operators with their first permit in the data: ${d.newOperators.join(', ')}\n` : '',
-    `Source: CalGEM WellSTAR approved notices of intention, by approval date. Data refreshed ${d.generatedAt.slice(0, 10)}.`, '',
+    `Source: CalGEM WellSTAR approved notices of intention, by approval date. Data refreshed ${d.generatedAt.slice(0, 10)}.`, INDEPENDENT, '',
     emailFooterText(env, { unsub, reason: REASON })
   ].filter((l, i, a) => l !== '' || a[i - 1] !== '').join('\n');
   return { subject, text, html };
