@@ -17,6 +17,11 @@ import { BRAND, SURFACE } from '../lib/palette';
 // Field outlines stay neutral so green keeps meaning New Drill.
 const FIELD_COLOR = '#5c6975';
 const SELECTED = ['==', ['get', 'selected'], true] as maplibregl.ExpressionSpecification;
+// Below this zoom permits draw as plain colored dots; glyphs are too small to read.
+const GLYPH_MIN_ZOOM = 9.5;
+const PERMIT_RIM = 'rgba(23, 32, 41, 0.6)';
+// Higher draws on top: New Drill over Abandonment over Existing.
+const DRAW_ORDER: Record<string, number> = { new_drills: 3, abandonment: 2, existing: 1 };
 import type { FieldBoundary, PermitActivity } from '../lib/types';
 import { rowOperatorDisplayName } from '../lib/operators';
 
@@ -108,16 +113,16 @@ export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
       setFieldLayerVisibility(map, showFieldsRef.current);
       addPermitLayers(map, geojsonRef.current);
       fitToFeatures(map, geojsonRef.current, hasFitBoundsRef);
-      map.on('click', 'permit-symbols', (event) => {
+      map.on('click', 'permit-symbol-backplates', (event) => {
         const feature = event.features?.[0];
         const key = String(feature?.properties?.source_key || '');
         const row = rowsRef.current.find((item) => item.source_key === key);
         if (row) onSelectRef.current(row);
       });
-      map.on('mouseenter', 'permit-symbols', () => {
+      map.on('mouseenter', 'permit-symbol-backplates', () => {
         map.getCanvas().style.cursor = 'pointer';
       });
-      map.on('mousemove', 'permit-symbols', (event) => {
+      map.on('mousemove', 'permit-symbol-backplates', (event) => {
         const feature = event.features?.[0];
         const key = String(feature?.properties?.source_key || '');
         const row = rowsRef.current.find((item) => item.source_key === key);
@@ -133,7 +138,7 @@ export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
         }
         hoverPopupRef.current.setLngLat(coordinates).setHTML(renderTooltip(row)).addTo(map);
       });
-      map.on('mouseleave', 'permit-symbols', () => {
+      map.on('mouseleave', 'permit-symbol-backplates', () => {
         map.getCanvas().style.cursor = '';
         hoverPopupRef.current?.remove();
       });
@@ -251,13 +256,21 @@ function addPermitLayers(map: maplibregl.Map, data: GeoJSON.FeatureCollection<Ge
       id: 'permit-symbol-backplates',
       type: 'circle',
       source: 'permits',
-      // Solid disc in the work-activity color; the white functional-type glyph sits on top.
+      layout: { 'circle-sort-key': ['get', 'drawOrder'] },
+      // Solid disc in the work-activity color. Zoomed out it is a plain dot; the white
+      // functional-type glyph fades in once discs are large enough to read it.
+      // A thin dark rim (not white) keeps overlapping discs from fusing into one blob.
       paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, ['case', SELECTED, 11, 6], 8, ['case', SELECTED, 13, 8], 11, ['case', SELECTED, 16, 11]],
+        'circle-radius': [
+          'interpolate', ['linear'], ['zoom'],
+          5, ['case', SELECTED, 9, 3.5],
+          8, ['case', SELECTED, 11, 5],
+          GLYPH_MIN_ZOOM, ['case', SELECTED, 13, 7.5],
+          12, ['case', SELECTED, 16, 11]
+        ],
         'circle-color': ['get', 'color'],
-        'circle-opacity': 0.95,
-        'circle-stroke-color': ['case', SELECTED, BRAND.ink, SURFACE.panel],
-        'circle-stroke-width': ['case', SELECTED, 2.5, 1.25]
+        'circle-stroke-color': ['case', SELECTED, BRAND.ink, PERMIT_RIM],
+        'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, ['case', SELECTED, 2.5, 0.6], 10, ['case', SELECTED, 2.5, 1]]
       }
     });
   }
@@ -269,9 +282,21 @@ function addPermitLayers(map: maplibregl.Map, data: GeoJSON.FeatureCollection<Ge
       source: 'permits',
       layout: {
         'icon-image': ['get', 'icon'],
-        'icon-size': ['interpolate', ['linear'], ['zoom'], 5, ['case', SELECTED, 0.6, 0.34], 8, ['case', SELECTED, 0.66, 0.44], 11, ['case', SELECTED, 0.72, 0.58]],
-        'icon-allow-overlap': true,
-        'icon-ignore-placement': true
+        'icon-size': [
+          'interpolate', ['linear'], ['zoom'],
+          5, ['case', SELECTED, 0.5, 0.2],
+          GLYPH_MIN_ZOOM, ['case', SELECTED, 0.6, 0.38],
+          12, ['case', SELECTED, 0.72, 0.54]
+        ],
+        // Every disc draws, but a glyph only where it has room, so dense pads stay
+        // separate colored discs instead of a pile of white glyphs.
+        'icon-allow-overlap': false,
+        'icon-padding': 1,
+        // Without overlap, lower keys place first; the selected permit always places.
+        'symbol-sort-key': ['case', SELECTED, -10, ['-', 0, ['get', 'drawOrder']]]
+      },
+      paint: {
+        'icon-opacity': ['interpolate', ['linear'], ['zoom'], GLYPH_MIN_ZOOM - 0.5, ['case', SELECTED, 1, 0], GLYPH_MIN_ZOOM, 1]
       }
     });
   }
@@ -312,7 +337,7 @@ function MapLegend({ symbols, activities }: { symbols: typeof FUNCTIONAL_TYPE_GR
           ))}
         </div>
       </div>
-      <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500 sm:mb-1 sm:text-[10px]">Shape = Functional Type</div>
+      <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500 sm:mb-1 sm:text-[10px]">Shape = Functional Type (zoomed in)</div>
       <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 sm:gap-x-3 sm:gap-y-1">
         {symbols.map((item) => (
           <span key={item.key} className="inline-flex items-center gap-1.5">
@@ -351,6 +376,7 @@ function buildPermitGeojson(rows: PermitActivity[], selected: PermitActivity | n
             workActivity: workActivityLabel(workActivity),
             noticeType: noticeType(row),
             color,
+            drawOrder: DRAW_ORDER[workActivity] ?? 0,
             icon: iconId(functionalType),
             selected: selected?.source_key === row.source_key,
             operator_name: row.operator_name,
