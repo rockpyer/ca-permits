@@ -25,6 +25,7 @@ Working list of ideas. ROADMAP.md holds the committed product direction; items m
 
 ## Data
 
+- **Operator intelligence briefing.** Weekly transfers, new entrants, footprint movers, and a distress watchlist across all ~1,300 live operators. Plan and source map: [docs/operator_intel_plan.md](docs/operator_intel_plan.md). Prototype: `backend/operator_footprint.py`.
 - **Well status history.** Diff the Wells layer on each ingest and record `WellStatus` / `SpudDate` changes to get dated spudded, active, idle, and plugged transitions. Very low effort.
 - **First production month.** Use the monthly production/injection CSVs ([CalGEM public downloads](https://wellstar-public.conservation.ca.gov/General/PublicDownloads/Index)) as a completion proxy. They run about two months behind.
 - **Depth and completion enrichment.** Data exists only on WellSTAR detail pages (robots.txt disallows crawling) or in the weekly 2.25 GB `WellDetailDatabase.BAK`. Ask CalGEM before scraping.
