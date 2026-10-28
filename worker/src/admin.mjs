@@ -1,6 +1,6 @@
 // Admin API behind the Neptune sign-in: visitor analytics, the subscriber list, digest preview and sending, and the
 // audit log. Every change and every export is written to audit_log.
-import { loadDigest, renderDigest, runWeekly } from './digest.mjs';
+import { ensureMap, loadDigest, renderDigest, runWeekly } from './digest.mjs';
 import { sendMail } from './mail.mjs';
 import { checkEmailShape } from './subscribe.mjs';
 import { markOwner } from './visits.mjs';
@@ -97,15 +97,15 @@ async function subscribers(req, env, user, id, csv) {
 async function digest(req, env, user, action) {
   if (action === 'preview' && req.method === 'GET') {
     const d = await loadDigest(env);
-    const m = renderDigest(d, env, `${env.API_URL}/unsubscribe?s=preview`);
-    return new Response(`<!doctype html><meta charset="utf-8"><title>${m.subject.replace(/</g, '&lt;')}</title><body style="margin:16px;background:#fff">${m.html}</body>`,
-      { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; img-src https:" } });
+    const m = renderDigest(d, env, `${env.API_URL}/unsubscribe?s=preview`, await ensureMap(env, d));
+    return new Response(m.html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store',
+      'content-security-policy': "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: 'self'" } });
   }
   if (action === 'test' && req.method === 'POST') {
     const e = checkEmailShape((await body(req)).to);
     if (e.error) return json({ error: e.error }, 422);
     const d = await loadDigest(env);
-    const m = renderDigest(d, env, `${env.API_URL}/unsubscribe?s=test`);
+    const m = renderDigest(d, env, `${env.API_URL}/unsubscribe?s=test`, await ensureMap(env, d));
     const [r] = await sendMail(env, [{ to: e.email, ...m, subject: `[Test] ${m.subject}` }]);
     await audit(env, req, user, 'digest_test', null, { ok: r.ok, error: r.error });
     return r.ok ? json({ ok: true, dryRun: !env.RESEND_API_KEY }) : json({ error: r.error }, 502);

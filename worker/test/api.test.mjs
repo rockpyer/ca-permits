@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import worker from '../src/worker.mjs';
 import { hashPassword } from '../src/auth.mjs';
-import { runWeekly } from '../src/digest.mjs';
+import { lead, runWeekly } from '../src/digest.mjs';
 
 // D1 stand-in on SQLite with the real migrations.
 function d1() {
@@ -21,9 +21,14 @@ function d1() {
 }
 
 const PW = 'test-password-1';
+const PNG = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3]);
 const DIGEST = (generatedAt = new Date().toISOString()) => ({
   generatedAt, weekStart: '2026-10-13', weekEnd: '2026-10-19',
   week: { total: 86, new_drills: 14, existing: 15, abandonment: 57 }, prior: { total: 80, new_drills: 0, existing: 25, abandonment: 55 },
+  weeks: [{ weekEnd: '2026-10-12', total: 80, new_drills: 0, existing: 25, abandonment: 55 }, { weekEnd: '2026-10-19', total: 86, new_drills: 14, existing: 15, abandonment: 57 }],
+  map: { file: 'digest-map.png', width: 1200, height: 720 },
+  kern: { year: '2026', quota: 2000, ytd: 456, projected: 560, spudded: 198 },
+  newDrillGroups: [{ operator: 'Aera <Energy> LLC', field: 'Belridge, South', county: 'Kern', count: 2, wells: [{ api: '04-030-1', url: 'https://wellstar/1' }, { api: '04-030-2', url: '' }] }],
   ytd: { year: '2026', total: 2744, new_drills: 451, existing: 551, abandonment: 1742 }, newOperators: ['Temescal Resources, LLC'],
   topOperators: [{ name: 'Aera Energy LLC', total: 56, new_drills: 14, existing: 4, abandonment: 38 }], topFields: [], counties: [],
   newDrills: [{ date: '2026-10-19', api: '04-030-12345', well: 'X 1', operator: 'Aera <Energy>', field: 'Belridge', county: 'Kern', url: 'https://wellstar/x' }], newDrillsMore: 0
@@ -35,6 +40,7 @@ function network(state) {
     url = String(url);
     if (url.startsWith('https://cloudflare-dns.com/')) return Response.json({ Status: 0, Answer: [{ type: 15, data: '10 mx.example.net.' }] });
     if (url.endsWith('/data/digest.json')) return Response.json(state.digest);
+    if (url.endsWith('/data/digest-map.png')) { state.mapFetches = (state.mapFetches || 0) + 1; return new Response(PNG, { headers: { 'content-type': 'image/png' } }); }
     if (url === 'https://api.resend.com/emails/batch') {
       const msgs = JSON.parse(init.body); state.mail.push(...msgs);
       return Response.json({ data: msgs.map((_, i) => ({ id: `re_${state.mail.length + i}` })) });
@@ -49,7 +55,7 @@ async function setup() {
   const env = {
     DB: d1(), ADMIN_USER: 'Neptune', ADMIN_PW: await hashPassword(PW), SIGNING_KEY: 'test-signing-key', RESEND_API_KEY: 're_test',
     SITE_URL: 'https://permits.ryweller.com', API_URL: 'https://permits-api.ryweller.com', MAIL_FROM: 'Permits <u@permits.ryweller.com>',
-    ALLOWED_ORIGINS: 'https://permits.ryweller.com', POSTAL_ADDRESS: 'PO Box 1, Bakersfield CA'
+    ALLOWED_ORIGINS: 'https://permits.ryweller.com', POSTAL_ADDRESS: 'PO Box 1\nBakersfield CA'
   };
   return { env, state };
 }
@@ -94,12 +100,13 @@ test('sign-up is double opt-in, never reveals membership, and keeps email out of
   assert.equal(row.consent_version, '2026-10-v1');
   assert.equal(state.mail.length, 1);
   assert.equal(state.mail[0].to[0], 'pat@operator.com');
+  assert.match(state.mail[0].html, /Latest week: Oct 13–Oct 19[\s\S]*img\/map-2026-10-19\.png[\s\S]*Weekly approved permits by work activity/);
 
   // The confirm link shows a button on GET (mail scanners prefetch links) and confirms on POST.
   const t = tokenFrom(state.mail[0]);
   assert.match((await c('GET', `/confirm?t=${t}`)).text, /<form method="post">/);
   assert.equal(env.DB.db.prepare('SELECT status FROM subscribers').get().status, 'pending');
-  assert.match((await c('POST', `/confirm?t=${t}`)).text, /You are subscribed/);
+  assert.match((await c('POST', `/confirm?t=${t}`)).text, /Subscription confirmed/);
   row = env.DB.db.prepare('SELECT * FROM subscribers').get();
   assert.equal(row.status, 'active');
   assert.equal(row.confirm_hash, null);
@@ -149,8 +156,21 @@ test('weekly digest reaches active subscribers once per week and skips stale dat
   for (const m of state.mail.slice(0, 2)) await c('POST', `/confirm?t=${tokenFrom(m)}`); // the third stays pending
   state.mail.length = 0;
   assert.deepEqual(await runWeekly(env), { week: '2026-10-19', recipients: 2, sent: 2, failed: 0, dryRun: false });
-  assert.match(state.mail[0].subject, /14 new drill, 86 total/);
-  assert.match(state.mail[0].html, /Aera &lt;Energy&gt;/); // escaped
+  assert.equal(state.mail[0].subject, 'Weekly permit tracker update, Oct 13–Oct 19: development permits up 4 to 29');
+  assert.match(state.mail[0].html, /permits, (up 4 from 25|4 more than the 25) the week before\. 14 were New Drill, led by Aera &lt;Energy&gt; LLC at Belridge, South \(2\)\./);
+  assert.match(state.mail[0].html, /not produced, reviewed or endorsed by CalGEM/);
+  assert.match(state.mail[0].text, /not produced, reviewed or endorsed by CalGEM/);
+  assert.match(state.mail[0].html, /Weekly approved permits by work activity/);
+  assert.match(state.mail[0].html, /<img src="https:\/\/permits-api\.ryweller\.com\/img\/map-2026-10-19\.png"/);
+  assert.match(state.mail[0].html, /Kern New Drill permits vs\. SB 237 annual cap[\s\S]*456<\/b> permitted/);
+  assert.match(state.mail[0].html, /Aera &lt;Energy&gt; LLC<\/b> <span[^>]*>· Belridge, South, Kern/);
+  assert.match(state.mail[0].html, />Open the site&nbsp;→</);
+  assert.match(state.mail[0].html, /href="https:\/\/ryweller\.com"/);
+  assert.match(state.mail[0].html, /font:11px[^"]*color:#8a96a3">PO Box 1, Bakersfield CA</);
+  assert.match(state.mail[0].html, /Thanks for subscribing! For analytics, consulting, planning and development work/);
+  assert.match(state.mail[0].html, /href="https:\/\/www\.linkedin\.com\/in\/ryweller\/"/);
+  assert.doesNotMatch(state.mail[0].html, /You get this because/);
+  assert.match(state.mail[0].text, /Oct 13\s+#{20} 86/);
   assert.match(state.mail[0].text, /PO Box 1/);
   assert.equal((await runWeekly(env)).recipients, 0);
   assert.deepEqual({ ...env.DB.db.prepare('SELECT recipients, sent, failed FROM digests').get() }, { recipients: 2, sent: 2, failed: 0 });
@@ -211,4 +231,29 @@ test('cross-origin calls get CORS only from allowed origins; the root redirects 
   assert.equal((await c('OPTIONS', '/api/subscribe', null, { origin: 'https://evil.example' })).headers.get('access-control-allow-origin'), null);
   const root = await worker.fetch(new Request('https://permits-api.ryweller.com/'), env);
   assert.equal(root.headers.get('location'), 'https://permits.ryweller.com/');
+});
+
+test('each week\'s map is copied once and served from the Worker', async () => {
+  const { env, state } = await setup(), c = client(env);
+  await signup(c, 'pat@operator.com');
+  await c('POST', `/confirm?t=${tokenFrom(state.mail[0])}`);
+  await runWeekly(env);
+  await runWeekly(env);
+  assert.equal(state.mapFetches, 1);
+  const r = await worker.fetch(new Request('https://permits-api.ryweller.com/img/map-2026-10-19.png'), env);
+  assert.equal(r.headers.get('content-type'), 'image/png');
+  assert.match(r.headers.get('cache-control'), /immutable/);
+  assert.deepEqual(new Uint8Array(await r.arrayBuffer()), PNG);
+  assert.equal((await worker.fetch(new Request('https://permits-api.ryweller.com/img/..%2Fx.png'), env)).status, 404);
+});
+
+test('the opening line says whether development permitting rose, fell or held', () => {
+  const d = (now, before, nd = 0) => ({ weekStart: '2026-10-13', weekEnd: '2026-10-19', week: { new_drills: nd, existing: now - nd }, prior: { new_drills: 0, existing: before }, newDrillGroups: [] });
+  assert.equal(lead(d(40, 39)).trend, 'same'); // within 5%
+  assert.equal(lead(d(44, 39)).trend, 'up');
+  assert.equal(lead(d(30, 39)).trend, 'down');
+  assert.equal(lead(d(0, 0)).trend, 'same');
+  assert.match(lead(d(10, 4)).text, /No New Drill permits were approved\.$/);
+  assert.match(lead(d(10, 4, 1)).text, /1 was New Drill\.$/);
+  assert.doesNotMatch(lead(d(44, 39)).subject, /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
 });

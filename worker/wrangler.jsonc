@@ -24,9 +24,9 @@
     "API_URL": "https://permits-api.ryweller.com",
     "ALLOWED_ORIGINS": "https://permits.ryweller.com,http://localhost:5173,http://localhost:5174",
     "MAIL_FROM": "California Permits <updates@ryweller.com>",
-    "MAIL_REPLY_TO": "",
+    "MAIL_REPLY_TO": "ryan@ryweller.com",
     // CAN-SPAM requires a valid postal address (a PO box or registered mailbox is fine) in every commercial email.
-    "POSTAL_ADDRESS": ""
+    "POSTAL_ADDRESS": "PO BOX 1431\nNederland, CO 80466"
   },
   // Branch builds run `wrangler preview`, which needs this block (Previews don't inherit production settings). No D1
   // binding and no secrets on purpose: a Preview must not read or write the production subscriber list or send mail,
@@ -43,5 +43,7 @@
     }
   },
   "observability": { "enabled": true },
+  // Preview links on workers.dev for those branches (off by default when a custom domain is set).
+  "preview_urls": true,
   "routes": [{ "pattern": "permits-api.ryweller.com", "custom_domain": true }]
 }

@@ -20,6 +20,11 @@ describe('buildDigest', () => {
     expect(d.newOperators).toEqual(['Beta']);
     expect(d.topOperators[0].name).toBe('Alpha');
     expect(d.newDrills).toHaveLength(1);
+    expect(d.weeks).toHaveLength(12);
+    expect(d.weeks.at(-1)).toEqual({ weekEnd: '2026-10-16', ...d.week });
+    expect(d.weeks.at(-2)).toEqual({ weekEnd: '2026-10-09', ...d.prior });
+    expect(d.kern).toMatchObject({ year: '2026', quota: 2000, ytd: 2, spudded: null });
+    expect(d.newDrillGroups).toEqual([{ operator: 'Alpha', field: 'Belridge, South', county: 'Kern', count: 1, wells: [{ api: d.newDrills[0].api, url: '' }] }]);
   });
 
   it('caps the new drill list and reports the rest', () => {

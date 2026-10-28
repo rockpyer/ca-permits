@@ -6,8 +6,10 @@
 //   receives updates until they click it.
 // GET/POST /confirm?t=...            GET shows a button, POST confirms (mail scanners follow GET links, never POST).
 // GET/POST /unsubscribe?s=...&k=...  Same, and POST is also RFC 8058 one-click unsubscribe from the mail client.
+import { latestDigest } from './digest.mjs';
+import { button, emailFooterText, emailHtml, kpiStrip, mapBlock, masthead, note, p, page, range, section, weeklyChart } from './layout.mjs';
 import { sendMail } from './mail.mjs';
-import { audit, emailHash, esc, hmac, iso, ipHash, json, page, randomId, randomToken, safeEqual, sha, throttled } from './util.mjs';
+import { audit, emailHash, esc, hmac, iso, ipHash, json, randomId, randomToken, safeEqual, sha, throttled } from './util.mjs';
 
 // Bump when the consent wording next to the form changes; each subscriber keeps the version they agreed to.
 export const CONSENT_VERSION = '2026-10-v1';
@@ -69,15 +71,26 @@ export async function unsubscribeUrl(env, id) {
   return `${env.API_URL}/unsubscribe?s=${id}&k=${await unsubscribeKey(env, id)}`;
 }
 
-function confirmEmail(env, link) {
-  const site = env.SITE_URL;
-  const text = `Confirm your weekly California permit updates:\n\n${link}\n\nThe link works for ${CONFIRM_HOURS} hours. If you did not sign up at ${site}, ignore this email and nothing will be sent.\n\n${env.POSTAL_ADDRESS || ''}`;
-  const html = `<div style="font:15px/1.5 system-ui,sans-serif;color:#16202a;max-width:520px">
-<p>Confirm your weekly California permit updates from <a href="${esc(site)}">${esc(site.replace(/^https?:\/\//, ''))}</a>.</p>
-<p><a href="${esc(link)}" style="display:inline-block;background:#b4541e;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px">Confirm my email</a></p>
-<p style="color:#5b6875;font-size:13px">The link works for ${CONFIRM_HOURS} hours. If you did not sign up, ignore this email and nothing will be sent.</p>
-<p style="color:#5b6875;font-size:12px">${esc(env.POSTAL_ADDRESS || '')}</p></div>`;
-  return { subject: 'Confirm your California permit updates', text, html };
+// The latest week, as shown on the confirmation email and page: the figures, the map and the weekly chart.
+function latestWeek(env, latest) {
+  if (!latest) return '';
+  const { d, map } = latest;
+  return `${section(`Latest week: ${range(d)}`, 'What the weekly email covers, from the most recent data.')}${kpiStrip(d)}${mapBlock(env, d, map)}
+${section('Weekly approved permits by work activity', 'Last 12 weeks, by approval date.')}${weeklyChart(d)}`;
+}
+
+function confirmEmail(env, link, latest) {
+  const reason = `Someone, probably you, entered this address at ${env.SITE_URL.replace(/^https?:\/\//, '')}. If it wasn't you, ignore this email and nothing will be sent.`;
+  const body = [
+    masthead(env, null, 'Weekly email'),
+    `<h1 style="margin:4px 0 10px;font:700 22px/1.25 'IBM Plex Sans Condensed','Roboto Condensed','Arial Narrow',sans-serif;color:#172029">Confirm your subscription</h1>`,
+    p('Confirm this address to get the weekly summary of approved California well permits: New Drill, Existing and Abandonment counts, a map, the Kern SB 237 cap and the most active operators. It goes out each Monday after the CalGEM data refresh.'),
+    button(link, 'Confirm my email'),
+    note(`The link works for ${CONFIRM_HOURS} hours.`),
+    latestWeek(env, latest)
+  ].join('\n');
+  const text = [`Confirm your subscription to the weekly California permit summary:`, '', link, '', `The link works for ${CONFIRM_HOURS} hours.`, '', emailFooterText(env, { reason })].join('\n');
+  return { subject: 'Confirm your California permit summary', text, html: emailHtml(env, { preheader: 'Confirm to start the weekly California permit summary.', body, reason }) };
 }
 
 /* ---------- POST /api/subscribe ---------- */
@@ -111,7 +124,7 @@ export async function subscribe(req, env, fetchFn = fetch) {
       consent_at = excluded.consent_at, consent_version = excluded.consent_version, consent_source = excluded.consent_source,
       confirm_hash = excluded.confirm_hash, confirm_expires = excluded.confirm_expires, unsubscribed_at = NULL`)
     .bind(id, e.email, hash, n.name, interests, now, CONSENT_VERSION, source, cf.country || null, cf.regionCode || null, await sha(token), iso(Date.now() + CONFIRM_HOURS * 36e5)).run();
-  const [sent] = await sendMail(env, [{ to: e.email, ...confirmEmail(env, `${env.API_URL}/confirm?t=${token}`) }]);
+  const [sent] = await sendMail(env, [{ to: e.email, ...confirmEmail(env, `${env.API_URL}/confirm?t=${token}`, await latestDigest(env, fetchFn)) }]);
   await audit(env, req, 'public', existing ? 'resubscribe_requested' : 'subscribe_requested', hash, { source, consent: CONSENT_VERSION, mail: sent.ok ? 'sent' : sent.error });
   return json({ ok: true });
 }
@@ -119,33 +132,34 @@ export async function subscribe(req, env, fetchFn = fetch) {
 /* ---------- /confirm ---------- */
 export async function confirm(req, env) {
   const t = new URL(req.url).searchParams.get('t') || '';
-  if (!/^[A-Za-z0-9_-]{20,64}$/.test(t)) return page('Link not valid', '<p>This confirmation link is incomplete. Copy the whole link from the email.</p>', 400);
+  if (!/^[A-Za-z0-9_-]{20,64}$/.test(t)) return page('Link not valid', '<p>This confirmation link is incomplete. Copy the whole link from the email.</p>', 400, env);
   const row = await env.DB.prepare('SELECT id, email_hash, status, confirm_expires FROM subscribers WHERE confirm_hash = ?1').bind(await sha(t)).first();
-  if (!row) return page('Link not valid', `<p>This link was already used or replaced by a newer one. <a href="${esc(env.SITE_URL)}">Back to the site</a>.</p>`, 404);
-  if (row.confirm_expires < iso()) return page('Link expired', `<p>Sign up again on <a href="${esc(env.SITE_URL)}">the site</a> for a new link.</p>`, 410);
+  if (!row) return page('Link not valid', `<p>This link was already used or replaced by a newer one. <a href="${esc(env.SITE_URL)}">Back to the site</a>.</p>`, 404, env);
+  if (row.confirm_expires < iso()) return page('Link expired', `<p>Sign up again on <a href="${esc(env.SITE_URL)}">the site</a> for a new link.</p>`, 410, env);
   if (req.method !== 'POST') {
-    return page('Confirm your email', `<p>One click to start the weekly California permit summary.</p><form method="post"><button type="submit">Confirm</button></form>`);
+    return page('Confirm your subscription', `<p>Confirm to start the weekly summary of approved California well permits.</p><form method="post"><button type="submit">Confirm</button></form>`, 200, env);
   }
   await env.DB.prepare(`UPDATE subscribers SET status = 'active', confirmed_at = ?1, confirm_hash = NULL, confirm_expires = NULL WHERE id = ?2`).bind(iso(), row.id).run();
   await audit(env, req, 'public', 'confirmed', row.email_hash);
-  return page('You are subscribed', `<p>The summary goes out each Monday after the CalGEM data refresh. Every email has a one-click unsubscribe link.</p><p><a href="${esc(env.SITE_URL)}">Back to the permit map</a></p>`);
+  return page('Subscription confirmed', `<p>The weekly summary goes out each Monday after the CalGEM data refresh. Every email has a one-click unsubscribe link.</p>
+${button(env.SITE_URL, 'Open the permit map')}${latestWeek(env, await latestDigest(env))}`, 200, env);
 }
 
 /* ---------- /unsubscribe ---------- */
 export async function unsubscribe(req, env) {
   const q = new URL(req.url).searchParams, id = q.get('s') || '', k = q.get('k') || '';
   if (!/^[a-f0-9]{24}$/.test(id) || !safeEqual(k, await unsubscribeKey(env, id))) {
-    return page('Link not valid', '<p>This unsubscribe link is incomplete. Use the link in the most recent email, or reply to it and we will remove you.</p>', 400);
+    return page('Link not valid', '<p>This unsubscribe link is incomplete. Use the link in the most recent email, or reply to it and we will remove you.</p>', 400, env);
   }
   const row = await env.DB.prepare('SELECT email_hash, status FROM subscribers WHERE id = ?1').bind(id).first();
   if (req.method !== 'POST') {
-    if (!row || row.status === 'unsubscribed') return page('Unsubscribed', '<p>This address is not on the list.</p>');
-    return page('Unsubscribe', '<p>Stop the weekly California permit summary?</p><form method="post"><button type="submit">Unsubscribe</button></form>');
+    if (!row || row.status === 'unsubscribed') return page('Unsubscribed', '<p>This address is not on the list.</p>', 200, env);
+    return page('Unsubscribe', '<p>Stop the weekly California permit summary?</p><form method="post"><button type="submit">Unsubscribe</button></form>', 200, env);
   }
   if (row && row.status !== 'unsubscribed') {
     await env.DB.prepare(`UPDATE subscribers SET status = 'unsubscribed', unsubscribed_at = ?1, confirm_hash = NULL WHERE id = ?2`).bind(iso(), id).run();
     const oneClick = (req.headers.get('content-type') || '').includes('form') && /List-Unsubscribe=One-Click/.test(await req.clone().text());
     await audit(env, req, 'public', 'unsubscribed', row.email_hash, { via: oneClick ? 'one-click' : 'page' });
   }
-  return page('Unsubscribed', `<p>You will not get any more weekly emails. Changed your mind? Sign up again on <a href="${esc(env.SITE_URL)}">the site</a>.</p>`);
+  return page('Unsubscribed', `<p>You will not get any more weekly emails. Changed your mind? Sign up again on <a href="${esc(env.SITE_URL)}">the site</a>.</p>`, 200, env);
 }
