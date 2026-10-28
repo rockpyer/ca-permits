@@ -1,17 +1,21 @@
 import type { PermitActivity } from './types';
 
-const CRC_OPERATOR_ALIASES = new Set([
-  'aera energy llc',
-  'california resource corporation',
-  'california resources corporation',
-  'california resources elk hills llc',
-  'california resource elk hills llc',
-  'california resources production corporation',
-  'tidelands oil production co',
-  'thums long beach co',
-  'elk hills power llc',
-  'berry petroleum company llc'
-]);
+/** CalGEM operators of record that roll up to California Resources Corp. in the parent-company view. */
+export const CRC_PARENT_MEMBERS = [
+  'Aera Energy LLC',
+  'Berry Petroleum Company LLC',
+  'California Resources Corporation',
+  'California Resources Elk Hills LLC',
+  'California Resources Production Corporation',
+  'Elk Hills Power LLC',
+  'THUMS Long Beach Co',
+  'Tidelands Oil Production Co'
+];
+
+// Members plus spelling variants that appear in CalGEM records.
+const CRC_OPERATOR_ALIASES = new Set(
+  [...CRC_PARENT_MEMBERS, 'California Resource Corporation', 'California Resource Elk Hills LLC'].map(normalizeOperatorName)
+);
 
 export type OperatorView = 'operator' | 'parent';
 
