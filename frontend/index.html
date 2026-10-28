@@ -3,81 +3,114 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>California well permit activity</title>
-    <meta name="description" content="Approved California oil and gas well permits and Kern County drilling activity from public CalGEM and WellSTAR data: operators, fields, well types, spuds, and rig counts." />
-    <meta name="keywords" content="California oil permits, CalGEM, WellSTAR, oil and gas wells, well permits, Kern County drilling, spud dates, rig count, oilfield intelligence" />
+    <title>California well permits and drilling activity from CalGEM</title>
+    <meta name="description" content="Approved California oil and gas well permits from CalGEM WellSTAR data, updated weekly: New Drill, Existing, and Abandonment permits by operator, field, and county." />
+    <meta name="keywords" content="California well permits, California drilling activity, CalGEM permits, WellSTAR, California oil and gas permits, Kern County drilling, New Drill permits, SB 237, well permit tracker, oilfield activity" />
     <meta name="author" content="Ryan Weller" />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta name="theme-color" content="#edf0f3" />
     <meta name="color-scheme" content="light" />
     <link rel="canonical" href="https://permits.ryweller.com/" />
 
     <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_US" />
     <meta property="og:site_name" content="California well permit activity" />
     <meta property="og:url" content="https://permits.ryweller.com/" />
-    <meta property="og:title" content="California well permit activity" />
-    <meta property="og:description" content="Approved California oil and gas well permits and Kern County drilling activity from public CalGEM and WellSTAR data: operators, fields, well types, spuds, and rig counts." />
-    <meta property="og:image" content="https://permits.ryweller.com/social-preview.png?v=5" />
-    <meta property="og:image:secure_url" content="https://permits.ryweller.com/social-preview.png?v=5" />
+    <meta property="og:title" content="California well permits and drilling activity" />
+    <meta property="og:description" content="Approved California oil and gas well permits from CalGEM WellSTAR data, updated weekly: New Drill, Existing, and Abandonment permits by operator, field, and county." />
+    <meta property="og:image" content="https://permits.ryweller.com/social-preview.png?v=6" />
+    <meta property="og:image:secure_url" content="https://permits.ryweller.com/social-preview.png?v=6" />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="California well permit activity dashboard with permit KPIs, quick views, and a map of permits by work activity." />
+    <meta property="og:image:alt" content="California well permit activity: permit KPIs, Kern New Drill quota, weekly approved permits by work activity, permit map, and well types by parent company." />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="California well permit activity" />
-    <meta name="twitter:description" content="Approved California oil and gas well permits and Kern County drilling activity from public CalGEM and WellSTAR data: operators, fields, well types, spuds, and rig counts." />
-    <meta name="twitter:image" content="https://permits.ryweller.com/social-preview.png?v=5" />
-    <meta name="twitter:image:alt" content="California well permit activity dashboard with permit KPIs, quick views, and a map of permits by work activity." />
+    <meta name="twitter:title" content="California well permits and drilling activity" />
+    <meta name="twitter:description" content="Approved California oil and gas well permits from CalGEM WellSTAR data, updated weekly: New Drill, Existing, and Abandonment permits by operator, field, and county." />
+    <meta name="twitter:image" content="https://permits.ryweller.com/social-preview.png?v=6" />
+    <meta name="twitter:image:alt" content="California well permit activity: permit KPIs, Kern New Drill quota, weekly approved permits by work activity, permit map, and well types by parent company." />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/app-icon.svg" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
 
+    <!-- The build (scripts/route-pages.mjs) adds dateModified and temporalCoverage from the data snapshot. -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "California well permit activity",
-        "alternateName": "CA Permits",
-        "url": "https://permits.ryweller.com/",
-        "description": "A public web app for tracking approved California oil and gas well permits and Kern County drilling activity using CalGEM and WellSTAR data.",
-        "applicationCategory": "BusinessApplication",
-        "operatingSystem": "Web",
-        "isAccessibleForFree": true,
-        "inLanguage": "en-US",
-        "keywords": [
-          "CalGEM",
-          "WellSTAR",
-          "California oil and gas permits",
-          "well permit tracker",
-          "oilfield intelligence"
-        ],
-        "creator": {
-          "@type": "Person",
-          "name": "Ryan Weller",
-          "url": "https://ryweller.com/",
-          "sameAs": ["https://www.linkedin.com/in/ryweller/"]
-        },
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "USD"
-        },
-        "about": {
-          "@type": "Dataset",
-          "name": "California oil and gas well permit activity",
-          "description": "CalGEM and WellSTAR public permit, well, and field boundary records presented for exploration and analysis.",
-          "license": "https://creativecommons.org/licenses/by-sa/4.0/"
-        }
+        "@graph": [
+          {
+            "@type": "WebApplication",
+            "@id": "https://permits.ryweller.com/#app",
+            "name": "California well permit activity",
+            "alternateName": ["CA Well Permit Tracker", "CA Permits"],
+            "url": "https://permits.ryweller.com/",
+            "description": "Free web app for tracking approved California oil and gas well permits and Kern County drilling activity from public CalGEM and WellSTAR data, updated weekly.",
+            "applicationCategory": "BusinessApplication",
+            "applicationSubCategory": "Oil and gas permit and drilling activity analysis",
+            "operatingSystem": "Any (web browser)",
+            "browserRequirements": "Requires JavaScript",
+            "isAccessibleForFree": true,
+            "inLanguage": "en-US",
+            "image": "https://permits.ryweller.com/social-preview.png",
+            "screenshot": "https://permits.ryweller.com/social-preview.png",
+            "featureList": [
+              "Approved CalGEM well permits by operator, parent company, field, county, and district",
+              "New Drill, Existing, and Abandonment work activity, with functional well type",
+              "Weekly approved permits by work activity and a since-last-week summary",
+              "Kern County New Drill permits vs. the SB 237 annual cap",
+              "Map of permits by work activity and well type over CalGEM field boundaries",
+              "Permit records with CSV export and WellSTAR detail links",
+              "Shareable filter URLs and a weekly email"
+            ],
+            "keywords": "California well permits, California drilling activity, CalGEM, WellSTAR, Kern County, New Drill permits, SB 237",
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "license": "https://creativecommons.org/licenses/by-sa/4.0/",
+            "author": { "@id": "https://ryweller.com/#person" },
+            "mainEntity": { "@id": "https://permits.ryweller.com/#dataset" }
+          },
+          {
+            "@type": "Dataset",
+            "@id": "https://permits.ryweller.com/#dataset",
+            "name": "California oil and gas well permit activity",
+            "description": "Approved California oil and gas well permits from CalGEM's WellSTAR Notices service, joined to WellSTAR well records and CalGEM field boundaries, with operator-reported Kern County spud dates from the CalGEM Central District Drill Tracker. Updated weekly.",
+            "url": "https://permits.ryweller.com/",
+            "keywords": ["California well permits", "CalGEM", "WellSTAR", "oil and gas", "drilling permits", "Kern County", "SB 237"],
+            "license": "https://creativecommons.org/licenses/by-sa/4.0/",
+            "isAccessibleForFree": true,
+            "spatialCoverage": { "@type": "Place", "name": "California, United States" },
+            "creator": { "@id": "https://ryweller.com/#person" },
+            "isBasedOn": [
+              "https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Notices/MapServer/1",
+              "https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Wells/MapServer/0",
+              "https://gis.conservation.ca.gov/server/rest/services/CalGEM/Admin_Bounds/MapServer/0",
+              "https://www.conservation.ca.gov/calgem/Documents/Permits/Central%20District%20Drill%20Tracker.xlsx"
+            ]
+          },
+          {
+            "@type": "Person",
+            "@id": "https://ryweller.com/#person",
+            "name": "Ryan Weller",
+            "url": "https://ryweller.com/",
+            "sameAs": ["https://www.linkedin.com/in/ryweller/", "https://github.com/rockpyer"]
+          }
+        ]
       }
     </script>
   </head>
   <body>
+    <noscript>
+      <h1>California well permit activity</h1>
+      <p>Approved California oil and gas well permits from public CalGEM and WellSTAR data, updated weekly, by operator, field, county, work activity, and well type. The app needs JavaScript.</p>
+      <!-- latest-summary -->
+      <p><a href="/about-methodology/">About / methodology</a> · <a href="https://www.conservation.ca.gov/calgem">CalGEM</a> · <a href="https://ryweller.com/">Ryan Weller</a></p>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

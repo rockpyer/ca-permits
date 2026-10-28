@@ -28,10 +28,21 @@
     // CAN-SPAM requires a valid postal address (a PO box or registered mailbox is fine) in every commercial email.
     "POSTAL_ADDRESS": "PO BOX 1431\nNederland, CO 80466"
   },
+  // Branch builds run `wrangler preview`, which needs this block (Previews don't inherit production settings). No D1
+  // binding and no secrets on purpose: a Preview must not read or write the production subscriber list or send mail,
+  // so its database routes fail. Bind a separate staging D1 here to exercise them. Cron triggers never run on Previews.
+  "previews": {
+    "vars": {
+      "ADMIN_USER": "Neptune",
+      "SITE_URL": "https://permits.ryweller.com",
+      "API_URL": "https://permits-api.ryweller.com",
+      "ALLOWED_ORIGINS": "https://permits.ryweller.com,http://localhost:5173,http://localhost:5174",
+      "MAIL_FROM": "California Permits <updates@ryweller.com>",
+      "MAIL_REPLY_TO": "",
+      "POSTAL_ADDRESS": ""
+    }
+  },
   "observability": { "enabled": true },
-  // Required by `wrangler preview`, which Workers Builds runs for branches other than main. Empty: previews use the
-  // same settings.
-  "previews": {},
   // Preview links on workers.dev for those branches (off by default when a custom domain is set).
   "preview_urls": true,
   "routes": [{ "pattern": "permits-api.ryweller.com", "custom_domain": true }]

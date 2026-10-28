@@ -1,0 +1,28 @@
+# Search and AI answers may index and cite these pages; model training may not.
+Content-Signal: search=yes, ai-input=yes, ai-train=no
+User-agent: *
+Allow: /
+
+# Training crawlers: pages, images and llms.txt only, not the app bundle or data snapshot.
+User-agent: GPTBot
+User-agent: ClaudeBot
+User-agent: anthropic-ai
+User-agent: CCBot
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: Bytespider
+User-agent: meta-externalagent
+User-agent: Amazonbot
+User-agent: cohere-training-data-crawler
+User-agent: Diffbot
+User-agent: omgili
+User-agent: AI2Bot
+User-agent: PanguBot
+Disallow: /assets/
+Disallow: /data/
+Allow: /$
+Allow: /about-methodology/
+Allow: /llms.txt
+Allow: /social-preview.png
+
+Sitemap: https://permits.ryweller.com/sitemap.xml

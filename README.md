@@ -23,7 +23,7 @@ The project is designed as an oilfield activity intelligence tool rather than a 
 - Operator analysis panels for field concentration and cumulative drilling activity.
 - Official WellSTAR detail links using normalized California API numbers.
 - WellFinder links where available.
-- Public metadata for search, social sharing, app icons, and large-card previews.
+- Public metadata for search, social sharing, app icons, and large-card previews. The build stamps the latest weekly numbers into the static HTML (`<noscript>`), the JSON-LD dataset dates, `sitemap.xml`, and `llms.txt`.
 
 ## Data Sources
 
