@@ -1,10 +1,10 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Loader2 } from 'lucide-react';
+import { CalendarDays, Loader2, Mail } from 'lucide-react';
 import { DetailDrawer } from './components/DetailDrawer';
 import { FilterRail } from './components/FilterRail';
 import { PermitTable } from './components/PermitTable';
 import { CategoryStackPanel, RankingPanels } from './components/RankingPanels';
-import { ActivityNotes, ActivitySummaryStrip, FunctionalTypeMix, PermitMomentumPanel } from './components/SummaryCards';
+import { ActivityNotes, ActivitySummaryStrip, FuelGauge, FunctionalTypeMix, PermitMomentumPanel } from './components/SummaryCards';
 import { loadAppData } from './lib/data';
 import { applyFilters, dateRangeForRows, defaultFilters } from './lib/filters';
 import {
@@ -15,10 +15,11 @@ import {
   type FunctionalTypeGroup,
   type WorkActivityGroup
 } from './lib/grouping';
-import { loadSb237DrillTrackerStats, SB237_DRILL_TRACKER_URL, sb237StatsFromTracker, type Sb237DrillTrackerStats } from './lib/sb237';
+import { loadSb237DrillTrackerStats, SB237_DRILL_TRACKER_URL, SB237_PAGE_URL, sb237StatsFromTracker, type Sb237DrillTrackerStats } from './lib/sb237';
 import { operatorColorMap } from './lib/operatorColors';
-import { CRC_PARENT_NAME, operatorAnalysisRows, rowOperatorDisplayName, type OperatorView } from './lib/operators';
+import { CRC_PARENT_MEMBERS, CRC_PARENT_NAME, operatorAnalysisRows, rowOperatorDisplayName, type OperatorView } from './lib/operators';
 import { countByValue, shiftDate } from './lib/summary';
+import { ACCENT, BRAND, WORK_COLORS } from './lib/palette';
 import type { DrillTracker, EtlRun, FieldBoundary, Filters, PermitActivity, RigCount } from './lib/types';
 
 // The map library and secondary pages load on demand so first paint doesn't wait on them.
@@ -241,25 +242,12 @@ export function App() {
               <section aria-label="Permit records">
                 <PermitTable rows={filteredRows} selected={selected} onSelect={setSelected} />
               </section>
-              <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-xs text-slate-500">
-                <span>{filteredRows.length.toLocaleString()} filtered permits from {rows.length.toLocaleString()} loaded rows</span>
-                <nav className="flex flex-wrap gap-4" aria-label="More pages">
-                  {/* /drilling and /prod still route; their links are hidden for now. */}
-                  {[['/about-methodology', 'About / Methodology']].map(([href, label]) => (
-                    <a
-                      key={href}
-                      className="text-slate-500 transition hover:text-accent"
-                      href={href}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        navigateTo(href, setPath);
-                      }}
-                    >
-                      {label}
-                    </a>
-                  ))}
-                </nav>
-              </footer>
+              {/* /drilling and /prod still route; their links are hidden for now. */}
+              <SiteFooter
+                status={`${filteredRows.length.toLocaleString()} filtered permits from ${rows.length.toLocaleString()} loaded rows`}
+                links={[['/about-methodology', 'About / Methodology']]}
+                onNavigate={(href) => navigateTo(href, setPath)}
+              />
             </div>
           )}
         </main>
@@ -561,38 +549,119 @@ function AboutMethodology({ onNavigateHome, onNavigate }: { onNavigateHome: () =
         </header>
 
         <div className="mt-8 grid gap-6 text-sm leading-6 text-slate-300 md:grid-cols-2">
-          <MethodBlock title="What is counted">
-            Approved WellSTAR notices of intention (new drill, rework, sidetrack, deepen, abandonment), grouped by operator,
-            field, county, district, work type, and well type. Counts use the <strong>approval date</strong>. CalGEM&apos;s
-            dashboard counts by filed date, so its year-to-date totals can differ by a few permits.
+          <MethodBlock title="What is counted" wide>
+            <p>
+              Approved WellSTAR notices of intention only. Counts and date filters use the <strong>approval date</strong>, or
+              the filed date when no approval date is recorded. CalGEM&apos;s dashboard counts by filed date, so its
+              year-to-date totals can differ by a few permits.
+            </p>
+            <p className="mt-3">Raw CalGEM notice types are grouped into three work activities:</p>
+            <MappingTable
+              headers={['Work activity', 'CalGEM notice types', 'Shown by default']}
+              rows={[
+                ['New Drill', 'New Drill', 'Yes'],
+                ['Existing', 'Rework, Sidetrack, Deepen', 'Yes'],
+                ['Abandonment', 'Abandon, Re-Abandon', 'No (turn on in filters)']
+              ]}
+            />
+            <p className="mt-3">CalGEM well types are grouped into functional types for the map symbols and type mix:</p>
+            <MappingTable
+              headers={['Functional type', 'CalGEM well types']}
+              rows={[
+                ['Producer', 'Oil & Gas, Dry Gas'],
+                ['Thermal Producer', 'Cyclic Steam'],
+                ['Injector', 'Steamflood, Waterflood, Water Disposal, Gas Disposal'],
+                ['Observation', 'Observation'],
+                ['Other', 'Gas Storage, Multi-Purpose, Water Source, Injection, Dry Hole, and all other types']
+              ]}
+            />
+            <p className="mt-3">
+              Other changes from the raw records: API numbers are standardized to 10 digits to build WellSTAR and WellFinder
+              links, and pool names are joined from CalGEM&apos;s wells file by API number. Permit records and CSV exports keep
+              the original CalGEM notice type, well type, and operator.
+            </p>
+          </MethodBlock>
+          <MethodBlock title="Operator grouping">
+            <p>
+              Charts default to a <strong>parent-company</strong> view; the Operator toggle in the filters switches to the
+              CalGEM operator of record. These operators roll up to {CRC_PARENT_NAME}:
+            </p>
+            <ul className="mt-2 list-disc pl-5 text-slate-400">
+              {CRC_PARENT_MEMBERS.map((name) => (
+                <li key={name}>{name}</li>
+              ))}
+            </ul>
+            <p className="mt-2">All other operators appear as CalGEM records them.</p>
           </MethodBlock>
           <MethodBlock title="Data sources">
-            WellSTAR notices and wells, and CalGEM field boundaries (ArcGIS services); pool names from CalGEM&apos;s annual
-            wells file; Kern spud dates from CalGEM&apos;s Drill Tracker; rig counts from Baker Hughes.
             <SourceLinks />
           </MethodBlock>
-          <MethodBlock title="Update cadence">
-            A GitHub Actions ingest runs every Monday and stores records in Supabase. Each run rebuilds a static data snapshot
-            that this site serves, so the header date is the latest weekly update.
+          <MethodBlock title="Kern New Drill quota" wide>
+            <div className="grid gap-4 sm:grid-cols-[150px_1fr] sm:items-start">
+              <figure className="border border-line bg-panel/40 p-3">
+                <FuelGauge usedPct={45} projectedPct={80} spuddedPct={25} />
+                <figcaption className="mt-1 text-[11px] text-slate-500">Example reading, not current values</figcaption>
+              </figure>
+              <div>
+                <p>
+                  <a className={LINK_CLASS} href={SB237_PAGE_URL} target="_blank" rel="noreferrer">
+                    SB 237
+                  </a>{' '}
+                  caps Kern County New Drill permits at 2,000 a year. The gauge at the top of the permits page reads left to right from 0
+                  to 2,000:
+                </p>
+                <ul className="mt-2 space-y-1 text-slate-400">
+                  <GaugeKey color={WORK_COLORS.new_drills}>Filled arc and needle: New Drill permits approved this year</GaugeKey>
+                  <GaugeKey color={BRAND.ink}>Dark tick: straight-line projection to December 31</GaugeKey>
+                  <GaugeKey color={ACCENT.gold}>Gold tick: wells spudded, from CalGEM&apos;s Drill Tracker (operator reported)</GaugeKey>
+                  <GaugeKey color={ACCENT.steel}>Blue outline: permits left under the cap</GaugeKey>
+                </ul>
+                <p className="mt-2">Only New Drill notices count toward the cap. Hover or tap the gauge for the projection basis.</p>
+              </div>
+            </div>
           </MethodBlock>
-          <MethodBlock title="Kern New Drill quota">
-            SB 237 caps Kern County New Drill permits at 2,000 a year. The meter shows year-to-date approvals, a straight-line
-            projection to year-end, what is left, and operator-reported spuds from the Drill Tracker.
+          <MethodBlock title="Update cadence">
+            Data ingestion runs every Monday. The date in the page header is the latest weekly update.
           </MethodBlock>
           <MethodBlock title="Limitations">
             A permit is permission, not proof of drilling: many are never spudded or are spudded months later. Depth,
-            completion, and casing details are not in the public layers, so records link to WellSTAR. Operator names vary and
-            are normalized; well joins can lag new permits.
+            completion, and casing details are not in the public layers, so records link to WellSTAR. Well locations can lag
+            new permits.
           </MethodBlock>
           <MethodBlock title="Use and credit">
-            Public data, provided as is for exploration and analysis. Check official CalGEM records before relying on any figure.
-            Built by{' '}
-            <a className="text-slate-200 underline decoration-line underline-offset-2 hover:text-accent" href="https://ryweller.com" target="_blank" rel="noreferrer">
-              Ryan Weller
+            Public data, provided as is. This is an independent project, not affiliated with or endorsed by CalGEM. Check
+            official CalGEM records before relying on any figure.
+          </MethodBlock>
+          <MethodBlock title="Contact">
+            Questions, corrections, or a permit that looks wrong:{' '}
+            <a className={LINK_CLASS} href={CONTACT_MAILTO}>
+              ryan@ryweller.com
             </a>
             .
           </MethodBlock>
         </div>
+
+        <section className="mt-8 border border-line bg-panel/50 p-4 text-sm leading-6 text-slate-300" aria-label="Built by Ryan Weller">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Built by Ryan Weller</h2>
+          <p className="mt-2 max-w-3xl">
+            Oil and gas geologist and data scientist. I take on custom permit and drilling activity analysis, well and
+            development planning, and energy data tools like this one.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm font-semibold">
+            <a className={LINK_CLASS} href="https://ryweller.com/services/" target="_blank" rel="noreferrer">
+              Services
+            </a>
+            <a className={LINK_CLASS} href="https://ryweller.com/#projects" target="_blank" rel="noreferrer">
+              Other projects
+            </a>
+            <a className={LINK_CLASS} href="https://www.linkedin.com/in/ryweller/" target="_blank" rel="noreferrer">
+              LinkedIn
+            </a>
+            <a className={LINK_CLASS} href={CONTACT_MAILTO}>
+              ryan@ryweller.com
+            </a>
+          </div>
+        </section>
 
         {/* Drilling and Production views are hidden outside preview builds for now. */}
         {import.meta.env.VITE_PREVIEW === '1' && (
@@ -608,6 +677,10 @@ function AboutMethodology({ onNavigateHome, onNavigate }: { onNavigateHome: () =
           </div>
         </section>
         )}
+
+        <div className="mt-10">
+          <SiteFooter links={[['/', 'Permits review']]} onNavigate={onNavigate} />
+        </div>
       </div>
     </main>
   );
@@ -629,31 +702,122 @@ function ViewLink({ href, title, onNavigate, children }: { href: string; title: 
   );
 }
 
-function MethodBlock({ title, children }: { title: string; children: React.ReactNode }) {
+const LINK_CLASS = 'text-accent underline decoration-accent/40 underline-offset-2 transition hover:decoration-accent';
+const CONTACT_MAILTO = 'mailto:ryan@ryweller.com?subject=California%20well%20permit%20activity';
+
+function MethodBlock({ title, wide = false, children }: { title: string; wide?: boolean; children: React.ReactNode }) {
   return (
-    <section className="border-t border-line pt-4">
+    <section className={`border-t border-line pt-4${wide ? ' md:col-span-2' : ''}`}>
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{title}</h2>
       <div>{children}</div>
     </section>
   );
 }
 
+function MappingTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
+  return (
+    <div className="mt-2 overflow-x-auto">
+      <table className="w-full border-collapse text-left text-xs">
+        <thead>
+          <tr className="border-b border-line text-[11px] uppercase tracking-wide text-slate-500">
+            {headers.map((header) => (
+              <th key={header} className="py-1.5 pr-4 font-semibold">
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row[0]} className="border-b border-line/60">
+              {row.map((cell, index) => (
+                <td key={index} className={`py-1.5 pr-4 ${index === 0 ? 'font-semibold text-slate-200' : 'text-slate-400'}`}>
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function GaugeKey({ color, children }: { color: string; children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-2">
+      <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: color }} aria-hidden="true" />
+      <span>{children}</span>
+    </li>
+  );
+}
+
 function SourceLinks() {
-  const links: Array<[string, string]> = [
-    ['https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Notices/MapServer/1', 'Notices'],
-    ['https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Wells/MapServer/0', 'Wells'],
-    ['https://gis.conservation.ca.gov/server/rest/services/CalGEM/Admin_Bounds/MapServer/0', 'Fields'],
-    [SB237_DRILL_TRACKER_URL, 'Drill Tracker'],
-    ['https://rigcount.bakerhughes.com/', 'Rig count'],
-    ['https://www.conservation.ca.gov/calgem/Pages/permits.aspx', 'CalGEM']
+  const sources: Array<[string, string, string]> = [
+    ['https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Notices/MapServer/1', 'WellSTAR Notices', 'approved permits'],
+    ['https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Wells/MapServer/0', 'WellSTAR Wells', 'well locations and status'],
+    ['https://gis.conservation.ca.gov/server/rest/services/CalGEM/Admin_Bounds/MapServer/0', 'CalGEM field boundaries', 'map field outlines'],
+    ['https://wellstar-public.conservation.ca.gov/General/PublicDownloads/Index', 'CalGEM wells file', 'pool names'],
+    [SB237_DRILL_TRACKER_URL, 'Central District Drill Tracker', 'Kern spud dates'],
+    ['https://www.conservation.ca.gov/calgem/Pages/permits.aspx', 'CalGEM permits', 'official permit information']
   ];
   return (
-    <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-wide">
-      {links.map(([href, label]) => (
-        <a key={label} className="text-slate-500 transition hover:text-accent" href={href} target="_blank" rel="noreferrer">
-          {label}
-        </a>
+    <ul className="space-y-1.5">
+      {sources.map(([href, label, use]) => (
+        <li key={label}>
+          <a className={`font-semibold ${LINK_CLASS}`} href={href} target="_blank" rel="noreferrer">
+            {label} ↗
+          </a>
+          <span className="text-slate-400"> · {use}</span>
+        </li>
       ))}
-    </div>
+    </ul>
+  );
+}
+
+function SiteFooter({
+  status,
+  links,
+  onNavigate
+}: {
+  status?: string;
+  links: Array<[string, string]>;
+  onNavigate: (path: string) => void;
+}) {
+  return (
+    <footer className="space-y-3 border-t border-line pt-4 text-xs text-slate-500">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {status && <span>{status}</span>}
+        <nav className="flex flex-wrap items-center gap-4" aria-label="More pages">
+          {links.map(([href, label]) => (
+            <a
+              key={href}
+              className="text-slate-500 transition hover:text-accent"
+              href={href}
+              onClick={(event) => {
+                event.preventDefault();
+                onNavigate(href);
+              }}
+            >
+              {label}
+            </a>
+          ))}
+          <a
+            className="inline-flex items-center gap-1.5 border border-line px-2.5 py-1 font-semibold text-slate-300 transition hover:border-accent hover:text-accent"
+            href={CONTACT_MAILTO}
+          >
+            <Mail size={13} aria-hidden="true" />
+            Questions or issues
+          </a>
+        </nav>
+      </div>
+      <p>
+        Independent project, not affiliated with or endorsed by CalGEM. Built by{' '}
+        <a className="text-slate-300 underline decoration-line underline-offset-2 hover:text-accent" href="https://ryweller.com" target="_blank" rel="noreferrer">
+          Ryan Weller
+        </a>
+        .
+      </p>
+    </footer>
   );
 }

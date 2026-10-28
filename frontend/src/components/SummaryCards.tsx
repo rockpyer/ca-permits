@@ -286,7 +286,7 @@ export function NewDrillQuotaGauge({
   );
 }
 
-function FuelGauge({
+export function FuelGauge({
   usedPct,
   projectedPct,
   spuddedPct,
