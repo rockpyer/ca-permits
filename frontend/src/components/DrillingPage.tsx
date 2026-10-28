@@ -22,7 +22,7 @@ import {
 import { FUNCTIONAL_TYPE_GROUPS, functionalTypeGroup, functionalTypeLabel } from '../lib/grouping';
 import type { OperatorColor } from '../lib/operatorColors';
 import { operatorDisplayName, rowOperatorDisplayName } from '../lib/operators';
-import { CHART, NEUTRAL_RAMP, SURFACE, WORK_COLORS } from '../lib/palette';
+import { AGE_COLORS, CHART, SURFACE, WORK_COLORS } from '../lib/palette';
 import { SB237_DRILL_TRACKER_URL as DRILL_TRACKER_URL } from '../lib/sb237';
 import type { DrillTracker, DrillTrackerRow, PermitActivity, RigCount } from '../lib/types';
 
@@ -39,8 +39,6 @@ type Props = {
 
 const SPUDDED = WORK_COLORS.new_drills;
 const WAITING = CHART.other;
-// Ordinal ramp for permit age: older inventory reads lighter. Neutral, so it never reads as an operator.
-const AGE_COLORS = NEUTRAL_RAMP;
 const RIG_COLOR = '#e8e2d0';
 const OTHER = 'Other';
 

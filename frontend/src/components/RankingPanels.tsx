@@ -32,12 +32,12 @@ import {
   workActivityLabel
 } from '../lib/grouping';
 import { hasOperatorColor, type OperatorColor } from '../lib/operatorColors';
-import { CHART, NEUTRAL_RAMP, SOURCE_TYPE_COLORS, SURFACE } from '../lib/palette';
+import { CHART, FIELD_COLORS, SOURCE_TYPE_COLORS, SURFACE } from '../lib/palette';
 import type { PermitActivity } from '../lib/types';
 
-// Categories without a fixed identity take the neutral ramp by rank; past its length they
-// fold into "Other" rather than reusing a step.
-const neutralColor = (index: number) => NEUTRAL_RAMP[index] || CHART.other;
+// Categories without a fixed identity take FIELD_COLORS by rank; past its length they
+// fold into "Other" rather than reusing a hue.
+const fieldColor = (index: number) => FIELD_COLORS[index] || CHART.other;
 
 type CategoryField = {
   key: CategoryFieldKey;
@@ -80,7 +80,7 @@ export function RankingPanels({
 }) {
   const analysisRows = useMemo(() => operatorAnalysisRows(rows, operatorView), [operatorView, rows]);
   const fieldByOperator = stackedMatrix(analysisRows, 'field_name', 'operator_name', 8, 5, (name) => hasOperatorColor(operatorColor, name));
-  const operatorByField = stackedMatrix(analysisRows, 'operator_name', 'field_name', 8, NEUTRAL_RAMP.length);
+  const operatorByField = stackedMatrix(analysisRows, 'operator_name', 'field_name', 8, FIELD_COLORS.length);
   const cumulativeTrend = operatorCumulativeWorkActivityTrend(analysisRows, 5, 52);
   const operatorLabel = operatorView === 'parent' ? 'Parent Companies' : 'Operators';
 
@@ -153,7 +153,7 @@ function StackedBarPanel({
           <Tooltip content={<CompactChartTooltip showTotal />} cursor={{ fill: CHART.cursorFill }} />
           <Legend wrapperStyle={{ color: CHART.label, fontSize: 11 }} />
           {keys.map((key, index) => (
-            <Bar key={key} dataKey={key} stackId="total" fill={key === 'Other' ? CHART.other : colorFor ? colorFor(key) : neutralColor(index)} stroke={SURFACE.panel} strokeWidth={1} />
+            <Bar key={key} dataKey={key} stackId="total" fill={key === 'Other' ? CHART.other : colorFor ? colorFor(key) : fieldColor(index)} stroke={SURFACE.panel} strokeWidth={1} />
           ))}
         </BarChart>
       </ResponsiveContainer>
@@ -208,7 +208,7 @@ export function CategoryStackPanel({
           <Tooltip content={<CompactChartTooltip showTotal />} cursor={{ fill: CHART.cursorFill }} />
           <Legend wrapperStyle={{ color: CHART.label, fontSize: 11 }} />
           {keys.map((key, index) => (
-            <Bar key={key} dataKey={key} stackId="total" fill={matrix.colors[key] || neutralColor(index)} stroke={SURFACE.panel} strokeWidth={1} />
+            <Bar key={key} dataKey={key} stackId="total" fill={matrix.colors[key] || fieldColor(index)} stroke={SURFACE.panel} strokeWidth={1} />
           ))}
         </BarChart>
       </ResponsiveContainer>
@@ -306,13 +306,13 @@ function categoricalStackedMatrix(
   const stackField = fieldFor(stackKey);
   const primaries = topValues(rows, primaryField.get, primaryLimit);
   // Operators without a color, well types in the Other functional type, and ranked categories
-  // past the neutral ramp fold into Other, so gray only ever means Other.
+  // past FIELD_COLORS fold into Other, so gray only ever means Other.
   const stacks =
     stackKey === 'operator'
       ? topValues(rows, stackField.get, Number.MAX_SAFE_INTEGER).filter((name) => hasOperatorColor(operatorColor, name))
       : stackKey === 'source_type'
         ? topValues(rows, stackField.get, Number.MAX_SAFE_INTEGER).filter((name) => name in SOURCE_TYPE_COLORS)
-        : topValues(rows, stackField.get, stackField.kind === 'standard' ? NEUTRAL_RAMP.length : 12);
+        : topValues(rows, stackField.get, stackField.kind === 'standard' ? FIELD_COLORS.length : 12);
   const colors: Record<string, string> = {};
 
   rows.forEach((row) => {
