@@ -8,9 +8,11 @@ import { ActivityNotes, ActivitySummaryStrip, FuelGauge, FunctionalTypeMix, Perm
 import { loadAppData } from './lib/data';
 import { applyFilters, dateRangeForRows, defaultFilters } from './lib/filters';
 import {
+  DEFAULT_WORK_ACTIVITY_GROUPS,
   FUNCTIONAL_TYPE_GROUPS,
   WORK_ACTIVITY_GROUPS,
   functionalTypeLabel,
+  workActivityGroup,
   workActivityLabel,
   type FunctionalTypeGroup,
   type WorkActivityGroup
@@ -19,7 +21,7 @@ import { loadSb237DrillTrackerStats, SB237_DRILL_TRACKER_URL, SB237_PAGE_URL, sb
 import { operatorColorMap } from './lib/operatorColors';
 import { CRC_PARENT_MEMBERS, CRC_PARENT_NAME, operatorAnalysisRows, rowOperatorDisplayName, type OperatorView } from './lib/operators';
 import { countByValue, shiftDate } from './lib/summary';
-import { ACCENT, BRAND, WORK_COLORS } from './lib/palette';
+import { ACCENT, BRAND, CHART, CRC_MEMBER_SHADES, FUNCTIONAL_TYPE_COLORS, NEUTRAL_RAMP, NOTICE_TYPE_COLORS, OPERATOR_SLOTS, SOURCE_TYPE_COLORS, SURFACE, WORK_COLORS } from './lib/palette';
 import type { DrillTracker, EtlRun, FieldBoundary, Filters, PermitActivity, RigCount } from './lib/types';
 
 // The map library and secondary pages load on demand so first paint doesn't wait on them.
@@ -101,10 +103,15 @@ export function App() {
   }, [dateBounds, filters, path]);
 
   const filteredRows = useMemo(() => applyFilters(rows, filters), [rows, filters]);
-  // Operator colors are ranked on the current year's unfiltered permits so filters never repaint them.
+  // Spare operator colors are ranked on the current year's New Drill and Existing permits (the
+  // default view), ignoring filters so a filter never repaints an operator.
   const colorRows = useMemo(() => {
     const year = (dateBounds.maxDate || new Date().toISOString()).slice(0, 4);
-    return rows.filter((row) => (row.notice_date_determination || row.notice_dated || '').startsWith(year));
+    return rows.filter(
+      (row) =>
+        (row.notice_date_determination || row.notice_dated || '').startsWith(year) &&
+        DEFAULT_WORK_ACTIVITY_GROUPS.includes(workActivityGroup(row))
+    );
   }, [rows, dateBounds.maxDate]);
   const operatorColor = useMemo(() => operatorColorMap(colorRows), [colorRows]);
   const analysisRows = useMemo(() => operatorAnalysisRows(filteredRows, operatorView), [filteredRows, operatorView]);
@@ -230,14 +237,14 @@ export function App() {
                 <Suspense fallback={<div className="h-[340px] border border-line bg-panel sm:h-[430px] xl:h-[460px]" aria-label="Loading map" />}>
                   <ActivityMap rows={filteredRows} fields={fields} selected={selected} onSelect={setSelected} />
                 </Suspense>
-                <CategoryStackPanel rows={analysisRows} primaryLabel={operatorView === 'parent' ? 'Parent Company' : 'Operator'} />
+                <CategoryStackPanel rows={analysisRows} primaryLabel={operatorView === 'parent' ? 'Parent Company' : 'Operator'} operatorColor={operatorColor} />
               </section>
               <section className="grid grid-cols-1 gap-4 md:grid-cols-2" aria-label="Activity notes and functional type mix">
                 <ActivityNotes rows={filteredRows} />
                 <FunctionalTypeMix rows={filteredRows} />
               </section>
               <section aria-label="Operator and field trend analysis">
-                <RankingPanels rows={filteredRows} colorRows={colorRows} operatorView={operatorView} />
+                <RankingPanels rows={filteredRows} operatorColor={operatorColor} operatorView={operatorView} />
               </section>
               <section aria-label="Permit records">
                 <PermitTable rows={filteredRows} selected={selected} onSelect={setSelected} />
@@ -596,6 +603,9 @@ function AboutMethodology({ onNavigateHome, onNavigate }: { onNavigateHome: () =
           <MethodBlock title="Data sources">
             <SourceLinks />
           </MethodBlock>
+          <MethodBlock title="Chart colors" wide>
+            <ChartColors />
+          </MethodBlock>
           <MethodBlock title="Kern New Drill quota" wide>
             <div className="grid gap-4 sm:grid-cols-[150px_1fr] sm:items-start">
               <figure className="border border-line bg-panel/40 p-3">
@@ -704,6 +714,147 @@ function ViewLink({ href, title, onNavigate, children }: { href: string; title: 
 
 const LINK_CLASS = 'text-accent underline decoration-accent/40 underline-offset-2 transition hover:decoration-accent';
 const CONTACT_MAILTO = 'mailto:ryan@ryweller.com?subject=California%20well%20permit%20activity';
+
+type Swatch = [label: string, color: string];
+
+// Each row: a group swatch, then its members as shades of the same hue.
+const COLOR_FAMILIES: Array<{ title: string; rows: Array<{ group: Swatch; members?: Swatch[] }> }> = [
+  {
+    title: 'Work activity',
+    rows: [
+      { group: ['New Drill', WORK_COLORS.new_drills] },
+      { group: ['Existing', WORK_COLORS.existing], members: ['Rework', 'Sidetrack', 'Deepen'].map((name) => [name, NOTICE_TYPE_COLORS[name]] as Swatch) },
+      { group: ['Abandonment', WORK_COLORS.abandonment], members: ['Abandon', 'Re-Abandon'].map((name) => [name, NOTICE_TYPE_COLORS[name]] as Swatch) }
+    ]
+  },
+  {
+    title: 'Functional type',
+    rows: [
+      { group: ['Producer', FUNCTIONAL_TYPE_COLORS.producer], members: ['Oil & Gas', 'Dry Gas'].map((name) => [name, SOURCE_TYPE_COLORS[name]] as Swatch) },
+      { group: ['Thermal Producer', FUNCTIONAL_TYPE_COLORS.thermal_producer] },
+      {
+        group: ['Injector', FUNCTIONAL_TYPE_COLORS.injector],
+        members: ['Steamflood', 'Waterflood', 'Water Disposal', 'Gas Disposal'].map((name) => [name, SOURCE_TYPE_COLORS[name]] as Swatch)
+      },
+      { group: ['Observation', FUNCTIONAL_TYPE_COLORS.observation] },
+      { group: ['Other', FUNCTIONAL_TYPE_COLORS.other] }
+    ]
+  },
+  {
+    title: 'Parent company',
+    rows: [
+      {
+        group: [CRC_PARENT_NAME, OPERATOR_SLOTS.crc],
+        members: [
+          ['Aera Energy', CRC_MEMBER_SHADES.aera],
+          ['CRC Production', CRC_MEMBER_SHADES.production],
+          ['CRC Elk Hills', CRC_MEMBER_SHADES.elkHills],
+          ['Berry, THUMS, Tidelands, others', CRC_MEMBER_SHADES.other]
+        ]
+      },
+      { group: ['Chevron U.S.A. Inc.', OPERATOR_SLOTS.chevron] },
+      { group: ['Sentinel Peak Resources', OPERATOR_SLOTS.sentinel] },
+      { group: ['Largest other parent company', OPERATOR_SLOTS.spares[0]] },
+      { group: ['Second-largest other parent company', OPERATOR_SLOTS.spares[1]] },
+      { group: ['All other operators', CHART.other] }
+    ]
+  }
+];
+
+// Illustrative counts for one field, by operator of record and by parent company.
+const COLOR_EXAMPLE: Array<{ label: string; segments: Array<[string, number, string]> }> = [
+  {
+    label: 'Operator of record',
+    segments: [
+      ['Aera Energy', 40, CRC_MEMBER_SHADES.aera],
+      ['CRC Production', 25, CRC_MEMBER_SHADES.production],
+      ['CRC Elk Hills', 15, CRC_MEMBER_SHADES.elkHills],
+      ['Chevron', 30, OPERATOR_SLOTS.chevron],
+      ['Sentinel Peak', 10, OPERATOR_SLOTS.sentinel]
+    ]
+  },
+  {
+    label: 'Parent company',
+    segments: [
+      [CRC_PARENT_NAME, 80, OPERATOR_SLOTS.crc],
+      ['Chevron', 30, OPERATOR_SLOTS.chevron],
+      ['Sentinel Peak', 10, OPERATOR_SLOTS.sentinel]
+    ]
+  }
+];
+
+function ChartColors() {
+  const total = Math.max(...COLOR_EXAMPLE.map((bar) => bar.segments.reduce((sum, [, count]) => sum + count, 0)));
+  return (
+    <>
+      <p>
+        Colors mean the same thing on every page. Each group has one hue, and its members are shades of that hue, so an
+        operator of record reads as part of its parent company and a CalGEM well type reads as part of its functional
+        type. Gray is always Other. Fields, counties, districts and permit age have no fixed color; they use a gray ramp,
+        darkest for the largest. Operator colors are fixed for California Resources, Chevron and Sentinel Peak; the next
+        two largest parent companies by this year&apos;s New Drill and Existing permits take amber and purple.
+      </p>
+      <div className="mt-3 grid gap-4 sm:grid-cols-3">
+        {COLOR_FAMILIES.map((family) => (
+          <div key={family.title}>
+            <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{family.title}</h3>
+            <ul className="space-y-1.5 text-xs">
+              {family.rows.map(({ group, members }) => (
+                <li key={group[0]}>
+                  <span className="flex items-center gap-1.5 text-slate-200">
+                    <ColorChip color={group[1]} />
+                    {group[0]}
+                  </span>
+                  {members && (
+                    <span className="ml-4 mt-0.5 flex flex-wrap gap-x-2.5 gap-y-0.5 text-slate-400">
+                      {members.map(([label, color]) => (
+                        <span key={color} className="inline-flex items-center gap-1">
+                          <ColorChip color={color} small />
+                          {label}
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      <figure className="mt-4 border border-line bg-panel/40 p-3">
+        <div className="space-y-2">
+          {COLOR_EXAMPLE.map((bar) => (
+            <div key={bar.label} className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-2 text-xs sm:grid-cols-[130px_minmax(0,1fr)]">
+              <span className="text-slate-400">{bar.label}</span>
+              <div className="flex h-5" style={{ gap: 2 }}>
+                {bar.segments.map(([label, count, color]) => (
+                  <div key={label} title={`${label}: ${count}`} style={{ width: `${(count / total) * 100}%`, backgroundColor: color }} />
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-2 text-xs sm:grid-cols-[130px_minmax(0,1fr)]">
+            <span className="text-slate-400">Field, by rank</span>
+            <div className="flex h-5" style={{ gap: 2 }}>
+              {[...NEUTRAL_RAMP, CHART.other].map((color, index) => (
+                <div key={color} style={{ width: `${[34, 24, 17, 12, 13][index]}%`, backgroundColor: color }} />
+              ))}
+            </div>
+          </div>
+        </div>
+        <figcaption className="mt-2 text-[11px] text-slate-500">
+          Example with illustrative counts: one field&apos;s permits stacked by operator of record, then rolled up to parent
+          company. California Resources operators keep the CRC blue in both views. The last bar shows the gray ramp used
+          for fields and other ranked categories, with Other as the lightest step.
+        </figcaption>
+      </figure>
+    </>
+  );
+}
+
+function ColorChip({ color, small = false }: { color: string; small?: boolean }) {
+  return <span className={`inline-block shrink-0 ${small ? 'h-2 w-2' : 'h-2.5 w-2.5'}`} style={{ backgroundColor: color, outline: `1px solid ${SURFACE.line}` }} />;
+}
 
 function MethodBlock({ title, wide = false, children }: { title: string; wide?: boolean; children: React.ReactNode }) {
   return (

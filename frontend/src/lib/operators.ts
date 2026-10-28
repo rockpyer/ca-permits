@@ -46,6 +46,6 @@ export function operatorAnalysisRows(rows: PermitActivity[], view: OperatorView)
   return rows.map((row) => ({ ...row, operator_name: operatorNameForView(row, view) }));
 }
 
-function normalizeOperatorName(value: string) {
+export function normalizeOperatorName(value: string) {
   return value.toLowerCase().replace(/[.,]/g, '').replace(/\s+/g, ' ').trim();
 }

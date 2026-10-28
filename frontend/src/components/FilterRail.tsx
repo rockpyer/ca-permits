@@ -11,6 +11,7 @@ import {
   type WorkActivityGroup,
   type FunctionalTypeGroup
 } from '../lib/grouping';
+import { hasOperatorColor } from '../lib/operatorColors';
 import type { OperatorView } from '../lib/operators';
 import type { Filters, PermitActivity } from '../lib/types';
 import { NewsletterSignup } from './NewsletterSignup';
@@ -41,7 +42,7 @@ export function FilterRail({
   onOperatorViewChange,
   summary
 }: Props) {
-  const facet = (key: FacetKey, label: string, colorFor?: (value: string) => string) => (
+  const facet = (key: FacetKey, label: string, colorFor?: (value: string) => string | undefined) => (
     <MultiSelect
       label={label}
       options={facetOptions(rows, filters, key, operatorView)}
@@ -119,7 +120,7 @@ export function FilterRail({
 
         <FilterSection title="Well And Geography" defaultOpen>
           <OperatorViewToggle value={operatorView} onChange={onOperatorViewChange} />
-          {facet('operators', 'Operator', operatorView === 'operator' ? operatorColor : undefined)}
+          {facet('operators', 'Operator', operatorColor && ((value) => (hasOperatorColor(operatorColor, value) ? operatorColor(value) : undefined)))}
           {facet('fields', 'Field')}
           {facet('counties', 'County')}
           {facet('districts', 'District')}

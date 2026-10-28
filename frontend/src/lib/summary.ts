@@ -135,11 +135,16 @@ export function stackedMatrix(
   primaryKey: keyof PermitActivity,
   stackKey: keyof PermitActivity,
   primaryLimit = 8,
-  stackLimit = 5
+  stackLimit = 5,
+  keepStack: (stack: string) => boolean = () => true
 ) {
   const currentYearRows = rows.filter(isCurrentYear);
   const primaries = countBy(currentYearRows, primaryKey, primaryLimit).map((item) => item.name);
-  const stacks = countBy(currentYearRows, stackKey, stackLimit).map((item) => item.name);
+  // Stacks that fail keepStack (e.g. operators without a color) fold into Other.
+  const stacks = countBy(currentYearRows, stackKey, Number.MAX_SAFE_INTEGER)
+    .map((item) => item.name)
+    .filter(keepStack)
+    .slice(0, stackLimit);
 
   return primaries.map((primary) => {
     const entry: Record<string, string | number> = { name: primary };
