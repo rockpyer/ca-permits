@@ -1,0 +1,40 @@
+# California well permit activity
+
+> A free web app that tracks approved California oil and gas well permits from public CalGEM WellSTAR data, updated
+> weekly. Built by Ryan Weller ([ryweller.com](https://ryweller.com)).
+
+## What it shows
+
+- Approved well permits by operator, parent company, field, county, and CalGEM district.
+- Work activity: New Drill, Existing (work on existing wells), and Abandonment. Functional well type: producer, thermal producer, injector, observation, and other.
+- Weekly approved permits by work activity, and a since-last-week summary.
+- Kern County New Drill permits vs. the SB 237 annual cap, with operator-reported spuds from the CalGEM Central District Drill Tracker.
+- A map of permits over CalGEM field boundaries, and permit records with CSV export and links to each well's WellSTAR detail page.
+- Filters are stored in the URL, so a filtered view can be shared as a link.
+
+## Latest weekly numbers
+
+{{latest}}
+
+## Pages
+
+- [California well permit activity](https://permits.ryweller.com/): the permit explorer
+- [About / methodology](https://permits.ryweller.com/about-methodology/): data sources, definitions, and limitations
+
+## Data sources
+
+- [WellSTAR Notices](https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Notices/MapServer/1): permits
+- [WellSTAR Wells](https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Wells/MapServer/0): well location, type, and status
+- [CalGEM field boundaries](https://gis.conservation.ca.gov/server/rest/services/CalGEM/Admin_Bounds/MapServer/0)
+- [CalGEM Central District Drill Tracker](https://www.conservation.ca.gov/calgem/Documents/Permits/Central%20District%20Drill%20Tracker.xlsx): Kern spud dates
+- [Baker Hughes rig count](https://rigcount.bakerhughes.com/na-rig-count): weekly California and Kern rigs
+
+Counts are approved permits, not wells drilled. CalGEM is the authoritative source for any single permit.
+
+## Contact
+
+- [Ryan Weller](https://ryweller.com/services/#contact): feedback and custom oil and gas data work
+
+## License
+
+CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/). Cite "California well permit activity, permits.ryweller.com" when quoting these numbers.

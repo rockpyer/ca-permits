@@ -1,18 +1,15 @@
 {
   "name": "California well permit activity",
   "short_name": "CA Permits",
-  "description": "Track California oil and gas well permit activity from public CalGEM and WellSTAR data.",
+  "description": "Approved California oil and gas well permits and Kern County drilling activity from public CalGEM and WellSTAR data.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#0f1816",
-  "theme_color": "#0f1816",
+  "background_color": "#EDF0F3",
+  "theme_color": "#EDF0F3",
   "icons": [
-    {
-      "src": "/app-icon.svg",
-      "sizes": "512x512",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
   ]
 }
