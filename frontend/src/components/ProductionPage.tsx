@@ -22,7 +22,7 @@ import {
   recentAnnualizedAbandonment,
   recentAnnualizedExistingWork
 } from '../lib/production';
-import { ACCENT, CHART, SERIES, WORK_COLORS } from '../lib/palette';
+import { ACCENT, CHART, WORK_COLORS } from '../lib/palette';
 import type { Sb237DrillTrackerStats } from '../lib/sb237';
 import type { PermitActivity } from '../lib/types';
 
@@ -218,7 +218,7 @@ export function ProductionPage({ rows, loading, error, sb237Stats, onNavigateHom
                   />
                   <Bar yAxisId="permits" dataKey="kernNewDrillPermitsToDate" name="Kern New Drill to date" fill={WORK_COLORS.existing} opacity={0.55} />
                   <Bar yAxisId="permits" dataKey="projectedNewDrillPermits" name="2026 projected Kern New Drill Permits" fill={ACCENT.gold} opacity={0.75} />
-                  <Bar yAxisId="permits" dataKey="projectedExistingWork" name="Existing work at current rate" fill={SERIES[0]} opacity={0.5} />
+                  <Bar yAxisId="permits" dataKey="projectedExistingWork" name="Existing work at current rate" fill={WORK_COLORS.existing} opacity={0.5} />
                 </ComposedChart>
               </ResponsiveContainer>
             </ChartPanel>

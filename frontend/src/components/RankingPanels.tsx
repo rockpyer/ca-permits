@@ -18,25 +18,26 @@ import {
   stackedMatrix,
   truncateLabel
 } from '../lib/summary';
-import { operatorAnalysisRows, operatorNameForView, rowOperatorDisplayName, type OperatorView } from '../lib/operators';
+import { operatorAnalysisRows, rowOperatorDisplayName, type OperatorView } from '../lib/operators';
 import {
   functionalTypeColor,
   functionalTypeGroup,
   functionalTypeLabel,
   noticeType,
+  noticeTypeColor,
   sourceType,
+  sourceTypeColor,
   workActivityColor,
   workActivityGroup,
-  workActivityLabel,
-  type FunctionalTypeGroup,
-  type WorkActivityGroup
+  workActivityLabel
 } from '../lib/grouping';
-import { operatorColorMap } from '../lib/operatorColors';
-import { CHART, SERIES, SURFACE } from '../lib/palette';
+import { hasOperatorColor, type OperatorColor } from '../lib/operatorColors';
+import { CHART, NEUTRAL_RAMP, SOURCE_TYPE_COLORS, SURFACE } from '../lib/palette';
 import type { PermitActivity } from '../lib/types';
 
-// Fixed order; series past SERIES.length fold into "Other" rather than reusing a hue.
-const STACK_COLORS = SERIES;
+// Categories without a fixed identity take the neutral ramp by rank; past its length they
+// fold into "Other" rather than reusing a step.
+const neutralColor = (index: number) => NEUTRAL_RAMP[index] || CHART.other;
 
 type CategoryField = {
   key: CategoryFieldKey;
@@ -70,20 +71,16 @@ const CATEGORY_FIELDS: CategoryField[] = [
 
 export function RankingPanels({
   rows,
-  colorRows,
+  operatorColor,
   operatorView
 }: {
   rows: PermitActivity[];
-  colorRows: PermitActivity[];
+  operatorColor: OperatorColor;
   operatorView: OperatorView;
 }) {
   const analysisRows = useMemo(() => operatorAnalysisRows(rows, operatorView), [operatorView, rows]);
-  const operatorColor = useMemo(
-    () => operatorColorMap(colorRows, (row) => operatorNameForView(row, operatorView)),
-    [colorRows, operatorView]
-  );
-  const fieldByOperator = stackedMatrix(analysisRows, 'field_name', 'operator_name', 8, 5);
-  const operatorByField = stackedMatrix(analysisRows, 'operator_name', 'field_name', 8, 5);
+  const fieldByOperator = stackedMatrix(analysisRows, 'field_name', 'operator_name', 8, 5, (name) => hasOperatorColor(operatorColor, name));
+  const operatorByField = stackedMatrix(analysisRows, 'operator_name', 'field_name', 8, NEUTRAL_RAMP.length);
   const cumulativeTrend = operatorCumulativeWorkActivityTrend(analysisRows, 5, 52);
   const operatorLabel = operatorView === 'parent' ? 'Parent Companies' : 'Operators';
 
@@ -156,7 +153,7 @@ function StackedBarPanel({
           <Tooltip content={<CompactChartTooltip showTotal />} cursor={{ fill: CHART.cursorFill }} />
           <Legend wrapperStyle={{ color: CHART.label, fontSize: 11 }} />
           {keys.map((key, index) => (
-            <Bar key={key} dataKey={key} stackId="total" fill={key === 'Other' ? CHART.other : colorFor ? colorFor(key) : STACK_COLORS[index % STACK_COLORS.length]} stroke={SURFACE.panel} strokeWidth={1} />
+            <Bar key={key} dataKey={key} stackId="total" fill={key === 'Other' ? CHART.other : colorFor ? colorFor(key) : neutralColor(index)} stroke={SURFACE.panel} strokeWidth={1} />
           ))}
         </BarChart>
       </ResponsiveContainer>
@@ -164,10 +161,18 @@ function StackedBarPanel({
   );
 }
 
-export function CategoryStackPanel({ rows, primaryLabel: analysisOperatorLabel }: { rows: PermitActivity[]; primaryLabel: string }) {
+export function CategoryStackPanel({
+  rows,
+  primaryLabel: analysisOperatorLabel,
+  operatorColor
+}: {
+  rows: PermitActivity[];
+  primaryLabel: string;
+  operatorColor: OperatorColor;
+}) {
   const [primaryKey, setPrimaryKey] = useState<CategoryFieldKey>('operator');
   const [stackKey, setStackKey] = useState<CategoryFieldKey>('source_type');
-  const matrix = useMemo(() => categoricalStackedMatrix(rows, primaryKey, stackKey, 10, fieldFor(stackKey).kind === 'standard' ? STACK_COLORS.length - 1 : 12), [primaryKey, rows, stackKey]);
+  const matrix = useMemo(() => categoricalStackedMatrix(rows, primaryKey, stackKey, operatorColor), [operatorColor, primaryKey, rows, stackKey]);
   const data = matrix.data;
   const keys = stackKeys(data);
   const primaryLabel = primaryKey === 'operator' ? analysisOperatorLabel : fieldLabel(primaryKey);
@@ -203,7 +208,7 @@ export function CategoryStackPanel({ rows, primaryLabel: analysisOperatorLabel }
           <Tooltip content={<CompactChartTooltip showTotal />} cursor={{ fill: CHART.cursorFill }} />
           <Legend wrapperStyle={{ color: CHART.label, fontSize: 11 }} />
           {keys.map((key, index) => (
-            <Bar key={key} dataKey={key} stackId="total" fill={matrix.colors[key] || STACK_COLORS[index % STACK_COLORS.length]} stroke={SURFACE.panel} strokeWidth={1} />
+            <Bar key={key} dataKey={key} stackId="total" fill={matrix.colors[key] || neutralColor(index)} stroke={SURFACE.panel} strokeWidth={1} />
           ))}
         </BarChart>
       </ResponsiveContainer>
@@ -294,19 +299,26 @@ function categoricalStackedMatrix(
   rows: PermitActivity[],
   primaryKey: CategoryFieldKey,
   stackKey: CategoryFieldKey,
-  primaryLimit = 10,
-  stackLimit = 12
+  operatorColor: OperatorColor,
+  primaryLimit = 10
 ) {
   const primaryField = fieldFor(primaryKey);
   const stackField = fieldFor(stackKey);
   const primaries = topValues(rows, primaryField.get, primaryLimit);
-  const stacks = topValues(rows, stackField.get, stackLimit);
+  // Operators without a color, well types in the Other functional type, and ranked categories
+  // past the neutral ramp fold into Other, so gray only ever means Other.
+  const stacks =
+    stackKey === 'operator'
+      ? topValues(rows, stackField.get, Number.MAX_SAFE_INTEGER).filter((name) => hasOperatorColor(operatorColor, name))
+      : stackKey === 'source_type'
+        ? topValues(rows, stackField.get, Number.MAX_SAFE_INTEGER).filter((name) => name in SOURCE_TYPE_COLORS)
+        : topValues(rows, stackField.get, stackField.kind === 'standard' ? NEUTRAL_RAMP.length : 12);
   const colors: Record<string, string> = {};
 
   rows.forEach((row) => {
     const stack = stackField.get(row);
     if (stacks.includes(stack) || stack === 'Other') {
-      colors[stack] ||= colorForStack(row, stackField.kind);
+      colors[stack] ||= colorForStack(row, stackKey, operatorColor) || '';
     }
   });
   colors.Other ||= CHART.other;
@@ -340,8 +352,12 @@ function fieldFor(key: CategoryFieldKey) {
   return CATEGORY_FIELDS.find((field) => field.key === key) || CATEGORY_FIELDS[0];
 }
 
-function colorForStack(row: PermitActivity, kind: CategoryField['kind']) {
-  if (kind === 'work') return workActivityColor(workActivityGroup(row) as WorkActivityGroup);
-  if (kind === 'type') return functionalTypeColor(functionalTypeGroup(row) as FunctionalTypeGroup);
-  return CHART.other;
+// Hue = group, shade = member: detail stacks are shades of their group's color.
+function colorForStack(row: PermitActivity, key: CategoryFieldKey, operatorColor: OperatorColor) {
+  if (key === 'operator') return operatorColor(rowOperatorDisplayName(row));
+  if (key === 'work_activity') return workActivityColor(workActivityGroup(row));
+  if (key === 'activity_detail') return noticeTypeColor(row);
+  if (key === 'functional_type') return functionalTypeColor(functionalTypeGroup(row));
+  if (key === 'source_type') return sourceTypeColor(row);
+  return undefined;
 }

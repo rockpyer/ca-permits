@@ -1,4 +1,4 @@
-import { ACCENT, CHART, SERIES, WORK_COLORS, WORK_TEXT_COLORS } from './palette';
+import { CHART, FUNCTIONAL_TYPE_COLORS, NOTICE_TYPE_COLORS, SOURCE_TYPE_COLORS, WORK_COLORS, WORK_TEXT_COLORS } from './palette';
 import type { PermitActivity } from './types';
 
 export type WorkActivityGroup = 'new_drills' | 'existing' | 'abandonment';
@@ -11,11 +11,11 @@ export const WORK_ACTIVITY_GROUPS: Array<{ key: WorkActivityGroup; label: string
 ];
 
 export const FUNCTIONAL_TYPE_GROUPS: Array<{ key: FunctionalTypeGroup; label: string; symbol: string; color: string }> = [
-  { key: 'producer', label: 'Producer', symbol: 'oil-gas.svg', color: ACCENT.neutral },
-  { key: 'thermal_producer', label: 'Thermal Producer', symbol: 'cyclic-steam.svg', color: SERIES[4] },
-  { key: 'injector', label: 'Injector', symbol: 'gas-disposal.svg', color: SERIES[0] },
-  { key: 'observation', label: 'Observation', symbol: 'observation.svg', color: SERIES[5] },
-  { key: 'other', label: 'Other', symbol: 'other.svg', color: CHART.other }
+  { key: 'producer', label: 'Producer', symbol: 'oil-gas.svg', color: FUNCTIONAL_TYPE_COLORS.producer },
+  { key: 'thermal_producer', label: 'Thermal Producer', symbol: 'cyclic-steam.svg', color: FUNCTIONAL_TYPE_COLORS.thermal_producer },
+  { key: 'injector', label: 'Injector', symbol: 'gas-disposal.svg', color: FUNCTIONAL_TYPE_COLORS.injector },
+  { key: 'observation', label: 'Observation', symbol: 'observation.svg', color: FUNCTIONAL_TYPE_COLORS.observation },
+  { key: 'other', label: 'Other', symbol: 'other.svg', color: FUNCTIONAL_TYPE_COLORS.other }
 ];
 
 export const DEFAULT_WORK_ACTIVITY_GROUPS: WorkActivityGroup[] = ['new_drills', 'existing'];
@@ -67,6 +67,16 @@ export function functionalTypeSymbol(group: FunctionalTypeGroup) {
 
 export function functionalTypeColor(group: FunctionalTypeGroup) {
   return FUNCTIONAL_TYPE_GROUPS.find((item) => item.key === group)?.color || CHART.other;
+}
+
+/** CalGEM well type color: a shade of its functional type's hue. */
+export function sourceTypeColor(row: PermitActivity) {
+  return SOURCE_TYPE_COLORS[sourceType(row)] || functionalTypeColor(functionalTypeGroup(row));
+}
+
+/** CalGEM notice type color: a shade of its work activity's hue. */
+export function noticeTypeColor(row: PermitActivity) {
+  return NOTICE_TYPE_COLORS[noticeType(row)] || workActivityColor(workActivityGroup(row));
 }
 
 export function normalizeSourceType(value: string) {
