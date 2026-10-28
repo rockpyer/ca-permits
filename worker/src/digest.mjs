@@ -8,7 +8,6 @@ import { audit, esc, iso } from './util.mjs';
 
 const MAX_AGE_DAYS = 4; // Skip the send if the site data is older than this (the ingest or deploy stalled).
 const change = (now, before) => (now === before ? 'the same as' : now > before ? `up ${fmt(now - before)} from` : `down ${fmt(before - now)} from`);
-const REASON = 'You get this because you signed up for the weekly summary at permits.ryweller.com.';
 const INDEPENDENT = 'Independent summary by Ryan Weller, compiled from public CalGEM WellSTAR data. It is not produced, reviewed or endorsed by CalGEM.';
 
 // The opening line and subject: whether development permitting (New Drill plus existing-well rework, sidetrack and
@@ -133,7 +132,7 @@ export function renderDigest(d, env, unsub, mapSrc = null) {
     note(`Source: CalGEM WellSTAR approved notices of intention, counted by approval date. Data refreshed ${esc(d.generatedAt.slice(0, 10))}.`),
     note(esc(INDEPENDENT))
   ].join('\n');
-  const html = emailHtml(env, { preheader: opening.text, body, unsub, reason: REASON });
+  const html = emailHtml(env, { preheader: opening.text, body, unsub, contact: true });
   const groups = Array.isArray(d.newDrillGroups) ? d.newDrillGroups : [];
   const text = [
     `California well permit activity, weekly update: ${range(d)}`, `Open the site: ${site}`, '', opening.text, '', summary, '',
@@ -144,7 +143,7 @@ export function renderDigest(d, env, unsub, mapSrc = null) {
     ['Most active operators:', ...d.topOperators.filter((o) => o.total > 0).slice(0, 6).map((o) => `  ${o.name}: ${fmt(o.total)} (${fmt(o.new_drills)} New Drill)`), ''].join('\n'),
     d.newOperators.length ? `Operators with their first permit in the data: ${d.newOperators.join(', ')}\n` : '',
     `Source: CalGEM WellSTAR approved notices of intention, by approval date. Data refreshed ${d.generatedAt.slice(0, 10)}.`, INDEPENDENT, '',
-    emailFooterText(env, { unsub, reason: REASON })
+    emailFooterText(env, { unsub, contact: true })
   ].filter((l, i, a) => l !== '' || a[i - 1] !== '').join('\n');
   return { subject, text, html };
 }

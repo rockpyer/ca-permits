@@ -108,9 +108,19 @@ ${note(`${esc(k.year)} cap: ${fmt(k.quota)} New Drill permits in Kern County. Pr
 }
 
 /* ---------- A whole email ---------- */
-export function emailHtml(env, { preheader = '', body, unsub = '', reason = '' }) {
-  const links = [`<a href="${esc(env.SITE_URL)}" style="color:${C.link}">${esc(host(env.SITE_URL))}</a>`, `<a href="https://ryweller.com" style="color:${C.link}">ryweller.com</a>`];
-  if (unsub) links.push(`<a href="${esc(unsub)}" style="color:${C.muted}">Unsubscribe</a>`);
+const LINKEDIN = 'https://www.linkedin.com/in/ryweller/';
+// LinkedIn's "in" mark as a styled span: Gmail and Outlook don't show SVG, and a span still shows with images off.
+const linkedinBadge = `<span style="display:inline-block;width:16px;height:16px;border-radius:3px;background:#0a66c2;color:#ffffff;font:700 11px/16px Arial,Helvetica,sans-serif;text-align:center;vertical-align:-3px;margin-right:5px">in</span>`;
+export const CONTACT = 'Thanks for subscribing! For analytics, consulting, planning and development work, or questions about this data, reach out to Ryan Weller.';
+
+export function emailHtml(env, { preheader = '', body, unsub = '', reason = '', contact = false }) {
+  const link = (href, label, color = C.link) => `<a href="${esc(href)}" style="color:${color};text-decoration:none">${label}</a>`;
+  const links = [link(env.SITE_URL, esc(host(env.SITE_URL))), link('https://ryweller.com', 'ryweller.com'), link(LINKEDIN, `${linkedinBadge}LinkedIn`)];
+  if (unsub) links.push(link(unsub, 'Unsubscribe', C.muted));
+  const message = contact
+    ? `Thanks for subscribing! For analytics, consulting, planning and development work, or questions about this data, reach out to ${link('https://ryweller.com', 'Ryan Weller')}.`
+    : esc(reason);
+  const address = esc(env.POSTAL_ADDRESS || '').replace(/\n/g, ', ');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
@@ -120,13 +130,17 @@ export function emailHtml(env, { preheader = '', body, unsub = '', reason = '' }
 <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:${C.ground}"><tr><td align="center" style="padding:24px 10px">
 <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:620px">
 <tr><td class="pad" style="background:${C.panel};border:1px solid ${C.line};border-radius:8px;padding:24px 28px 22px">${body}</td></tr>
-<tr><td style="padding:16px 8px 0;font:12px/1.7 ${FONT};color:${C.muted}">
-${links.join(' &nbsp;·&nbsp; ')}<br>${reason ? `${esc(reason)}<br>` : ''}${esc(env.POSTAL_ADDRESS || '').replace(/\n/g, '<br>')}</td></tr>
+<tr><td style="padding:18px 8px 0">
+${message ? `<p style="margin:0 0 10px;font:13px/1.55 ${FONT};color:${C.ink}">${message}</p>` : ''}
+<p style="margin:0 0 12px;font:13px/1.8 ${FONT};color:${C.muted}">${links.join(' &nbsp;·&nbsp; ')}</p>
+${address ? `<p style="margin:0;font:11px/1.5 ${FONT};color:${C.faint}">${address}</p>` : ''}
+</td></tr>
 </table></td></tr></table></body></html>`;
 }
 
-export function emailFooterText(env, { unsub = '', reason = '' } = {}) {
-  return ['--', `${env.SITE_URL}  ·  https://ryweller.com`, reason, unsub ? `Unsubscribe: ${unsub}` : '', env.POSTAL_ADDRESS || ''].filter(Boolean).join('\n');
+export function emailFooterText(env, { unsub = '', reason = '', contact = false } = {}) {
+  return ['--', contact ? `${CONTACT} https://ryweller.com` : reason, `${env.SITE_URL}  ·  https://ryweller.com  ·  LinkedIn: ${LINKEDIN}`,
+    unsub ? `Unsubscribe: ${unsub}` : '', (env.POSTAL_ADDRESS || '').replace(/\n/g, ', ')].filter(Boolean).join('\n');
 }
 
 /* ---------- Standalone pages (confirm, unsubscribe) ---------- */
@@ -145,6 +159,6 @@ button{font:600 15px/1 ${FONT};background:${C.accent};color:#fff;border:0;border
 footer{margin:14px 8px 0;font-size:12px;color:${C.muted}}
 </style></head><body><main><div class="card">${masthead(env, null, 'Weekly email')}
 <h1>${esc(title)}</h1>${body}</div>
-<footer><a href="${esc(env.SITE_URL)}">${esc(host(env.SITE_URL))}</a> &nbsp;·&nbsp; <a href="https://ryweller.com">ryweller.com</a></footer></main></body></html>`,
+<footer><a href="${esc(env.SITE_URL)}">${esc(host(env.SITE_URL))}</a> &nbsp;·&nbsp; <a href="https://ryweller.com">ryweller.com</a> &nbsp;·&nbsp; <a href="${LINKEDIN}">${linkedinBadge}LinkedIn</a></footer></main></body></html>`,
   { status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer' } });
 }

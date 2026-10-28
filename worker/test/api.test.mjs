@@ -166,7 +166,10 @@ test('weekly digest reaches active subscribers once per week and skips stale dat
   assert.match(state.mail[0].html, /Aera &lt;Energy&gt; LLC<\/b> <span[^>]*>· Belridge, South, Kern/);
   assert.match(state.mail[0].html, />Open the site&nbsp;→</);
   assert.match(state.mail[0].html, /href="https:\/\/ryweller\.com"/);
-  assert.match(state.mail[0].html, /PO Box 1<br>Bakersfield/);
+  assert.match(state.mail[0].html, /font:11px[^"]*color:#8a96a3">PO Box 1, Bakersfield CA</);
+  assert.match(state.mail[0].html, /Thanks for subscribing! For analytics, consulting, planning and development work/);
+  assert.match(state.mail[0].html, /href="https:\/\/www\.linkedin\.com\/in\/ryweller\/"/);
+  assert.doesNotMatch(state.mail[0].html, /You get this because/);
   assert.match(state.mail[0].text, /Oct 13\s+#{20} 86/);
   assert.match(state.mail[0].text, /PO Box 1/);
   assert.equal((await runWeekly(env)).recipients, 0);
