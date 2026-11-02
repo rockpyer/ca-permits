@@ -1,3 +1,6 @@
+{"source":"fields","status":"success","source_count":516,"upsert_count":516,"details":{},"finished_at":"2026-11-02T20:46:51.143383+00:00"}
+{"source":"wells","status":"success","source_count":242598,"upsert_count":11228,"details":{"deduped_count":242598,"stored_count":11229},"finished_at":"2026-11-02T20:46:50.195660+00:00"}
+{"source":"permits","status":"success","source_count":8508,"upsert_count":8508,"details":{"deduped_count":8508,"stored_count":11557},"finished_at":"2026-11-02T20:45:28.229550+00:00"}
 {"source":"fields","status":"success","source_count":516,"upsert_count":516,"details":{},"finished_at":"2026-10-26T17:23:31.477095+00:00"}
 {"source":"wells","status":"success","source_count":242593,"upsert_count":11121,"details":{"deduped_count":242593,"stored_count":11122},"finished_at":"2026-10-26T17:23:30.842268+00:00"}
 {"source":"permits","status":"success","source_count":8521,"upsert_count":8521,"details":{"deduped_count":8521,"stored_count":11443},"finished_at":"2026-10-26T17:22:09.041413+00:00"}
@@ -55,6 +58,3 @@
 {"source":"fields","status":"success","source_count":516,"upsert_count":516,"details":{},"finished_at":"2026-05-15T08:08:46.800913+00:00"}
 {"source":"permits","status":"success","source_count":9558,"upsert_count":9558,"details":{"deduped_count":9558},"finished_at":"2026-05-15T08:08:44.4851+00:00"}
 {"source":"wells","status":"success","source_count":242450,"upsert_count":242450,"details":{"deduped_count":242450},"finished_at":"2026-05-15T08:08:32.215662+00:00"}
-{"source":"fields","status":"success","source_count":516,"upsert_count":516,"details":{},"finished_at":"2026-05-11T12:25:49.43495+00:00"}
-{"source":"permits","status":"success","source_count":9547,"upsert_count":9547,"details":{"deduped_count":9547},"finished_at":"2026-05-11T12:25:48.036878+00:00"}
-{"source":"wells","status":"success","source_count":242444,"upsert_count":242444,"details":{"deduped_count":242444},"finished_at":"2026-05-11T12:25:38.756552+00:00"}
