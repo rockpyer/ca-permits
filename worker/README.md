@@ -10,7 +10,7 @@ A Cloudflare Worker beside the static site. permits.ryweller.com stays on GitHub
 | `/confirm`, `/unsubscribe` | Links in emails (GET shows a button, POST acts; POST is also RFC 8058 one-click) |
 | `/img/map-<week>.png` | Each week's email map, copied from the site so old emails keep their own map |
 | `/admin` | Admin page, signed in as **Neptune** (permits.ryweller.com/admin forwards here) |
-| cron, Mondays 17:23 UTC | Weekly digest to active subscribers |
+| cron, hourly 15:23–23:23 UTC Mon and Tue | Weekly digest, sent at the first run after the weekly data refresh reaches the site |
 
 Storage is the D1 database `ca-permits` (`fa528a5c-…`, schema in `migrations/`, already applied). Email goes through
 [Resend](https://resend.com/docs/api-reference/emails/send-batch-emails).
