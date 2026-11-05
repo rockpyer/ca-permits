@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
@@ -20,6 +20,8 @@ function d1() {
   return { db, prepare: (sql) => stmt(sql), batch: async (ss) => ss.map((s) => s.exec()) };
 }
 
+// The fixture digest covers the week ending Oct 19, 2026; run the tests on the following Tuesday.
+mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-20T18:23:00Z') });
 const PW = 'test-password-1';
 const PNG = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3]);
 const DIGEST = (generatedAt = new Date().toISOString()) => ({
@@ -256,4 +258,28 @@ test('the opening line says whether development permitting rose, fell or held', 
   assert.match(lead(d(10, 4)).text, /No New Drill permits were approved\.$/);
   assert.match(lead(d(10, 4, 1)).text, /1 was New Drill\.$/);
   assert.doesNotMatch(lead(d(44, 39)).subject, /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
+});
+
+test('the hourly schedule sends once a week, waits for fresh data, and logs a stale skip once', async () => {
+  const { env, state } = await setup(), c = client(env);
+  await signup(c, 'pat@operator.com');
+  await c('POST', `/confirm?t=${tokenFrom(state.mail[0])}`);
+  const audits = () => env.DB.db.prepare(`SELECT action FROM audit_log WHERE action LIKE 'digest%'`).all().map((a) => a.action);
+
+  // Monday morning, before the ingest: the site still has the previous week (permit dates 8+ days old).
+  state.digest = { ...DIGEST(new Date(Date.now() - 864e5).toISOString()), weekStart: '2026-10-06', weekEnd: '2026-10-12' };
+  for (let i = 0; i < 3; i++) assert.equal((await runWeekly(env)).skipped, 'stale data');
+  assert.deepEqual(audits(), ['digest_skipped']);
+
+  // Fresh data lands: the next run sends, the runs after it do nothing and log nothing.
+  state.digest = DIGEST();
+  assert.equal((await runWeekly(env)).sent, 1);
+  for (let i = 0; i < 3; i++) assert.equal((await runWeekly(env)).recipients, 0);
+  assert.deepEqual(audits(), ['digest_skipped', 'digest_sent']);
+  assert.equal(state.mail.length, 2); // confirmation + one digest
+});
+
+test('the cron runs on Monday and Tuesday by name (Cloudflare counts 1 as Sunday)', () => {
+  const cfg = fs.readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
+  assert.match(cfg, /"crons": \["23 15-23 \* \* MON,TUE"\]/);
 });

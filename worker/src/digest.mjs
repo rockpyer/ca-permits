@@ -6,7 +6,10 @@ import { sendMail } from './mail.mjs';
 import { unsubscribeUrl } from './subscribe.mjs';
 import { audit, esc, iso } from './util.mjs';
 
-const MAX_AGE_DAYS = 4; // Skip the send if the site data is older than this (the ingest or deploy stalled).
+// Fresh enough to send: the site rebuilt within 4 days and its latest permit date is within 6 days. The cron runs hourly
+// on Mondays and Tuesdays (UTC), so the email goes out at the first run after the weekly ingest lands; GitHub often
+// starts the scheduled ingest hours late.
+const MAX_AGE_DAYS = 4, MAX_WEEK_AGE_DAYS = 6;
 const change = (now, before) => (now === before ? 'the same as' : now > before ? `up ${fmt(now - before)} from` : `down ${fmt(before - now)} from`);
 const INDEPENDENT = 'Independent summary by Ryan Weller, compiled from public CalGEM WellSTAR data. It is not produced, reviewed or endorsed by CalGEM.';
 
@@ -155,14 +158,20 @@ const listHeaders = (unsub) => ({ 'List-Unsubscribe': `<${unsub}>`, 'List-Unsubs
 export async function runWeekly(env, { actor = 'system', req = null, fetchFn = fetch, force = false } = {}) {
   const d = await loadDigest(env, fetchFn);
   const ageDays = (Date.now() - Date.parse(d.generatedAt)) / 864e5;
-  if (!force && !(ageDays <= MAX_AGE_DAYS)) {
-    await audit(env, req, actor, 'digest_skipped', d.weekEnd, { reason: 'stale data', generatedAt: d.generatedAt });
-    return { skipped: 'stale data', generatedAt: d.generatedAt };
+  const weekAgeDays = (Date.now() - Date.parse(`${d.weekEnd}T23:59:59Z`)) / 864e5;
+  if (!force && !(ageDays <= MAX_AGE_DAYS && weekAgeDays <= MAX_WEEK_AGE_DAYS)) {
+    // Hourly runs see the same stale data many times: record it once per data build.
+    const seen = await env.DB.prepare(`SELECT 1 FROM audit_log WHERE action = 'digest_skipped' AND subject = ?1 AND detail LIKE ?2`).bind(d.weekEnd, `%${d.generatedAt}%`).first();
+    if (!seen || actor !== 'system') await audit(env, req, actor, 'digest_skipped', d.weekEnd, { reason: 'stale data', generatedAt: d.generatedAt });
+    return { skipped: 'stale data', generatedAt: d.generatedAt, weekEnd: d.weekEnd };
   }
-  const week = d.weekEnd, mapSrc = await ensureMap(env, d, fetchFn);
-  await env.DB.prepare('INSERT INTO digests (week, data_generated_at, started_at) VALUES (?1, ?2, ?3) ON CONFLICT(week) DO NOTHING').bind(week, d.generatedAt, iso()).run();
+  const week = d.weekEnd;
   const todo = (await env.DB.prepare(`SELECT s.id, s.email FROM subscribers s WHERE s.status = 'active'
       AND NOT EXISTS (SELECT 1 FROM sends x WHERE x.week = ?1 AND x.subscriber_id = s.id AND x.status = 'sent') ORDER BY s.confirmed_at`).bind(week).all()).results;
+  // Already sent to everyone this week: the hourly runs after the send end here, without touching the log.
+  if (!todo.length) return { week, recipients: 0, sent: 0, failed: 0, dryRun: !env.RESEND_API_KEY };
+  const mapSrc = await ensureMap(env, d, fetchFn);
+  await env.DB.prepare('INSERT INTO digests (week, data_generated_at, started_at) VALUES (?1, ?2, ?3) ON CONFLICT(week) DO NOTHING').bind(week, d.generatedAt, iso()).run();
   const msgs = [];
   for (const s of todo) {
     const unsub = await unsubscribeUrl(env, s.id);

@@ -11,8 +11,10 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "ca-permits", "database_id": "fa528a5c-32c6-4415-9b3a-380e94f66ef1" }
   ],
-  // Monday 17:23 UTC (10:23 AM PDT): after the weekly ingest (11:17 UTC) and the site redeploy it triggers.
-  "triggers": { "crons": ["23 17 * * 1"] },
+  // Hourly at :23, 15:23-23:23 UTC on Mondays and Tuesdays (Cloudflare counts 1 as Sunday, so names, not numbers).
+  // The weekly ingest is scheduled for 11:17 UTC Monday but GitHub often starts it hours late; the first run after
+  // fresh data reaches the site sends the email, later runs find nothing left to send (src/digest.mjs, runWeekly).
+  "triggers": { "crons": ["23 15-23 * * MON,TUE"] },
   // Secrets, set in the dashboard (Settings > Variables and Secrets), never committed:
   //   ADMIN_PW        PBKDF2 hash of the admin password: node scripts/hash-password.mjs 'password'
   //   SIGNING_KEY     random string (openssl rand -base64 32); keys the email/address HMACs and unsubscribe links.
