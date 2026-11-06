@@ -132,11 +132,6 @@ export function CoApp() {
                 data={weeklyActivity(filtered, filteredSpuds, rigWeeks, filters.startDate, filters.endDate)}
                 hasRigs={Boolean(rigWeeks)}
               />
-              <section className="grid grid-cols-1 gap-3 xl:grid-cols-2" aria-label="Undrilled inventory">
-                <InventoryAgePanel rows={filteredUndrilled} asOf={asOf} />
-                <ExpirationPanel rows={filteredUndrilled} asOf={asOf} />
-              </section>
-              <ScorecardPanel rows={scorecard} view={view} months={months} />
               <section className="grid grid-cols-1 gap-3 xl:grid-cols-2" aria-label="Map and operators">
                 <Suspense fallback={<div className="h-[400px] border border-line bg-panel sm:h-[490px]" aria-label="Loading map" />}>
                   <CoMap rows={filtered} asOf={asOf} selected={selected} onSelect={setSelected} />
@@ -148,6 +143,11 @@ export function CoApp() {
                   nameColor={(name) => NAMED_PARENT_COLORS[name]}
                 />
               </section>
+              <section className="grid grid-cols-1 gap-3 xl:grid-cols-2" aria-label="Undrilled inventory">
+                <InventoryAgePanel rows={filteredUndrilled} asOf={asOf} />
+                <ExpirationPanel rows={filteredUndrilled} asOf={asOf} />
+              </section>
+              <ScorecardPanel rows={scorecard} view={view} months={months} />
               <section className="grid grid-cols-1 gap-3 xl:grid-cols-2" aria-label="Counties and formations">
                 <CategoryPanel title="Approved permits by county and status" data={categoryByLifecycle(filtered, asOf, (row) => row.county || 'Unknown', 8)} />
                 <CategoryPanel title="Approved permits by objective formation and status" data={categoryByLifecycle(filtered, asOf, formationOf, 8)} />
@@ -335,25 +335,78 @@ function PipelineStrip({
 const APPROVAL_COLOR = WORK_COLORS.existing;
 const SPUD_COLOR = LIFECYCLE_COLORS.drilling;
 const RIG_COLOR = ACCENT.neutral;
+const LEGEND_STYLE = { fontSize: 12, paddingTop: 4 };
+// Legend labels stay dark; the swatch carries the series color, so light colors stay readable.
+const legendText = (value: string) => <span style={{ color: CHART.label }}>{value}</span>;
 
 function ActivityPanel({ data, hasRigs }: { data: ReturnType<typeof weeklyActivity>; hasRigs: boolean }) {
   return (
     <Panel
       title="Weekly approved permits, spuds, and Colorado rig count"
-      subtitle={`Approvals are Form 2 permits; spuds are every Colorado well spudded that week. The latest weeks fill in as operators report spuds.${hasRigs ? ' Rigs are Baker Hughes oil and gas rigs in Colorado (right axis).' : ' Rig count unavailable in this build.'}`}
+      subtitle="Approvals are Form 2 permits; spuds are every Colorado well spudded that week. The latest weeks fill in as operators report spuds."
     >
-      <div className="h-[260px]">
+      <ul className="mb-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-slate-200" aria-label="Chart legend">
+        <li className="flex items-center gap-2">
+          <span className="inline-block h-3.5 w-3.5" style={{ background: APPROVAL_COLOR }} aria-hidden="true" />
+          Approved permits <span className="text-xs text-slate-500">(left axis)</span>
+        </li>
+        <li className="flex items-center gap-2">
+          <span className="inline-block h-3.5 w-3.5" style={{ background: SPUD_COLOR }} aria-hidden="true" />
+          Spuds <span className="text-xs text-slate-500">(left axis)</span>
+        </li>
+        {hasRigs ? (
+          <li className="flex items-center gap-2">
+            <svg width="26" height="12" aria-hidden="true">
+              <line x1="1" y1="6" x2="25" y2="6" stroke={RIG_COLOR} strokeWidth="2.5" strokeDasharray="5 3" />
+              <circle cx="13" cy="6" r="3.5" fill={SURFACE.panel} stroke={RIG_COLOR} strokeWidth="2" />
+            </svg>
+            Colorado rigs, Baker Hughes <span className="text-xs text-slate-500">(right axis)</span>
+          </li>
+        ) : (
+          <li className="text-xs text-slate-500">Rig count unavailable in this build.</li>
+        )}
+      </ul>
+      <div className="h-[280px]">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 4, right: hasRigs ? 0 : 8, bottom: 0, left: -16 }}>
+          <ComposedChart data={data} margin={{ top: 8, right: hasRigs ? 4 : 8, bottom: 0, left: 4 }}>
             <CartesianGrid stroke={CHART.grid} vertical={false} />
-            <XAxis dataKey="week" tick={{ fill: CHART.axis, fontSize: 10 }} tickFormatter={shortDate} />
-            <YAxis yAxisId="count" allowDecimals={false} tick={{ fill: CHART.axis, fontSize: 10 }} />
-            {hasRigs && <YAxis yAxisId="rigs" orientation="right" allowDecimals={false} tick={{ fill: CHART.axis, fontSize: 10 }} width={32} />}
+            <XAxis dataKey="week" tick={{ fill: CHART.axis, fontSize: 11 }} tickFormatter={shortDate} minTickGap={16} />
+            <YAxis
+              yAxisId="count"
+              allowDecimals={false}
+              tick={{ fill: CHART.axis, fontSize: 11 }}
+              width={44}
+              label={{ value: 'Permits and spuds per week', angle: -90, position: 'insideLeft', offset: 10, style: { fill: CHART.label, fontSize: 11, textAnchor: 'middle' } }}
+            />
+            {hasRigs && (
+              <YAxis
+                yAxisId="rigs"
+                orientation="right"
+                allowDecimals={false}
+                domain={[0, (max: number) => Math.max(4, Math.ceil(max * 1.25))]}
+                tick={{ fill: RIG_COLOR, fontSize: 11, fontWeight: 600 }}
+                axisLine={{ stroke: RIG_COLOR }}
+                tickLine={{ stroke: RIG_COLOR }}
+                width={44}
+                label={{ value: 'Colorado rigs', angle: 90, position: 'insideRight', offset: 10, style: { fill: RIG_COLOR, fontSize: 11, fontWeight: 600, textAnchor: 'middle' } }}
+              />
+            )}
             <Tooltip content={<CompactChartTooltip />} cursor={{ fill: CHART.cursorFill }} labelFormatter={(value) => `Week of ${longDate(String(value))}`} />
-            <Legend wrapperStyle={{ color: CHART.label, fontSize: 11 }} />
             <Bar yAxisId="count" dataKey="approvals" name="Approved permits" fill={APPROVAL_COLOR} />
             <Bar yAxisId="count" dataKey="spuds" name="Spuds" fill={SPUD_COLOR} />
-            {hasRigs && <Line yAxisId="rigs" dataKey="rigs" name="Rigs" stroke={RIG_COLOR} strokeWidth={2} dot={{ r: 2 }} connectNulls type="stepAfter" />}
+            {hasRigs && (
+              <Line
+                yAxisId="rigs"
+                dataKey="rigs"
+                name="Colorado rigs"
+                stroke={RIG_COLOR}
+                strokeWidth={2.5}
+                strokeDasharray="5 3"
+                dot={{ r: 3.5, fill: SURFACE.panel, stroke: RIG_COLOR, strokeWidth: 2 }}
+                connectNulls
+                type="stepAfter"
+              />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -372,7 +425,7 @@ function InventoryAgePanel({ rows, asOf }: { rows: CoUndrilled[]; asOf: string }
             <XAxis dataKey="quarter" tick={{ fill: CHART.axis, fontSize: 10 }} />
             <YAxis allowDecimals={false} tick={{ fill: CHART.axis, fontSize: 10 }} />
             <Tooltip content={<CompactChartTooltip showTotal />} cursor={{ fill: CHART.cursorFill }} />
-            <Legend wrapperStyle={{ color: CHART.label, fontSize: 11 }} />
+            <Legend wrapperStyle={LEGEND_STYLE} formatter={legendText} />
             <Bar dataKey="current" name="Not expired" stackId="age" fill={LIFECYCLE_COLORS.not_spudded} stroke={SURFACE.panel} strokeWidth={1} />
             <Bar dataKey="pastExpiration" name="Past expiration date" stackId="age" fill={LIFECYCLE_COLORS.expired} stroke={SURFACE.panel} strokeWidth={1} />
           </BarChart>
@@ -457,7 +510,7 @@ function WeeklyPanel({ rows, asOf, startDate, endDate }: { rows: CoPermit[]; asO
             <XAxis dataKey="week" tick={{ fill: CHART.axis, fontSize: 10 }} tickFormatter={shortDate} />
             <YAxis allowDecimals={false} tick={{ fill: CHART.axis, fontSize: 10 }} />
             <Tooltip content={<CompactChartTooltip showTotal />} cursor={{ fill: CHART.cursorFill }} labelFormatter={(value) => `Week of ${longDate(String(value))}`} />
-            <Legend wrapperStyle={{ color: CHART.label, fontSize: 11 }} />
+            <Legend wrapperStyle={LEGEND_STYLE} formatter={legendText} />
             {lifecycleBars(data)}
           </BarChart>
         </ResponsiveContainer>
@@ -498,7 +551,7 @@ function CategoryPanel({
               )}
             />
             <Tooltip content={<CompactChartTooltip showTotal totalExclude={['total']} />} cursor={{ fill: CHART.cursorFill }} />
-            <Legend wrapperStyle={{ color: CHART.label, fontSize: 11 }} />
+            <Legend wrapperStyle={LEGEND_STYLE} formatter={legendText} />
             {lifecycleBars(data)}
           </BarChart>
         </ResponsiveContainer>
