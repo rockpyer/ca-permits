@@ -89,7 +89,7 @@ A preview build runs from any subfolder and adds a small navigation bar for the 
 VITE_PREVIEW=1 npx vite build --base ./ --outDir /tmp/preview
 ```
 
-Routes also work as hash links (`#/drilling`, `#/prod`) for hosts that can't serve custom paths.
+Routes also work as hash links (`#/drilling`, `#/prod`, `#/co`) for hosts that can't serve custom paths.
 
 ## Run The Ingest
 
