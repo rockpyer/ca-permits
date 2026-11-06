@@ -1,0 +1,56 @@
+name: Weekly ECMC ingest
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Monday, after the CalGEM ingest (11:17 UTC).
+    - cron: "47 11 * * 1"
+
+concurrency:
+  group: "weekly-ecmc-ingest"
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Run tests
+        run: pytest tests
+
+      - name: Run ECMC ingest
+        run: python backend/ingest_colorado.py
+
+      # Pushed with GITHUB_TOKEN, which does not start a push deploy; deploy.yml
+      # redeploys from this workflow's success instead.
+      - name: Commit data store
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add data/co
+          if git diff --cached --quiet; then
+            echo "No data changes"
+            exit 0
+          fi
+          git commit -m "Weekly ECMC ingest $(date -u +%Y-%m-%d)"
+          for attempt in 1 2 3; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            sleep $((attempt * 10))
+          done
+          echo "::error::Could not push the data commit"
+          exit 1

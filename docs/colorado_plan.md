@@ -47,7 +47,40 @@ Download catalog: [ECMC downloadable data](https://ecmc.state.co.us/data2.html#/
 - 14,937 well permits were approved in 2015–18 versus 3,980 in 2022–25 (state report cited by the Denver Post, via [Independence Institute](https://i2i.org/colorado-oil-and-gas-isnt-thriving-even-with-high-prices/), an advocacy source). Explanations differ: ECMC points to longer laterals replacing more wells; industry points to regulation; the governor points to oil prices.
 - Orphaned well counts are at a record ([Colorado Sun, 2026-11-03](https://coloradosun.com/2026/11/03/orphan-oil-and-gas-wells-colorado-record-number-funding/)).
 
-## Proposed build
+## Draft `/co` (built)
+
+Decided 2026-11-06: same site and repo, one page per state (`/ca`, `/co`, later `/wy`, `/ut`), with the root becoming a multi-state landing page. History starts with approvals from 2026-08-01.
+
+What the draft does:
+
+- `backend/ingest_colorado.py` posts the ECMC Form 2 query, keeps approvals since 2026-08-01, merges them into `data/co/permits.jsonl`, and refreshes every stored permit's status, spud date, depth and expiration from `WELLS_SHP` and `PERMITS_SHP`. `.github/workflows/weekly-co-ingest.yml` runs it Mondays at 11:47 UTC; a successful run redeploys the site.
+- `frontend/scripts/snapshot-co.mjs` writes `public/data/co/`. `src/main.tsx` sends `/co` to `src/co/CoApp.tsx`; the California app is unchanged at `/`.
+- `/co/` is built as a `noindex` page and left out of the sitemap until it launches.
+- Page sections: summary, weekly approvals by current status, map, parent company / county / formation by status, undrilled permits by expiration month, records table with CSV, notes.
+
+Status groups (`src/co/lifecycle.ts`), from the wells layer:
+
+| Group | Rule |
+|---|---|
+| Not spudded | No spud date; status AP (or no status) and expiration not passed |
+| Drilling | Status DG, or a spud date with no later status |
+| Drilled | Status WO, PR, SI, TA, IJ, AC, SO |
+| Existing wellbore | Spud date before this approval (recompletes, re-permits) |
+| Expired or abandoned | Status EP, AL, PA, DA, or expiration date passed without a spud |
+| No well record | Not yet in either layer (new approvals lag a day or two) |
+
+First run, 2026-11-06: 202 permits approved 2026-08-10 to 2026-11-05; 199 matched to wells; 150 not spudded, 36 spudded after approval (median 41 days).
+
+### Open items for review
+
+1. **Expiration rules.** Approval-to-expiration ranges from 127 to 1,271 days in the first run. The expiration looks tied to the Form 2A / OGDP approval rather than a fixed Form 2 term. Confirm the rule (ECMC Rule 303 and the OGDP order), and decide how long expired permits stay visible.
+2. **Status code labels** in `WELL_STATUS_LABELS` are working definitions; check them against the COGIS glossary.
+3. **Parent-company table** (`src/co/operators.ts`): Chevron (Noble, PDC), Occidental (Kerr-McGee, Anadarko), SM Energy (Civitas, Crestone Peak, Extraction, Bonanza Creek, HighPoint). Bison IV, TEP, Verdad, Dunamis and the rest are their own parents for now.
+4. **Name casing.** ECMC's list title-cases names ("Tep", "Qb", "Kp"). Fix with a lookup or use the wells layer's upper-case names.
+5. **Not yet shared with California:** URL filter persistence, the operator color system, field boundaries, rig counts, OGDP pipeline, directional lines, About page, email digest.
+6. **Routing still to do:** move California to `/ca`, redirect `/` → landing page, keep old California links working.
+
+## Original build proposal
 
 Recommended: one codebase with a state adapter, served at `permits.ryweller.com/co/`.
 
