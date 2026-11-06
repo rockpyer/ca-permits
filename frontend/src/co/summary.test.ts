@@ -1,8 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { lifecycle, approvalToSpudDays } from './lifecycle';
 import { operatorDisplayName, parentCompany } from './operators';
-import { applyCoFilters, categoryByLifecycle, defaultCoFilters, expirationsByMonth, summarize, weekStart, weeklyByLifecycle } from './summary';
-import type { CoPermit } from './types';
+import {
+  applyCoFilters,
+  categoryByLifecycle,
+  defaultCoFilters,
+  expirationsByMonth,
+  expiringWithin,
+  filterSpuds,
+  filterUndrilled,
+  inventoryByApprovalQuarter,
+  monthsBetween,
+  operatorScorecard,
+  summarize,
+  weekStart,
+  weeklyActivity,
+  weeklyByLifecycle
+} from './summary';
+import type { CoPermit, CoSpud, CoUndrilled } from './types';
 
 const AS_OF = '2026-11-06';
 
@@ -104,10 +119,81 @@ describe('Colorado summaries', () => {
     expect(data.map((item) => item.name)).toEqual(['Weld', 'Other']);
   });
 
-  it('counts undrilled permits by expiration month', () => {
-    expect(expirationsByMonth(rows, AS_OF)).toEqual([
+  it('counts undrilled permits by expiration month from today on', () => {
+    expect(expirationsByMonth([{ permit_expiration_date: '2026-12-01' }, { permit_expiration_date: '2028-09-01' }, { permit_expiration_date: '2026-10-01' }], AS_OF)).toEqual([
       { month: '2026-12', count: 1 },
       { month: '2028-09', count: 1 }
     ]);
+  });
+});
+
+describe('Colorado pipeline views', () => {
+  const spud = (overrides: Partial<CoSpud>): CoSpud => ({
+    api_8: '12399999',
+    spud_date: '2026-09-02',
+    well_name: 'W',
+    operator_name: 'Pdc Energy Inc',
+    operator_number: '69175',
+    county: 'Weld',
+    field_name: 'Wattenberg',
+    well_status: 'DG',
+    max_md: null,
+    latitude: 40,
+    longitude: -104.8,
+    ...overrides
+  });
+  const undrilled = (overrides: Partial<CoUndrilled>): CoUndrilled => ({
+    api_8: '12388888',
+    approved_date: '2025-02-10',
+    permit_expiration_date: '2027-02-10',
+    permit_type: 'New Well',
+    well_name: 'U',
+    operator_name: 'Noble Energy Inc',
+    operator_number: '100322',
+    county: 'Weld',
+    field_name: 'Wattenberg',
+    proposed_td: 18000,
+    ...overrides
+  });
+  const permits = [permit({ approved_date: '2026-09-01' }), permit({ approved_date: '2026-09-08', operator_name: 'Verdad Resources LLC' })];
+  const spuds = [spud({}), spud({ api_8: '1', spud_date: '2026-09-09', operator_name: 'Verdad Resources LLC', county: 'Adams' })];
+  const inventory = [
+    undrilled({}),
+    undrilled({ api_8: '2', approved_date: '2024-05-13', permit_expiration_date: '2026-10-01' }),
+    undrilled({ api_8: '3', permit_expiration_date: '2026-12-15', operator_name: 'Verdad Resources LLC', permit_type: 'Recomplete' })
+  ];
+  const filters = defaultCoFilters({ minDate: '2026-09-01', maxDate: '2026-09-30' });
+
+  it('puts approvals, spuds and the Friday rig count in Monday weeks', () => {
+    const weeks = weeklyActivity(permits, spuds, [{ date: '2026-09-04', colorado: 9 }, { date: '2026-09-11', colorado: 10 }], '2026-09-01', '2026-09-13');
+    expect(weeks).toEqual([
+      { week: '2026-08-31', approvals: 1, spuds: 1, rigs: 9 },
+      { week: '2026-09-07', approvals: 1, spuds: 1, rigs: 10 }
+    ]);
+  });
+
+  it('filters spuds by date, operator and county, and inventory by operator and permit type only', () => {
+    expect(filterSpuds(spuds, { ...filters, counties: ['Adams'] }, 'parent')).toHaveLength(1);
+    expect(filterSpuds(spuds, { ...filters, endDate: '2026-09-05' }, 'parent')).toHaveLength(1);
+    expect(filterUndrilled(inventory, { ...filters, operators: ['Chevron'] }, 'parent')).toHaveLength(2);
+    expect(filterUndrilled(inventory, { ...filters, permitTypes: ['Recomplete'], startDate: '2030-01-01' }, 'parent')).toHaveLength(1);
+  });
+
+  it('builds the operator scorecard with months of inventory at the spud pace', () => {
+    const months = monthsBetween('2026-09-01', '2026-09-30');
+    expect(months).toBeCloseTo(30 / 30.44);
+    const rows = operatorScorecard(permits, spuds, inventory, 'parent', months);
+    const chevron = rows.find((row) => row.name === 'Chevron')!;
+    expect(chevron).toMatchObject({ approvals: 1, spuds: 1, inventory: 2 });
+    expect(chevron.monthsOfInventory).toBeCloseTo(2 / (1 / months));
+    expect(operatorScorecard([], [], inventory, 'parent', months)[0].monthsOfInventory).toBeNull();
+  });
+
+  it('groups inventory by approval quarter and flags passed expirations', () => {
+    expect(inventoryByApprovalQuarter(inventory, AS_OF)).toEqual([
+      { quarter: '2024 Q2', current: 0, pastExpiration: 1 },
+      { quarter: '2025 Q1', current: 2, pastExpiration: 0 }
+    ]);
+    expect(expiringWithin(inventory, AS_OF, 90)).toBe(1);
   });
 });

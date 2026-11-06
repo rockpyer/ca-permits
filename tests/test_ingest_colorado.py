@@ -65,3 +65,39 @@ def test_wells_and_expirations_by_api():
     assert wells["07109959"]["max_md"] is None
     assert wells["07109959"]["max_tvd"] == 9000
     assert expirations_by_api([{"API": "07109959", "Perm_Exp": date(2028, 4, 22)}]) == {"07109959": "2028-04-22"}
+
+
+def test_spud_rows_keep_the_window_and_skip_future_dates():
+    from datetime import date
+
+    from ingest_colorado import spud_rows
+
+    records = [
+        {"API": "12312345", "Spud_Date": date(2026, 9, 1), "Operat_Num": 100322, "Operator": "NOBLE ENERGY INC", "Field_Name": "DJ HORIZONTAL NIOBRARA"},
+        {"API": "12312346", "Spud_Date": date(2026, 7, 1), "Operat_Num": 100322, "Operator": "NOBLE ENERGY INC"},
+        {"API": "12312347", "Spud_Date": date(2026, 12, 21), "Operat_Num": 100322, "Operator": "NOBLE ENERGY INC"},
+        {"API": "10312348", "Spud_Date": date(2026, 10, 1), "Operat_Num": 999, "Operator": "TEP ROCKY MOUNTAIN LLC"},
+    ]
+    rows = spud_rows(records, "2026-08-01", "2026-11-06", {"100322": "Noble Energy Inc"})
+    assert [row["api_8"] for row in rows] == ["12312345", "10312348"]
+    assert rows[0]["operator_name"] == "Noble Energy Inc"
+    assert rows[0]["county"] == "Weld"
+    assert rows[0]["field_name"] == "DJ Horizontal Niobrara"
+    assert rows[1]["operator_name"] == "Tep Rocky Mountain LLC"
+    assert rows[1]["county"] == "Rio Blanco"
+
+
+def test_undrilled_rows_label_permit_types():
+    from datetime import date
+
+    from ingest_colorado import undrilled_rows
+
+    [row] = undrilled_rows(
+        [{"API": "00110067", "Perm_Type": "DR", "Perm_Appr": date(2024, 5, 13), "Perm_Exp": date(2027, 5, 12), "Operat_Num": 69175, "Operator": "PDC ENERGY INC"}],
+        {},
+    )
+    assert row["permit_type"] == "New Well"
+    assert row["approved_date"] == "2024-05-13"
+    assert row["permit_expiration_date"] == "2027-05-12"
+    assert row["operator_name"] == "Pdc Energy Inc"
+    assert row["county"] == "Adams"

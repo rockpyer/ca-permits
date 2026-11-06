@@ -35,11 +35,45 @@ export type CoPermit = {
   permit_expiration_date: string | null;
 };
 
+/** A Colorado well spudded since the history start, from ECMC's wells layer. */
+export type CoSpud = {
+  api_8: string;
+  spud_date: string;
+  well_name: string | null;
+  operator_name: string | null;
+  operator_number: string | null;
+  county: string | null;
+  field_name: string | null;
+  well_status: string | null;
+  max_md: number | null;
+  latitude: number | null;
+  longitude: number | null;
+};
+
+/** An approved permit not yet drilled, any approval date, from ECMC's undrilled permit layer. */
+export type CoUndrilled = {
+  api_8: string;
+  approved_date: string | null;
+  permit_expiration_date: string | null;
+  permit_type: string | null;
+  well_name: string | null;
+  operator_name: string | null;
+  operator_number: string | null;
+  county: string | null;
+  field_name: string | null;
+  proposed_td: number | null;
+};
+
+export type RigWeek = { date: string; colorado?: number };
+
 export type CoMeta = {
   generatedAt: string;
   permitCount: number;
+  spudCount?: number;
+  undrilledCount?: number;
   dateBounds: { minDate: string; maxDate: string };
   checkedDate: string;
+  historyStart?: string;
   lastRun: { finished_at: string; source_count: number } | null;
 };
 

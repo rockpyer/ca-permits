@@ -1,6 +1,6 @@
 import { approvalToSpudDays, daysBetween, lifecycle, LIFECYCLE_LABELS, LIFECYCLES, type Lifecycle } from './lifecycle';
 import { operatorFor, type OperatorView } from './operators';
-import type { CoFilters, CoPermit } from './types';
+import type { CoFilters, CoPermit, CoSpud, CoUndrilled, RigWeek } from './types';
 
 export function defaultCoFilters(bounds: { minDate: string; maxDate: string }): CoFilters {
   return {
@@ -137,15 +137,117 @@ export function summarize(rows: CoPermit[], asOf: string): CoSummary {
   };
 }
 
-/** Undrilled permits by expiration month, for the "what happens to old permits" view. */
-export function expirationsByMonth(rows: CoPermit[], asOf: string) {
+/** Spuds in the date range under the operator and county filters (formation, type and status are permit-only). */
+export function filterSpuds(spuds: CoSpud[], filters: CoFilters, view: OperatorView) {
+  return spuds.filter(
+    (row) =>
+      (!filters.startDate || row.spud_date >= filters.startDate) &&
+      (!filters.endDate || row.spud_date <= filters.endDate) &&
+      (!filters.operators.length || filters.operators.includes(operatorFor(row.operator_name, view))) &&
+      (!filters.counties.length || filters.counties.includes(row.county || 'Unknown'))
+  );
+}
+
+/** Current undrilled inventory under the operator, county and permit type filters. Not date filtered: it is today's list. */
+export function filterUndrilled(rows: CoUndrilled[], filters: CoFilters, view: OperatorView) {
+  return rows.filter(
+    (row) =>
+      (!filters.operators.length || filters.operators.includes(operatorFor(row.operator_name, view))) &&
+      (!filters.counties.length || filters.counties.includes(row.county || 'Unknown')) &&
+      (!filters.permitTypes.length || filters.permitTypes.includes(row.permit_type || 'Unknown'))
+  );
+}
+
+/** Rig count weeks are published Fridays; each lands in the Monday week that holds it. */
+export function weeklyActivity(permits: CoPermit[], spuds: CoSpud[], rigWeeks: RigWeek[] | null, startDate: string, endDate: string) {
+  const weeks = new Map<string, { week: string; approvals: number; spuds: number; rigs: number | null }>();
+  const bucket = (week: string) => {
+    if (!weeks.has(week)) weeks.set(week, { week, approvals: 0, spuds: 0, rigs: null });
+    return weeks.get(week)!;
+  };
+  if (startDate && endDate) for (let week = weekStart(startDate); week <= endDate; week = shiftDays(week, 7)) bucket(week);
+  permits.forEach((row) => row.approved_date && (bucket(weekStart(row.approved_date)).approvals += 1));
+  spuds.forEach((row) => (bucket(weekStart(row.spud_date)).spuds += 1));
+  rigWeeks?.forEach((rig) => {
+    const week = weeks.get(weekStart(rig.date));
+    if (week && typeof rig.colorado === 'number') week.rigs = rig.colorado;
+  });
+  return Array.from(weeks.values()).sort((a, b) => a.week.localeCompare(b.week));
+}
+
+export function monthsBetween(startDate: string, endDate: string) {
+  const days = daysBetween(startDate, endDate);
+  return days === null ? 0 : Math.max(days + 1, 1) / 30.44;
+}
+
+export type ScorecardRow = {
+  name: string;
+  approvals: number;
+  spuds: number;
+  inventory: number;
+  spudsPerMonth: number;
+  monthsOfInventory: number | null;
+};
+
+/** Per operator: approvals and spuds in the range, today's undrilled inventory, and inventory at the range's spud pace. */
+export function operatorScorecard(
+  permits: CoPermit[],
+  spuds: CoSpud[],
+  undrilled: CoUndrilled[],
+  view: OperatorView,
+  months: number
+): ScorecardRow[] {
+  const rows = new Map<string, ScorecardRow>();
+  const row = (operator: string | null) => {
+    const name = operatorFor(operator, view);
+    if (!rows.has(name)) rows.set(name, { name, approvals: 0, spuds: 0, inventory: 0, spudsPerMonth: 0, monthsOfInventory: null });
+    return rows.get(name)!;
+  };
+  permits.forEach((permit) => (row(permit.operator_name).approvals += 1));
+  spuds.forEach((spud) => (row(spud.operator_name).spuds += 1));
+  undrilled.forEach((item) => (row(item.operator_name).inventory += 1));
+  return Array.from(rows.values())
+    .map((item) => {
+      const spudsPerMonth = months > 0 ? item.spuds / months : 0;
+      return { ...item, spudsPerMonth, monthsOfInventory: spudsPerMonth > 0 ? item.inventory / spudsPerMonth : null };
+    })
+    .sort((a, b) => b.spuds + b.inventory + b.approvals - (a.spuds + a.inventory + a.approvals) || a.name.localeCompare(b.name));
+}
+
+export function quarterOf(iso: string) {
+  return `${iso.slice(0, 4)} Q${Math.floor((Number(iso.slice(5, 7)) - 1) / 3) + 1}`;
+}
+
+/** Undrilled permits by approval quarter, split by whether the expiration date has passed. */
+export function inventoryByApprovalQuarter(rows: CoUndrilled[], asOf: string) {
+  const quarters = new Map<string, { quarter: string; current: number; pastExpiration: number }>();
+  rows.forEach((row) => {
+    if (!row.approved_date) return;
+    const quarter = quarterOf(row.approved_date);
+    const bucket = quarters.get(quarter) || { quarter, current: 0, pastExpiration: 0 };
+    if (row.permit_expiration_date && asOf && row.permit_expiration_date < asOf) bucket.pastExpiration += 1;
+    else bucket.current += 1;
+    quarters.set(quarter, bucket);
+  });
+  return Array.from(quarters.values()).sort((a, b) => a.quarter.localeCompare(b.quarter));
+}
+
+/** Undrilled permits by expiration month, from today on. */
+export function expirationsByMonth(rows: Array<Pick<CoUndrilled, 'permit_expiration_date'>>, asOf: string) {
   const counts = new Map<string, number>();
   rows.forEach((row) => {
-    if (lifecycle(row, asOf) !== 'not_spudded' || !row.permit_expiration_date) return;
-    const month = row.permit_expiration_date.slice(0, 7);
-    counts.set(month, (counts.get(month) || 0) + 1);
+    const date = row.permit_expiration_date;
+    if (!date || (asOf && date < asOf)) return;
+    counts.set(date.slice(0, 7), (counts.get(date.slice(0, 7)) || 0) + 1);
   });
   return Array.from(counts.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([month, count]) => ({ month, count }));
+}
+
+export function expiringWithin(rows: Array<Pick<CoUndrilled, 'permit_expiration_date'>>, asOf: string, days: number) {
+  return rows.filter((row) => {
+    const left = daysBetween(asOf, row.permit_expiration_date);
+    return left !== null && left >= 0 && left <= days;
+  }).length;
 }

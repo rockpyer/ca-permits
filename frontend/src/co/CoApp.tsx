@@ -1,9 +1,9 @@
 import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { CalendarDays, Download, ExternalLink, Loader2, Mail, X } from 'lucide-react';
 import { CompactChartTooltip } from '../components/CompactChartTooltip';
 import { MultiSelect } from '../components/MultiSelect';
-import { CHART, SURFACE } from '../lib/palette';
+import { ACCENT, CHART, SURFACE, WORK_COLORS } from '../lib/palette';
 import { loadCoData, locationUrl, scoutCardUrl } from './data';
 import {
   LIFECYCLE_COLORS,
@@ -21,11 +21,19 @@ import {
   countBy,
   defaultCoFilters,
   expirationsByMonth,
+  expiringWithin,
+  filterSpuds,
+  filterUndrilled,
   formationOf,
+  inventoryByApprovalQuarter,
+  monthsBetween,
+  operatorScorecard,
   summarize,
-  weeklyByLifecycle
+  weeklyActivity,
+  weeklyByLifecycle,
+  type ScorecardRow
 } from './summary';
-import type { CoFilters, CoMeta, CoPermit } from './types';
+import type { CoFilters, CoMeta, CoPermit, CoSpud, CoUndrilled, RigWeek } from './types';
 
 const CoMap = lazy(() => import('./CoMap').then((module) => ({ default: module.CoMap })));
 const LABEL_COLORS = Object.fromEntries(LIFECYCLES.map((key) => [LIFECYCLE_LABELS[key], LIFECYCLE_COLORS[key]]));
@@ -33,6 +41,9 @@ const CONTACT_MAILTO = 'mailto:ryan@ryweller.com?subject=Colorado%20well%20permi
 
 export function CoApp() {
   const [rows, setRows] = useState<CoPermit[]>([]);
+  const [spuds, setSpuds] = useState<CoSpud[]>([]);
+  const [undrilled, setUndrilled] = useState<CoUndrilled[]>([]);
+  const [rigWeeks, setRigWeeks] = useState<RigWeek[] | null>(null);
   const [meta, setMeta] = useState<CoMeta | null>(null);
   const [filters, setFilters] = useState<CoFilters>(() => defaultCoFilters({ minDate: '', maxDate: '' }));
   const [view, setView] = useState<OperatorView>('parent');
@@ -41,10 +52,13 @@ export function CoApp() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    document.title = 'Colorado well permit activity (draft)';
+    document.title = 'Colorado well permits and drilling (draft)';
     loadCoData()
-      .then(({ permits, meta: loaded }) => {
+      .then(({ permits, spuds: loadedSpuds, undrilled: loadedUndrilled, rigWeeks: loadedRigs, meta: loaded }) => {
         setRows(permits);
+        setSpuds(loadedSpuds);
+        setUndrilled(loadedUndrilled);
+        setRigWeeks(loadedRigs);
         setMeta(loaded);
         setFilters(defaultCoFilters(loaded.dateBounds));
       })
@@ -55,6 +69,18 @@ export function CoApp() {
   const asOf = meta?.checkedDate || meta?.dateBounds.maxDate || '';
   const filtered = useMemo(() => applyCoFilters(rows, filters, view, asOf), [rows, filters, view, asOf]);
   const summary = useMemo(() => summarize(filtered, asOf), [filtered, asOf]);
+  const filteredSpuds = useMemo(() => filterSpuds(spuds, filters, view), [spuds, filters, view]);
+  const filteredUndrilled = useMemo(() => filterUndrilled(undrilled, filters, view), [undrilled, filters, view]);
+  const permitApis = useMemo(() => new Set(rows.map((row) => row.api_8)), [rows]);
+  const months = monthsBetween(filters.startDate, filters.endDate);
+  const scorecard = useMemo(
+    () => operatorScorecard(filtered, filteredSpuds, filteredUndrilled, view, months),
+    [filtered, filteredSpuds, filteredUndrilled, view, months]
+  );
+  const operatorNames = useMemo(
+    () => [...spuds, ...undrilled].map((row) => operatorFor(row.operator_name, view)),
+    [spuds, undrilled, view]
+  );
 
   return (
     <div className="min-h-screen bg-ink text-slate-100">
@@ -62,7 +88,7 @@ export function CoApp() {
         Skip to activity explorer
       </a>
       <div className="min-h-screen lg:grid lg:h-screen lg:min-h-0 lg:grid-cols-[276px_1fr]">
-        <CoFilterRail rows={rows} filters={filters} view={view} asOf={asOf} bounds={meta?.dateBounds} onChange={setFilters} onViewChange={setView} />
+        <CoFilterRail rows={rows} extraOperators={operatorNames} filters={filters} view={view} asOf={asOf} bounds={meta?.dateBounds} onChange={setFilters} onViewChange={setView} />
         <main id="co-content" className="min-h-0 bg-ink lg:overflow-y-auto" aria-label="Colorado permit activity explorer">
           <header className="border-b border-line bg-ink/95 px-3 py-2.5 sm:px-5 sm:py-4">
             <div className="flex flex-col gap-1.5 sm:gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -70,10 +96,10 @@ export function CoApp() {
                 <p className="mb-1 inline-block border border-amber/60 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber">Draft</p>
                 <h1 className="product-title">
                   <span>Colorado</span>
-                  <span> well permit activity</span>
+                  <span> well permits and drilling</span>
                 </h1>
                 <p className="mt-1 max-w-3xl text-sm leading-5 text-slate-400 sm:mt-2 sm:text-base sm:leading-6">
-                  Approved ECMC drilling permits (Form 2) and where each stands in the wells layer.
+                  Approved ECMC drilling permits (Form 2), statewide spuds, and the undrilled permit inventory.
                 </p>
               </div>
               <div className="flex items-center gap-1.5 text-xs text-slate-300 sm:text-sm xl:min-w-[260px] xl:border-l xl:border-line xl:pl-5">
@@ -93,8 +119,24 @@ export function CoApp() {
 
           {!loading && !error && (
             <div className="space-y-3 p-3 sm:p-4">
-              <SummaryStrip summary={summary} />
-              <WeeklyPanel rows={filtered} asOf={asOf} startDate={filters.startDate} endDate={filters.endDate} />
+              <PipelineStrip
+                summary={summary}
+                spuds={filteredSpuds}
+                permitApis={permitApis}
+                undrilled={filteredUndrilled}
+                asOf={asOf}
+                historyStart={meta?.historyStart || meta?.dateBounds.minDate || ''}
+                rigWeeks={rigWeeks}
+              />
+              <ActivityPanel
+                data={weeklyActivity(filtered, filteredSpuds, rigWeeks, filters.startDate, filters.endDate)}
+                hasRigs={Boolean(rigWeeks)}
+              />
+              <section className="grid grid-cols-1 gap-3 xl:grid-cols-2" aria-label="Undrilled inventory">
+                <InventoryAgePanel rows={filteredUndrilled} asOf={asOf} />
+                <ExpirationPanel rows={filteredUndrilled} asOf={asOf} />
+              </section>
+              <ScorecardPanel rows={scorecard} view={view} months={months} />
               <section className="grid grid-cols-1 gap-3 xl:grid-cols-2" aria-label="Map and operators">
                 <Suspense fallback={<div className="h-[400px] border border-line bg-panel sm:h-[490px]" aria-label="Loading map" />}>
                   <CoMap rows={filtered} asOf={asOf} selected={selected} onSelect={setSelected} />
@@ -110,7 +152,7 @@ export function CoApp() {
                 <CategoryPanel title="Approved permits by county and status" data={categoryByLifecycle(filtered, asOf, (row) => row.county || 'Unknown', 8)} />
                 <CategoryPanel title="Approved permits by objective formation and status" data={categoryByLifecycle(filtered, asOf, formationOf, 8)} />
               </section>
-              <ExpirationPanel rows={filtered} asOf={asOf} />
+              <WeeklyPanel rows={filtered} asOf={asOf} startDate={filters.startDate} endDate={filters.endDate} />
               <RecordsTable rows={filtered} asOf={asOf} selected={selected} onSelect={setSelected} />
               <Notes meta={meta} />
               <footer className="space-y-2 border-t border-line pt-4 text-xs text-slate-500">
@@ -141,6 +183,7 @@ export function CoApp() {
 
 function CoFilterRail({
   rows,
+  extraOperators,
   filters,
   view,
   asOf,
@@ -149,6 +192,7 @@ function CoFilterRail({
   onViewChange
 }: {
   rows: CoPermit[];
+  extraOperators: string[];
   filters: CoFilters;
   view: OperatorView;
   asOf: string;
@@ -215,7 +259,7 @@ function CoFilterRail({
         </fieldset>
         <MultiSelect
           label={view === 'parent' ? 'Parent company' : 'Operator'}
-          options={options('operators', (row) => operatorFor(row.operator_name, view))}
+          options={withNames(options('operators', (row) => operatorFor(row.operator_name, view)), extraOperators)}
           selected={filters.operators}
           onChange={(operators) => set({ operators })}
         />
@@ -229,30 +273,158 @@ function CoFilterRail({
           onChange={(lifecycles) => set({ lifecycles })}
           colorFor={(value) => LABEL_COLORS[value]}
         />
+        <p className="text-[11px] leading-4 text-slate-500">
+          Counts are approved permits in the date range. Operator, county and permit type also filter spuds and the undrilled inventory; formation
+          and status apply to permits only.
+        </p>
       </div>
       </details>
     </aside>
   );
 }
 
-function SummaryStrip({ summary }: { summary: ReturnType<typeof summarize> }) {
+/** Adds operators that have spuds or undrilled permits but no approvals in range, with a count of 0. */
+function withNames(options: Array<{ value: string; count: number }>, names: string[]) {
+  const seen = new Set(options.map((option) => option.value));
+  const extra = Array.from(new Set(names.filter((name) => !seen.has(name)))).sort();
+  return [...options, ...extra.map((value) => ({ value, count: 0 }))];
+}
+
+function PipelineStrip({
+  summary,
+  spuds,
+  permitApis,
+  undrilled,
+  asOf,
+  historyStart,
+  rigWeeks
+}: {
+  summary: ReturnType<typeof summarize>;
+  spuds: CoSpud[];
+  permitApis: Set<string | null>;
+  undrilled: CoUndrilled[];
+  asOf: string;
+  historyStart: string;
+  rigWeeks: RigWeek[] | null;
+}) {
+  const matched = spuds.filter((row) => permitApis.has(row.api_8)).length;
+  const rigs = rigWeeks?.filter((week) => typeof week.colorado === 'number') ?? [];
+  const latestRig = rigs[rigs.length - 1];
+  const pastExpiration = undrilled.filter((row) => row.permit_expiration_date && row.permit_expiration_date < asOf).length;
   const tiles: Array<[string, string, string?]> = [
     ['Approved permits', summary.total.toLocaleString(), `${summary.newWells} New Well, ${summary.recompletes} Recomplete`],
-    ['Spudded since approval', summary.spudded.toLocaleString(), summary.total ? `${Math.round((summary.spudded / summary.total) * 100)}% of approved` : undefined],
-    ['Median days to spud', summary.medianDaysToSpud === null ? '–' : String(summary.medianDaysToSpud), 'Approval date to spud date'],
-    ['Not spudded', summary.byLifecycle.not_spudded.toLocaleString(), `${summary.expiringWithin90} expire within 90 days`],
-    ['Operators', summary.operators.toLocaleString(), 'Operators of record']
+    ['Spuds', spuds.length.toLocaleString(), `${matched} on permits approved since ${historyStart ? shortDate(historyStart) : 'Aug 1'}`],
+    ['Colorado rigs', latestRig ? String(latestRig.colorado) : '–', latestRig ? `Baker Hughes, week of ${shortDate(latestRig.date)}` : 'Rig count unavailable'],
+    ['Undrilled inventory', undrilled.length.toLocaleString(), pastExpiration ? `All approval dates; ${pastExpiration} past expiration` : 'All approval dates'],
+    ['Expiring within 90 days', expiringWithin(undrilled, asOf, 90).toLocaleString(), 'Undrilled permits'],
+    ['Median days to spud', summary.medianDaysToSpud === null ? '–' : String(summary.medianDaysToSpud), `Permits approved since ${historyStart ? shortDate(historyStart) : 'Aug 1'}`]
   ];
   return (
-    <section className="grid grid-cols-2 gap-px border border-line bg-line sm:grid-cols-3 xl:grid-cols-5" aria-label="Permit activity summary">
+    <section className="grid grid-cols-2 gap-px border border-line bg-line sm:grid-cols-3 xl:grid-cols-6" aria-label="Permit and drilling summary">
       {tiles.map(([label, value, note]) => (
-        <div key={label} className="bg-panel px-3 py-2.5 last:col-span-2 sm:last:col-span-1">
+        <div key={label} className="bg-panel px-3 py-2.5">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
           <div className="font-condensed text-2xl font-semibold text-slate-50">{value}</div>
           {note && <div className="text-xs text-slate-500">{note}</div>}
         </div>
       ))}
     </section>
+  );
+}
+
+const APPROVAL_COLOR = WORK_COLORS.existing;
+const SPUD_COLOR = LIFECYCLE_COLORS.drilling;
+const RIG_COLOR = ACCENT.neutral;
+
+function ActivityPanel({ data, hasRigs }: { data: ReturnType<typeof weeklyActivity>; hasRigs: boolean }) {
+  return (
+    <Panel
+      title="Weekly approved permits, spuds, and Colorado rig count"
+      subtitle={`Approvals are Form 2 permits; spuds are every Colorado well spudded that week. The latest weeks fill in as operators report spuds.${hasRigs ? ' Rigs are Baker Hughes oil and gas rigs in Colorado (right axis).' : ' Rig count unavailable in this build.'}`}
+    >
+      <div className="h-[260px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data} margin={{ top: 4, right: hasRigs ? 0 : 8, bottom: 0, left: -16 }}>
+            <CartesianGrid stroke={CHART.grid} vertical={false} />
+            <XAxis dataKey="week" tick={{ fill: CHART.axis, fontSize: 10 }} tickFormatter={shortDate} />
+            <YAxis yAxisId="count" allowDecimals={false} tick={{ fill: CHART.axis, fontSize: 10 }} />
+            {hasRigs && <YAxis yAxisId="rigs" orientation="right" allowDecimals={false} tick={{ fill: CHART.axis, fontSize: 10 }} width={32} />}
+            <Tooltip content={<CompactChartTooltip />} cursor={{ fill: CHART.cursorFill }} labelFormatter={(value) => `Week of ${longDate(String(value))}`} />
+            <Legend wrapperStyle={{ color: CHART.label, fontSize: 11 }} />
+            <Bar yAxisId="count" dataKey="approvals" name="Approved permits" fill={APPROVAL_COLOR} />
+            <Bar yAxisId="count" dataKey="spuds" name="Spuds" fill={SPUD_COLOR} />
+            {hasRigs && <Line yAxisId="rigs" dataKey="rigs" name="Rigs" stroke={RIG_COLOR} strokeWidth={2} dot={{ r: 2 }} connectNulls type="stepAfter" />}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </Panel>
+  );
+}
+
+function InventoryAgePanel({ rows, asOf }: { rows: CoUndrilled[]; asOf: string }) {
+  const data = useMemo(() => inventoryByApprovalQuarter(rows, asOf), [rows, asOf]);
+  return (
+    <Panel title="Undrilled permits by approval quarter" subtitle="Every approved permit ECMC lists as not yet drilled, by when it was approved.">
+      <div className="h-[220px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
+            <CartesianGrid stroke={CHART.grid} vertical={false} />
+            <XAxis dataKey="quarter" tick={{ fill: CHART.axis, fontSize: 10 }} />
+            <YAxis allowDecimals={false} tick={{ fill: CHART.axis, fontSize: 10 }} />
+            <Tooltip content={<CompactChartTooltip showTotal />} cursor={{ fill: CHART.cursorFill }} />
+            <Legend wrapperStyle={{ color: CHART.label, fontSize: 11 }} />
+            <Bar dataKey="current" name="Not expired" stackId="age" fill={LIFECYCLE_COLORS.not_spudded} stroke={SURFACE.panel} strokeWidth={1} />
+            <Bar dataKey="pastExpiration" name="Past expiration date" stackId="age" fill={LIFECYCLE_COLORS.expired} stroke={SURFACE.panel} strokeWidth={1} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </Panel>
+  );
+}
+
+function ScorecardPanel({ rows, view, months }: { rows: ScorecardRow[]; view: OperatorView; months: number }) {
+  const [limit, setLimit] = useState(12);
+  return (
+    <Panel
+      title={`${view === 'parent' ? 'Parent company' : 'Operator'} permits, spuds, and undrilled inventory`}
+      subtitle={`Approvals and spuds in the date range (${months.toFixed(1)} months). Inventory is today's undrilled permits. Months of inventory = inventory ÷ spuds per month in the range.`}
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs">
+          <thead className="border-b border-line text-slate-500">
+            <tr>
+              <th className="px-2 py-1.5 font-semibold">{view === 'parent' ? 'Parent company' : 'Operator'}</th>
+              <th className="px-2 py-1.5 text-right font-semibold">Approved</th>
+              <th className="px-2 py-1.5 text-right font-semibold">Spuds</th>
+              <th className="px-2 py-1.5 text-right font-semibold">Spuds / month</th>
+              <th className="px-2 py-1.5 text-right font-semibold">Undrilled inventory</th>
+              <th className="px-2 py-1.5 text-right font-semibold">Months of inventory</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.slice(0, limit).map((row) => (
+              <tr key={row.name} className="border-b border-line/60">
+                <td className="whitespace-nowrap px-2 py-1.5 font-medium" style={{ color: NAMED_PARENT_COLORS[row.name] }}>
+                  {row.name}
+                </td>
+                <td className="px-2 py-1.5 text-right tabular-nums text-slate-300">{row.approvals || '–'}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums text-slate-300">{row.spuds || '–'}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums text-slate-300">{row.spuds ? row.spudsPerMonth.toFixed(1) : '–'}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums text-slate-300">{row.inventory || '–'}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums text-slate-300">
+                  {row.monthsOfInventory === null ? (row.inventory ? 'No spuds' : '–') : row.monthsOfInventory.toFixed(1)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {rows.length > limit && (
+        <button className="mt-2 text-xs text-accent hover:underline" type="button" onClick={() => setLimit(rows.length)}>
+          Show all {rows.length}
+        </button>
+      )}
+    </Panel>
   );
 }
 
@@ -335,31 +507,30 @@ function CategoryPanel({
   );
 }
 
-function ExpirationPanel({ rows, asOf }: { rows: CoPermit[]; asOf: string }) {
+function ExpirationPanel({ rows, asOf }: { rows: CoUndrilled[]; asOf: string }) {
   const data = useMemo(() => expirationsByMonth(rows, asOf), [rows, asOf]);
   const lifetimes = rows
-    .filter((row) => lifecycle(row, asOf) === 'not_spudded')
     .map((row) => daysBetween(row.approved_date, row.permit_expiration_date))
     .filter((days): days is number => days !== null);
   const shortest = lifetimes.length ? Math.min(...lifetimes) : null;
   const longest = lifetimes.length ? Math.max(...lifetimes) : null;
   return (
     <Panel
-      title="Not-spudded permits by expiration month"
+      title="Undrilled permits by expiration month"
       subtitle={
         shortest === null
           ? 'No undrilled permits with an expiration date in the current filter.'
-          : `Expiration dates come from ECMC's undrilled permit layer. Time from approval to expiration ranges from ${shortest} to ${longest} days in this filter.`
+          : `Time from approval to expiration ranges from ${shortest.toLocaleString()} to ${longest?.toLocaleString()} days, so the term is not fixed.`
       }
     >
-      <div className="h-[200px]">
+      <div className="h-[220px]">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
             <CartesianGrid stroke={CHART.grid} vertical={false} />
             <XAxis dataKey="month" tick={{ fill: CHART.axis, fontSize: 10 }} />
             <YAxis allowDecimals={false} tick={{ fill: CHART.axis, fontSize: 10 }} />
             <Tooltip content={<CompactChartTooltip />} cursor={{ fill: CHART.cursorFill }} />
-            <Bar dataKey="count" name="Not spudded" fill={LIFECYCLE_COLORS.not_spudded} />
+            <Bar dataKey="count" name="Undrilled permits" fill={LIFECYCLE_COLORS.not_spudded} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -542,6 +713,11 @@ function Notes({ meta }: { meta: CoMeta | null }) {
             dates come from the{' '}
             <ExternalAnchor href="https://ecmc.state.co.us/documents/data/downloads/gis/PERMITS_SHP.ZIP">undrilled permit layer</ExternalAnchor>,
             which drops a permit once the well is drilled.
+          </p>
+          <p>
+            Spuds are every Colorado well with a spud date in the range, from the wells layer, whether or not its permit is loaded here.
+            Days to spud only covers permits approved since the history start, so it leaves out slower permits until more history builds up.
+            Rig counts are Baker Hughes weekly oil and gas rigs for Colorado.
           </p>
           <p>
             &ldquo;Existing wellbore&rdquo; means the well was spudded before this approval, as with recompletes and re-permits. These are left out of

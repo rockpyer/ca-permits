@@ -56,7 +56,15 @@ What the draft does:
 - `backend/ingest_colorado.py` posts the ECMC Form 2 query, keeps approvals since 2026-08-01, merges them into `data/co/permits.jsonl`, and refreshes every stored permit's status, spud date, depth and expiration from `WELLS_SHP` and `PERMITS_SHP`. `.github/workflows/weekly-co-ingest.yml` runs it Mondays at 11:47 UTC; a successful run redeploys the site.
 - `frontend/scripts/snapshot-co.mjs` writes `public/data/co/`. `src/main.tsx` sends `/co` to `src/co/CoApp.tsx`; the California app is unchanged at `/`.
 - `/co/` is built as a `noindex` page and left out of the sitemap until it launches.
-- Page sections: summary, weekly approvals by current status, map, parent company / county / formation by status, undrilled permits by expiration month, records table with CSV, notes.
+- The ingest also writes `data/co/spuds.jsonl` (every Colorado spud since the history start, kept) and `data/co/undrilled.jsonl` (ECMC's current undrilled permits of any approval date, replaced each run). The Baker Hughes parser now also sums Colorado rigs.
+- Page layout, approval → spud → inventory:
+  - Summary: approved permits, statewide spuds (and how many are on loaded permits), Colorado rigs, undrilled inventory, permits expiring within 90 days, median days to spud.
+  - Weekly approved permits, spuds, and Colorado rig count.
+  - Undrilled permits by approval quarter, and by expiration month.
+  - Operator scorecard: approvals, spuds, spuds per month, undrilled inventory, months of inventory at that pace.
+  - Map, parent company / county / formation by status, weekly approvals by status, records table with CSV, notes.
+- Operator, county and permit type filters apply to spuds and inventory too; formation and status apply to permits only. Inventory is today's list and is not date filtered.
+- Days to spud covers only permits approved since 2026-08-01, so it is biased short until more history builds up. ECMC wells stay DG from spud until the completion report, so DG is not a "drilling now" count.
 
 Status groups (`src/co/lifecycle.ts`), from the wells layer:
 

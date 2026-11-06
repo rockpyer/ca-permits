@@ -34,6 +34,8 @@ PERMITS_SHP_URL = "https://ecmc.state.co.us/documents/data/downloads/gis/PERMITS
 SCOUT_CARD_URL = "https://ecmc.state.co.us/cogisdb/Facility/FacilityDetail"
 
 PERMITS_FILE = "co/permits.jsonl"
+SPUDS_FILE = "co/spuds.jsonl"
+UNDRILLED_FILE = "co/undrilled.jsonl"
 RUNS_FILE = "co/etl_runs.jsonl"
 # The draft keeps approvals from this date forward; history before it is not loaded.
 HISTORY_START = "2026-08-01"
@@ -64,6 +66,21 @@ EXPECTED_COLUMNS = [
 ]
 
 USER_AGENT = "well-permit-tracker/0.1 (+https://permits.ryweller.com)"
+
+# Colorado county FIPS codes, the first three digits of an 8-digit ECMC API.
+COUNTIES = {
+    "001": "Adams", "003": "Alamosa", "005": "Arapahoe", "007": "Archuleta", "009": "Baca", "011": "Bent",
+    "013": "Boulder", "014": "Broomfield", "015": "Chaffee", "017": "Cheyenne", "019": "Clear Creek",
+    "021": "Conejos", "023": "Costilla", "025": "Crowley", "027": "Custer", "029": "Delta", "031": "Denver",
+    "033": "Dolores", "035": "Douglas", "037": "Eagle", "039": "Elbert", "041": "El Paso", "043": "Fremont",
+    "045": "Garfield", "047": "Gilpin", "049": "Grand", "051": "Gunnison", "053": "Hinsdale", "055": "Huerfano",
+    "057": "Jackson", "059": "Jefferson", "061": "Kiowa", "063": "Kit Carson", "065": "Lake", "067": "La Plata",
+    "069": "Larimer", "071": "Las Animas", "073": "Lincoln", "075": "Logan", "077": "Mesa", "079": "Mineral",
+    "081": "Moffat", "083": "Montezuma", "085": "Montrose", "087": "Morgan", "089": "Otero", "091": "Ouray",
+    "093": "Park", "095": "Phillips", "097": "Pitkin", "099": "Prowers", "101": "Pueblo", "103": "Rio Blanco",
+    "105": "Rio Grande", "107": "Routt", "109": "Saguache", "111": "San Juan", "113": "San Miguel",
+    "115": "Sedgwick", "117": "Summit", "119": "Teller", "121": "Washington", "123": "Weld", "125": "Yuma",
+}
 
 
 class _TableParser(HTMLParser):
@@ -268,13 +285,91 @@ def expirations_by_api(records: Iterable[dict[str, Any]]) -> dict[str, str | Non
     return {clean(record.get("API")): iso(record.get("Perm_Exp")) for record in records if clean(record.get("API"))}
 
 
+def title_name(value: str | None) -> str | None:
+    """'TEP ROCKY MOUNTAIN LLC' -> 'Tep Rocky Mountain LLC', matching ECMC's permit list."""
+    if not value:
+        return None
+    words = []
+    for word in value.split():
+        upper = word.upper()
+        words.append(upper if upper in {"LLC", "LP", "LLP", "II", "III", "IV", "USA", "US", "DJ"} else word.capitalize())
+    return " ".join(words)
+
+
+def operator_names(approved: Iterable[dict[str, Any]]) -> dict[str, str]:
+    """Operator number -> the name as ECMC's permit list writes it, so every file agrees."""
+    return {str(row["operator_number"]): row["operator_name"] for row in approved if row.get("operator_number") and row.get("operator_name")}
+
+
+def operator_name(number: Any, raw: Any, names: dict[str, str]) -> str | None:
+    key = str(number) if number not in (None, "") else ""
+    return names.get(key) or title_name(clean(raw))
+
+
+def county_name(api_8: str | None) -> str | None:
+    return COUNTIES.get((api_8 or "")[:3])
+
+
+def spud_rows(records: Iterable[dict[str, Any]], start: str, today: str, names: dict[str, str]) -> list[dict[str, Any]]:
+    """Every well spudded from `start` through `today`. Future spud dates are data errors and skipped."""
+    rows = []
+    for record in records:
+        spud = iso(record.get("Spud_Date"))
+        api = clean(record.get("API"))
+        if not api or not spud or spud < start or spud > today:
+            continue
+        rows.append(
+            {
+                "api_8": api,
+                "spud_date": spud,
+                "well_name": clean(record.get("Well_Title")),
+                "operator_name": operator_name(record.get("Operat_Num"), record.get("Operator"), names),
+                "operator_number": str(record.get("Operat_Num") or "") or None,
+                "county": county_name(api),
+                "field_name": title_name(clean(record.get("Field_Name"))),
+                "well_status": clean(record.get("Facil_Stat")),
+                "well_class": clean(record.get("Well_Class")),
+                "max_md": int(record["Max_MD"]) if isinstance(record.get("Max_MD"), (int, float)) and record["Max_MD"] > 0 else None,
+                "latitude": record.get("Latitude"),
+                "longitude": record.get("Longitude"),
+            }
+        )
+    return rows
+
+
+def undrilled_rows(records: Iterable[dict[str, Any]], names: dict[str, str]) -> list[dict[str, Any]]:
+    """ECMC's current undrilled permit points: every approved permit not yet drilled, any approval date."""
+    rows = []
+    for record in records:
+        api = clean(record.get("API"))
+        if not api:
+            continue
+        rows.append(
+            {
+                "api_8": api,
+                "approved_date": iso(record.get("Perm_Appr")),
+                "permit_expiration_date": iso(record.get("Perm_Exp")),
+                "permit_type": {"DR": "New Well", "RC": "Recomplete"}.get(clean(record.get("Perm_Type")), clean(record.get("Perm_Type"))),
+                "well_name": clean(record.get("Well_Title")),
+                "operator_name": operator_name(record.get("Operat_Num"), record.get("Operator"), names),
+                "operator_number": str(record.get("Operat_Num") or "") or None,
+                "county": county_name(api),
+                "field_name": title_name(clean(record.get("Field_Name"))),
+                "proposed_td": record.get("Prop_Depth") or None,
+                "latitude": record.get("Latitude"),
+                "longitude": record.get("Longitude"),
+            }
+        )
+    return rows
+
+
 def download(session: requests.Session, url: str) -> bytes:
     response = session.get(url, timeout=300)
     response.raise_for_status()
     return response.content
 
 
-def run(today: date | None = None) -> dict[str, int]:
+def run(today: date | None = None) -> dict[str, Any]:
     session = requests.Session()
     session.headers["User-Agent"] = USER_AGENT
 
@@ -288,9 +383,16 @@ def run(today: date | None = None) -> dict[str, int]:
     well_records = list(read_zipped_dbf(download(session, WELLS_SHP_URL)))
     fail_if_count_collapsed("ECMC WELLS_SHP", len(well_records), MIN_WELL_ROWS)
     wells = wells_by_api(well_records, wanted)
-    expirations = expirations_by_api(read_zipped_dbf(download(session, PERMITS_SHP_URL)))
+    permit_records = list(read_zipped_dbf(download(session, PERMITS_SHP_URL)))
+    expirations = expirations_by_api(permit_records)
 
     checked = (today or date.today()).isoformat()
+    names = operator_names(approved)
+    spuds = merge_rows(read_jsonl(SPUDS_FILE), spud_rows(well_records, HISTORY_START, checked, names), "api_8")
+    write_jsonl(SPUDS_FILE, spuds, key="api_8")
+    # The undrilled layer is a current-state list, so it is replaced each run.
+    undrilled = undrilled_rows(permit_records, names)
+    write_jsonl(UNDRILLED_FILE, undrilled, key="api_8")
     for row in stored:
         api = row.get("api_8")
         row.update(wells.get(api, {}))
@@ -302,11 +404,14 @@ def run(today: date | None = None) -> dict[str, int]:
 
     write_jsonl(PERMITS_FILE, stored, key="source_key")
     counts = {
+        "history_start": HISTORY_START,
         "approved_list": len(approved),
         "since_history_start": len(incoming),
         "stored": len(stored),
         "matched_wells": sum(1 for row in stored if row["in_wells_layer"]),
         "undrilled": sum(1 for row in stored if row["undrilled_permit"]),
+        "statewide_spuds": len(spuds),
+        "statewide_undrilled": len(undrilled),
     }
     record_run(
         "ecmc_approved_form2",
