@@ -49,7 +49,7 @@ Download catalog: [ECMC downloadable data](https://ecmc.state.co.us/data2.html#/
 
 ## Draft `/co` (built)
 
-Decided 2026-11-06: same site and repo, one page per state (`/ca`, `/co`, later `/wy`, `/ut`), with the root becoming a multi-state landing page. History starts with approvals from 2026-08-01.
+Decided 2026-11-06: same site and repo, one page per state (`/ca`, `/co`, later `/wy`, `/ut`), with the root becoming a multi-state landing page. History starts with approvals from 2026-01-01 (moved back from 2026-08-01 on 2026-11-06).
 
 What the draft does:
 
@@ -64,7 +64,7 @@ What the draft does:
   - Operator scorecard: approvals, spuds, spuds per month, undrilled inventory, months of inventory at that pace.
   - Map, parent company / county / formation by status, weekly approvals by status, records table with CSV, notes.
 - Operator, county and permit type filters apply to spuds and inventory too; formation and status apply to permits only. Inventory is today's list and is not date filtered.
-- Days to spud covers only permits approved since 2026-08-01, so it is biased short until more history builds up. ECMC wells stay DG from spud until the completion report, so DG is not a "drilling now" count.
+- Days to spud covers only permits approved since 2026-01-01, so it is biased short until more history builds up. ECMC wells stay DG from spud until the completion report, so DG is not a "drilling now" count.
 
 Status groups (`src/co/lifecycle.ts`), from the wells layer:
 
