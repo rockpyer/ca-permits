@@ -38,7 +38,7 @@ SPUDS_FILE = "co/spuds.jsonl"
 UNDRILLED_FILE = "co/undrilled.jsonl"
 RUNS_FILE = "co/etl_runs.jsonl"
 # The draft keeps approvals from this date forward; history before it is not loaded.
-HISTORY_START = "2026-08-01"
+HISTORY_START = "2026-01-01"
 # The 12-month list held 836 rows on 2026-11-06. A much smaller result means the
 # postback or the table layout changed.
 MIN_APPROVED_ROWS = 300

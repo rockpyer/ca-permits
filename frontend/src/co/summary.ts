@@ -175,6 +175,35 @@ export function weeklyActivity(permits: CoPermit[], spuds: CoSpud[], rigWeeks: R
   return Array.from(weeks.values()).sort((a, b) => a.week.localeCompare(b.week));
 }
 
+/** Approvals and spuds per calendar month; rigs are the average of that month's weekly counts. */
+export function monthlyActivity(permits: CoPermit[], spuds: CoSpud[], rigWeeks: RigWeek[] | null, startDate: string, endDate: string) {
+  const months = new Map<string, { week: string; approvals: number; spuds: number; rigs: number | null; rigWeeks: number[] }>();
+  const bucket = (month: string) => {
+    if (!months.has(month)) months.set(month, { week: month, approvals: 0, spuds: 0, rigs: null, rigWeeks: [] });
+    return months.get(month)!;
+  };
+  if (startDate && endDate) {
+    for (let month = startDate.slice(0, 7); month <= endDate.slice(0, 7); month = nextMonth(month)) bucket(month);
+  }
+  permits.forEach((row) => row.approved_date && (bucket(row.approved_date.slice(0, 7)).approvals += 1));
+  spuds.forEach((row) => (bucket(row.spud_date.slice(0, 7)).spuds += 1));
+  rigWeeks?.forEach((rig) => {
+    const month = months.get(rig.date.slice(0, 7));
+    if (month && typeof rig.colorado === 'number') month.rigWeeks.push(rig.colorado);
+  });
+  return Array.from(months.values())
+    .sort((a, b) => a.week.localeCompare(b.week))
+    .map(({ rigWeeks: values, ...month }) => ({
+      ...month,
+      rigs: values.length ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10 : null
+    }));
+}
+
+function nextMonth(month: string) {
+  const [year, value] = month.split('-').map(Number);
+  return value === 12 ? `${year + 1}-01` : `${year}-${String(value + 1).padStart(2, '0')}`;
+}
+
 export function monthsBetween(startDate: string, endDate: string) {
   const days = daysBetween(startDate, endDate);
   return days === null ? 0 : Math.max(days + 1, 1) / 30.44;
