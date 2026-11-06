@@ -119,7 +119,7 @@ export function CoApp() {
                     {filtered.length.toLocaleString()} filtered permits from {rows.length.toLocaleString()} loaded
                   </span>
                   <nav className="flex flex-wrap items-center gap-4" aria-label="More pages">
-                    <a className="text-slate-500 hover:text-accent" href="/">
+                    <a className="text-slate-500 hover:text-accent" href={import.meta.env.VITE_PREVIEW === '1' ? '#/' : '/'}>
                       California
                     </a>
                     <a className="inline-flex items-center gap-1.5 border border-line px-2.5 py-1 font-semibold text-slate-300 hover:border-accent hover:text-accent" href={CONTACT_MAILTO}>

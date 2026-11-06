@@ -28,4 +28,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </React.StrictMode>
 );
 
+// The California and Colorado apps are chosen once at load, so crossing between them
+// (e.g. preview hash links like #/co) reloads the page.
+const startedOnColorado = isColoradoPath();
+const reloadOnStateChange = () => {
+  if (isColoradoPath() !== startedOnColorado) window.location.reload();
+};
+window.addEventListener('hashchange', reloadOnStateChange);
+window.addEventListener('popstate', reloadOnStateChange);
+
 startVisitBeacon();
