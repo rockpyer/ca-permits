@@ -7,11 +7,14 @@ import pytest
 
 from ingest_wyoming import (
     APD_COLUMNS,
+    Blocked,
     SourceError,
+    check_rejected,
     apd_record,
     dedupe,
     detail_queue,
     detail_record,
+    fetch_details,
     keep_apd,
     mineral_class,
     normalize_wy_api,
@@ -189,3 +192,40 @@ def test_well_record_and_api_helpers():
     assert normalize_wy_api("4900561413") == "49-005-61413"
     assert normalize_wy_api("05-123-00001") is None
     assert trs("Sec 02 | T36N | R69W") == "2-36N-69W"
+
+
+REJECTED = "<html><head><title>Request Rejected</title></head><body>The requested URL was rejected.</body></html>"
+
+
+def test_check_rejected_flags_the_firewall_page():
+    with pytest.raises(Blocked):
+        check_rejected(REJECTED, "report")
+    check_rejected('{"ColName": []}', "report")
+
+
+def test_fetch_details_stops_at_the_first_rejection():
+    calls = []
+
+    def fetch(pkey):
+        calls.append(pkey)
+        if pkey == "2":
+            check_rejected(REJECTED, f"APD detail {pkey}")
+        return parse_detail_page(DETAIL_PAGE)
+
+    details = {}
+    queue = [("49-005-1", "1"), ("49-005-2", "2"), ("49-005-3", "3")]
+    fetched, failed, stopped = fetch_details(fetch, queue, details, "2026-11-07")
+    assert (fetched, failed) == (1, 0)
+    assert "firewall" in stopped
+    assert calls == ["1", "2"]
+    assert list(details) == ["49-005-1"]
+
+
+def test_fetch_details_stops_after_consecutive_failures():
+    def fetch(pkey):
+        raise SourceError("APD detail page has no APD fields")
+
+    queue = [(f"49-005-{n}", str(n)) for n in range(20)]
+    fetched, failed, stopped = fetch_details(fetch, queue, {}, "2026-11-07")
+    assert (fetched, failed) == (0, 5)
+    assert stopped == "5 detail pages failed in a row"

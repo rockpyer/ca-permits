@@ -28,7 +28,7 @@ import re
 import sys
 import time
 from datetime import date, datetime
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 import requests
 
@@ -52,8 +52,13 @@ MIN_APD_PKEY = 333_000
 BATCH = 400
 # Seconds between requests to the Data Explorer.
 DELAY = float(os.environ.get("WY_DELAY", "1.0"))
-# APD detail pages fetched per run (one request each). The backlog fills over a few runs.
-DETAIL_LIMIT = int(os.environ.get("WY_DETAIL_LIMIT", "1500"))
+# APD detail pages fetched per run, one request each, slower than the reports. On 2026-11-07
+# the site's firewall began rejecting every request after about 1,600 detail pages in two
+# hours, so the backlog fills over many weekly runs instead of one long backfill.
+DETAIL_LIMIT = int(os.environ.get("WY_DETAIL_LIMIT", "300"))
+DETAIL_DELAY = float(os.environ.get("WY_DETAIL_DELAY", "3.0"))
+# Consecutive detail failures (other than a firewall rejection) before giving up for the run.
+MAX_CONSECUTIVE_FAILURES = 5
 
 # 18,160 APD keys and 121,037 wells on 2026-11-06.
 MIN_APD_KEYS = 10_000
@@ -83,6 +88,15 @@ WYOMING_COUNTIES = {
 
 class SourceError(RuntimeError):
     pass
+
+
+class Blocked(SourceError):
+    """The site's firewall answered with its "Request Rejected" page."""
+
+
+def check_rejected(text: str, what: str) -> None:
+    if "Request Rejected" in text[:2000]:
+        raise Blocked(f"{what}: the Data Explorer firewall rejected the request")
 
 
 def session() -> requests.Session:
@@ -316,6 +330,7 @@ def wfs_features(client: requests.Session, layer: str, properties: list[str], cq
     response = client.get(WFS_URL, params=params, timeout=600)
     response.raise_for_status()
     if "json" not in response.headers.get("content-type", ""):
+        check_rejected(response.text, f"WFS {layer}")
         raise SourceError(f"WFS {layer} did not return JSON")
     time.sleep(DELAY)
     return response.json().get("features", [])
@@ -339,6 +354,7 @@ def report(client: requests.Session, name: str, keys: list[str], expected: list[
         )
         response.raise_for_status()
         if "json" not in response.headers.get("content-type", ""):
+            check_rejected(response.text, name)
             raise SourceError(f"{name} returned {response.headers.get('content-type')}: {response.text[:200]}")
         rows.extend(report_rows(response.json(), expected))
         time.sleep(DELAY)
@@ -352,7 +368,8 @@ def fetch_detail(client: requests.Session, pkey: str) -> dict[str, str | None]:
         timeout=120,
     )
     response.raise_for_status()
-    time.sleep(DELAY)
+    time.sleep(DETAIL_DELAY)
+    check_rejected(response.text, f"APD detail {pkey}")
     return parse_detail_page(response.text)
 
 
@@ -380,6 +397,39 @@ def detail_queue(apds: list[dict[str, Any]], details: dict[str, dict[str, Any]])
     approved = sorted((row for row in rows if row.get("approved_date")), key=lambda row: row["approved_date"], reverse=True)
     pending = sorted((row for row in rows if not row.get("approved_date")), key=lambda row: int(row["source_key"]), reverse=True)
     return [(row["api"], row["source_key"]) for row in approved + pending]
+
+
+def fetch_details(
+    fetch: Callable[[str], dict[str, str | None]],
+    queue: list[tuple[str, str]],
+    details: dict[str, dict[str, Any]],
+    checked: str,
+) -> tuple[int, int, str | None]:
+    """Fills `details` from the queue. Stops at the first firewall rejection, since more
+    requests only extend the block, or after MAX_CONSECUTIVE_FAILURES other failures."""
+    fetched = failed = consecutive = 0
+    stopped = None
+    for api, pkey in queue:
+        try:
+            details[api] = detail_record(api, pkey, fetch(pkey), checked)
+            fetched += 1
+            consecutive = 0
+            # Save as it goes, so a long run that is stopped keeps what it fetched.
+            if fetched % 100 == 0:
+                write_jsonl(DETAILS_FILE, list(details.values()), key="api")
+        except Blocked as error:
+            stopped = str(error)
+            print(f"detail {pkey}: {error}; stopping detail pages for this run", file=sys.stderr)
+            break
+        except (requests.RequestException, SourceError) as error:
+            failed += 1
+            consecutive += 1
+            print(f"detail {pkey}: {error}", file=sys.stderr)
+            if consecutive >= MAX_CONSECUTIVE_FAILURES:
+                stopped = f"{consecutive} detail pages failed in a row"
+                print(f"{stopped}; stopping detail pages for this run", file=sys.stderr)
+                break
+    return fetched, failed, stopped
 
 
 def run() -> None:
@@ -438,19 +488,7 @@ def run() -> None:
     # 4. APD detail pages, once per API.
     details = {row["api"]: row for row in read_jsonl(DETAILS_FILE)}
     queue = detail_queue(apds, details)
-    fetched = failed = 0
-    for api, pkey in queue[:DETAIL_LIMIT]:
-        try:
-            details[api] = detail_record(api, pkey, fetch_detail(client, pkey), checked)
-            fetched += 1
-            # Save as it goes, so a long backfill that is stopped keeps what it fetched.
-            if fetched % 200 == 0:
-                write_jsonl(DETAILS_FILE, list(details.values()), key="api")
-        except (requests.RequestException, SourceError) as error:
-            failed += 1
-            print(f"detail {pkey}: {error}", file=sys.stderr)
-            if failed >= 25 and failed > fetched:
-                raise SourceError("APD detail pages are failing; stopping") from error
+    fetched, failed, stopped = fetch_details(lambda pkey: fetch_detail(client, pkey), queue[:DETAIL_LIMIT], details, checked)
 
     # 5. Spuds since the history start.
     spuds = [
@@ -489,6 +527,7 @@ def run() -> None:
             "spuds_stored": len(spuds),
             "details_fetched": fetched,
             "details_failed": failed,
+            "details_stopped": stopped,
             "details_missing": max(len(queue) - fetched, 0),
             "future_spud_dates_skipped": sum(1 for well in wells if (well["spud_date"] or "") > checked),
         },
