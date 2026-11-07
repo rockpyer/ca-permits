@@ -57,7 +57,7 @@ export type DrillTrackerRow = {
 
 export type DrillTracker = { updatedLabel: string; rows: DrillTrackerRow[] };
 
-export type RigCount = { sourceUrl: string; weeks: Array<{ date: string; california: number; kern: number; colorado?: number }> };
+export type RigCount = { sourceUrl: string; weeks: Array<{ date: string; california: number; kern: number; colorado?: number; wyoming?: number }> };
 
 export type FieldBoundary = {
   source_object_id: number;

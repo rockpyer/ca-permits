@@ -22,7 +22,7 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          for workflow in weekly-ingest.yml keepalive.yml keep-undead.yml; do
+          for workflow in weekly-ingest.yml weekly-co-ingest.yml weekly-wy-ingest.yml keepalive.yml keep-undead.yml; do
             gh api --method PUT "repos/$REPO/actions/workflows/$workflow/enable"
             state=$(gh api "repos/$REPO/actions/workflows/$workflow" --jq .state)
             echo "$workflow: $state"

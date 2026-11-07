@@ -59,10 +59,11 @@ describe('snapshot sources', () => {
         ['UNITED STATES', 'Kern', 'Other', 'Oil', 'Land', 'Vertical', 'California', new Date('2026-09-18T00:00:00Z'), 3],
         ['UNITED STATES', 'Los Angeles', 'Other', 'Oil', 'Land', 'Directional', 'California', new Date('2026-09-18T00:00:00Z'), 1],
         ['UNITED STATES', 'Midland', 'Permian', 'Oil', 'Land', 'Horizontal', 'Texas', new Date('2026-09-18T00:00:00Z'), 50],
-        ['UNITED STATES', 'Weld', 'DJ-Niobrara', 'Oil', 'Land', 'Horizontal', 'Colorado', new Date('2026-09-18T00:00:00Z'), 7]
+        ['UNITED STATES', 'Weld', 'DJ-Niobrara', 'Oil', 'Land', 'Horizontal', 'Colorado', new Date('2026-09-18T00:00:00Z'), 7],
+        ['UNITED STATES', 'Converse', 'Powder River', 'Oil', 'Land', 'Horizontal', 'Wyoming', new Date('2026-09-18T00:00:00Z'), 5]
       ]
     });
-    expect(parseRigCount(buffer)).toEqual({ sheet: 'Data', weeks: [{ date: '2026-09-18', california: 4, kern: 3, colorado: 7 }] });
+    expect(parseRigCount(buffer)).toEqual({ sheet: 'Data', weeks: [{ date: '2026-09-18', california: 4, kern: 3, colorado: 7, wyoming: 5 }] });
   });
 
   it('collects meaningful pool names per API-10', () => {
@@ -96,6 +97,6 @@ describe('snapshot sources', () => {
         ['UNITED STATES', 'LAKE', 'Miscellaneous', 'CALIFORNIA', new Date('2026-09-25T00:00:00Z'), 1]
       ]
     });
-    expect(parseRigCount(buffer).weeks).toEqual([{ date: '2026-09-25', california: 2, kern: 2, colorado: 0 }]);
+    expect(parseRigCount(buffer).weeks).toEqual([{ date: '2026-09-25', california: 2, kern: 2, colorado: 0, wyoming: 0 }]);
   });
 });

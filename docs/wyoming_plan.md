@@ -59,10 +59,36 @@ Stack on the Colorado branch, which already adds per-state routing (`src/main.ts
    - Map with SHL points and laterals; records table with Data Explorer links; Mowry rows link to mowry.ryweller.com.
 5. **Tests:** report parsing and dedupe, renewal handling, status grouping, WAF / non-JSON failure.
 
-## Decisions needed
+## Draft `/wy` (built)
 
-1. History start: 2025-01-01 (proposed) or later.
-2. Default count: Create New APD only, renewals as a separate series (proposed).
-3. Federal/fee flag in V1: from lease # on spudded wells only (cheap), or per-APD detail pages for approved APDs (about 60–90 requests a month).
-4. Whether to email WOGCC before the weekly job goes live.
-5. Merge order: Colorado first, then the shared-component refactor, then Wyoming.
+Decided 2026-11-07: history from 2025-01-01; new-well APDs counted apart from renewals; federal/fee mineral filter in V1 from the APD detail pages; no email to WOGCC for now. Built on the Colorado follow-up branch (#23) after moving the shared page code to `frontend/src/state/`.
+
+- `backend/ingest_wyoming.py` writes `data/wy/apds.jsonl` (APDs received or approved since 2025-01-01, plus every APD waiting on approval), `details.jsonl` (detail page by API), `spuds.jsonl` (every Wyoming spud since 2025-01-01) and `etl_runs.jsonl`. Detail pages are fetched once per API, up to `WY_DETAIL_LIMIT` (1,500) per run, approved APDs first, and saved every 200 so a stopped run keeps its progress.
+- `.github/workflows/weekly-wy-ingest.yml` runs Mondays at 12:13 UTC; a successful run redeploys the site. `keep-undead.yml` now also re-enables the Colorado and Wyoming ingests.
+- `frontend/scripts/snapshot-wy.mjs` joins APDs to detail pages and writes `public/data/wy/`. Spuds without a detail page take their mineral class from the well's lease number (`WYW`/`WYE` federal, `ST` state).
+- The Baker Hughes parser now also sums Wyoming rigs (18 for the week of 2026-11-06).
+- `/wy/` is built `noindex` and left out of the sitemap, like `/co/`.
+
+Page layout: summary tiles (new-well approvals, pending queue, spuds, rigs, federal share, days to approve and to spud); monthly or weekly approvals (new and renewal stacked), spuds and rigs; a map and record table that switch between approved and pending APDs and color by status or minerals, with surface-to-bottom-hole lines when zoomed in; pending queue by month received and county; approved and pending APDs by mineral ownership; operator scorecard; approvals by reservoir and county; sources and definitions.
+
+Status groups (`src/wy/lifecycle.ts`), with the well record taking precedence over the APD status:
+
+| Group | Rule |
+|---|---|
+| Waiting on approval | APD status Waiting on Approval |
+| Withdrawn or denied | Withdrawn, Denied or Cancelled |
+| Existing wellbore | Spud date before this APD's approval |
+| Drilled or completed | Spud date and a completion date or a post-drilling well status |
+| Spudded | Spud date, or APD status Drilling or Drilled Permit |
+| Expired, not spudded | APD status Expired Permit and no spud |
+| Approved, not spudded | Everything else with an approval |
+
+First run, 2026-11-07: 8,592 APDs kept (13,629 returned), 559 spuds since 2025-01-01, 1,488 wells checked.
+
+### Open items
+
+1. **Detail backfill.** About 8,400 detail pages at 1 request/second. Until they load, those APDs show as "Detail not loaded", and the federal share covers only APDs with detail.
+2. **Parent-company table** (`src/wy/operators.ts`) has only Anadarko E&P Onshore → Occidental. Check the rest before adding.
+3. **Tribal minerals.** The classifier maps `IND`/`TRIB` to Tribal; no Wind River example has been checked yet.
+4. **Spud coverage.** Spuds come from wells whose API is on a stored APD or whose status is Well Spudded. A well spudded since 2025 on an APD received before mid-2023 and not renewed would be missed.
+5. **BLM approvals** are still not in the data.
