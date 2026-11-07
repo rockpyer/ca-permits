@@ -24,7 +24,7 @@ def read_jsonl(name: str) -> list[dict[str, Any]]:
 
 
 def write_jsonl(name: str, rows: list[dict[str, Any]], key: str | None = None) -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    (DATA_DIR / name).parent.mkdir(parents=True, exist_ok=True)
     if key:
         rows = sorted(rows, key=lambda row: str(row[key]))
     # One sorted row per line keeps weekly git diffs to the records that changed.
@@ -39,8 +39,15 @@ def merge_rows(existing: list[dict[str, Any]], incoming: list[dict[str, Any]], k
     return list(merged.values())
 
 
-def record_run(source: str, *, source_count: int, upsert_count: int, details: dict[str, Any] | None = None) -> None:
-    runs = read_jsonl("etl_runs.jsonl")
+def record_run(
+    source: str,
+    *,
+    source_count: int,
+    upsert_count: int,
+    details: dict[str, Any] | None = None,
+    runs_file: str = "etl_runs.jsonl",
+) -> None:
+    runs = read_jsonl(runs_file)
     runs.insert(
         0,
         {
@@ -52,7 +59,7 @@ def record_run(source: str, *, source_count: int, upsert_count: int, details: di
             "finished_at": datetime.now(timezone.utc).isoformat(),
         },
     )
-    write_jsonl("etl_runs.jsonl", runs[:ETL_RUNS_KEPT])
+    write_jsonl(runs_file, runs[:ETL_RUNS_KEPT])
 
 
 def fail_if_count_collapsed(source: str, count: int, minimum: int) -> None:

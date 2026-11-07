@@ -519,7 +519,8 @@ function PreviewNav() {
       {[
         ['#/', 'Main'],
         ['#/drilling', 'Drilling'],
-        ['#/prod', 'Production']
+        ['#/prod', 'Production'],
+        ['#/co', 'Colorado']
       ].map(([href, label]) => (
         <a key={href} className="text-slate-300 hover:text-accent" href={href}>
           {label}

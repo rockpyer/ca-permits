@@ -59,3 +59,19 @@ describe('build-time SEO files', () => {
     expect(xml).not.toContain('/prod/');
   });
 });
+
+describe('draft state pages', () => {
+  const html = readFileSync(resolve(__dirname, '../index.html'), 'utf8');
+
+  it('keeps /co out of search and drops the California summary and dataset', async () => {
+    const { draftHtml } = await import('./route-pages.mjs');
+    const route = ROUTES.find((item) => item.path === 'co');
+    const page = draftHtml(routeHtml(html, route), route);
+    expect(page).toContain('<meta name="robots" content="noindex" />');
+    expect(page).toContain('<link rel="canonical" href="https://permits.ryweller.com/co/" />');
+    expect(page).toContain('<h1>Colorado well permit activity (draft)</h1>');
+    expect(page).not.toContain('application/ld+json');
+    expect(page).not.toContain('CalGEM and WellSTAR data, updated weekly');
+    expect(sitemapXml('2026-11-06')).not.toContain('/co/');
+  });
+});

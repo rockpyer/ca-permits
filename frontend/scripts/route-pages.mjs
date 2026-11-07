@@ -28,6 +28,14 @@ export const ROUTES = [
     title: 'About / methodology · California well permit activity',
     description: 'Data sources, definitions, and limitations for the California well permit activity tracker built on public CalGEM and WellSTAR data.',
     sitemap: true
+  },
+  {
+    path: 'co',
+    title: 'Colorado well permit activity (draft)',
+    description:
+      'Draft: approved Colorado ECMC drilling permits (Form 2) by operator, county and formation, with each permit\'s current well status, spud date and expiration.',
+    // Draft page: kept out of search and the sitemap, and given no California summary.
+    draft: true
   }
 ];
 // /drilling and /prod are hidden from navigation while in development; add `sitemap: true` when they launch.
@@ -99,6 +107,18 @@ export function stampHtml(html, meta, digest) {
   return page;
 }
 
+// Draft routes: noindex, no California JSON-LD dataset, and their own noscript text.
+export function draftHtml(html, route) {
+  const escape = (value) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  return html
+    .replace(/<meta name="robots" content="[^"]*" \/>/, '<meta name="robots" content="noindex" />')
+    .replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>\s*/, '')
+    .replace(
+      /<noscript>[\s\S]*?<\/noscript>/,
+      `<noscript>\n      <h1>${escape(route.title)}</h1>\n      <p>${escape(route.description)} The app needs JavaScript.</p>\n    </noscript>`
+    );
+}
+
 export function sitemapXml(lastmod) {
   const paths = ['', ...ROUTES.filter((route) => route.sitemap).map((route) => `${route.path}/`)];
   const urls = paths.map((path) => `  <url><loc>${SITE}/${path}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}</url>`);
@@ -122,7 +142,8 @@ async function readJson(file) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const meta = await readJson(resolve(dist, 'data/meta.json'));
   const digest = await readJson(resolve(dist, 'data/digest.json'));
-  const html = stampHtml(await readFile(resolve(dist, 'index.html'), 'utf8'), meta, digest);
+  const original = await readFile(resolve(dist, 'index.html'), 'utf8');
+  const html = stampHtml(original, meta, digest);
   await writeFile(resolve(dist, 'index.html'), html);
   await writeFile(resolve(dist, '404.html'), html.replace(/<meta name="robots" content="[^"]*" \/>/, '<meta name="robots" content="noindex" />'));
   await writeFile(resolve(dist, 'sitemap.xml'), sitemapXml(meta?.dateBounds?.maxDate));
@@ -130,7 +151,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   for (const route of ROUTES) {
     const file = resolve(dist, route.path, 'index.html');
     await mkdir(dirname(file), { recursive: true });
-    await writeFile(file, routeHtml(html, route));
+    await writeFile(file, route.draft ? draftHtml(routeHtml(original, route), route) : routeHtml(html, route));
   }
   console.log(`route pages: ${ROUTES.map((route) => `/${route.path}/`).join(', ')}`);
 }
