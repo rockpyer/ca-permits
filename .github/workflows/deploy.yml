@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   # Rebuild the static data snapshot after each weekly ingest commits new data.
   workflow_run:
-    workflows: ["Weekly CalGEM ingest", "Weekly ECMC ingest"]
+    workflows: ["Weekly CalGEM ingest", "Weekly ECMC ingest", "Weekly WOGCC ingest"]
     types: [completed]
 
 permissions:

@@ -36,6 +36,13 @@ export const ROUTES = [
       'Draft: approved Colorado ECMC drilling permits (Form 2) by operator, county and formation, with each permit\'s current well status, spud date and expiration.',
     // Draft page: kept out of search and the sitemap, and given no California summary.
     draft: true
+  },
+  {
+    path: 'wy',
+    title: 'Wyoming drilling permits and spuds (draft)',
+    description:
+      'Draft: Wyoming WOGCC applications for permit to drill (APDs) by operator, county, reservoir and mineral ownership, with the pending queue, spuds and rig count.',
+    draft: true
   }
 ];
 // /drilling and /prod are hidden from navigation while in development; add `sitemap: true` when they launch.

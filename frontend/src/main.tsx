@@ -6,33 +6,35 @@ import { App } from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { startVisitBeacon } from './lib/visits';
 
-// /co is a separate state page with its own data; it loads on demand.
+// /co and /wy are separate state pages with their own data; they load on demand.
 const CoApp = lazy(() => import('./co/CoApp').then((module) => ({ default: module.CoApp })));
+const WyApp = lazy(() => import('./wy/WyApp').then((module) => ({ default: module.WyApp })));
 
-function isColoradoPath() {
+function statePage(): 'ca' | 'co' | 'wy' {
   const path = window.location.hash.startsWith('#/') ? window.location.hash.slice(1) : window.location.pathname;
-  return /^\/co(\/|$)/.test(path);
+  if (/^\/co(\/|$)/.test(path)) return 'co';
+  if (/^\/wy(\/|$)/.test(path)) return 'wy';
+  return 'ca';
 }
+
+const page = statePage();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      {isColoradoPath() ? (
-        <Suspense fallback={null}>
-          <CoApp />
-        </Suspense>
-      ) : (
+      {page === 'ca' ? (
         <App />
+      ) : (
+        <Suspense fallback={null}>{page === 'co' ? <CoApp /> : <WyApp />}</Suspense>
       )}
     </ErrorBoundary>
   </React.StrictMode>
 );
 
-// The California and Colorado apps are chosen once at load, so crossing between them
-// (e.g. preview hash links like #/co) reloads the page.
-const startedOnColorado = isColoradoPath();
+// The state apps are chosen once at load, so crossing between them (e.g. preview hash
+// links like #/co) reloads the page.
 const reloadOnStateChange = () => {
-  if (isColoradoPath() !== startedOnColorado) window.location.reload();
+  if (statePage() !== page) window.location.reload();
 };
 window.addEventListener('hashchange', reloadOnStateChange);
 window.addEventListener('popstate', reloadOnStateChange);
