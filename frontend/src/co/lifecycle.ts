@@ -1,4 +1,7 @@
+import { daysBetween } from '../state/stats';
 import type { CoPermit } from './types';
+
+export { daysBetween };
 
 // COGIS facility status codes seen on wells with recent Form 2 approvals, plus the
 // common completed and inactive codes. Labels are working definitions to confirm
@@ -66,11 +69,6 @@ export function lifecycle(row: CoPermit, asOf: string): Lifecycle {
 export function wellStatusLabel(code: string | null | undefined) {
   if (!code) return 'No well record';
   return WELL_STATUS_LABELS[code] ? `${WELL_STATUS_LABELS[code]} (${code})` : code;
-}
-
-export function daysBetween(start: string | null | undefined, end: string | null | undefined) {
-  if (!start || !end) return null;
-  return Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86_400_000);
 }
 
 /** Days from approval to spud for permits that started a new well. */

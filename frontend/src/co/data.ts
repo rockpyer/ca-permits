@@ -1,3 +1,4 @@
+import { columnar as loadColumnar } from '../state/format';
 import type { CoMeta, CoPermit, CoSpud, CoUndrilled, RigWeek } from './types';
 
 export const SCOUT_CARD_URL = 'https://ecmc.state.co.us/cogisdb/Facility/FacilityDetail';
@@ -30,11 +31,8 @@ export async function loadCoData(): Promise<CoData> {
   return { permits, spuds, undrilled, rigWeeks, meta };
 }
 
-async function columnar<T>(url: string): Promise<T[]> {
-  const response = await fetch(url);
-  if (!response.ok || !response.headers.get('content-type')?.includes('json')) throw new Error('Colorado data snapshot is incomplete.');
-  const { columns, rows } = (await response.json()) as { columns: string[]; rows: unknown[][] };
-  return rows.map((values) => Object.fromEntries(columns.map((column, index) => [column, values[index]])) as T);
+function columnar<T>(url: string) {
+  return loadColumnar<T>(url, 'Colorado');
 }
 
 export function scoutCardUrl(row: Pick<CoPermit, 'api_8'>) {
