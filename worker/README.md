@@ -9,10 +9,10 @@ A Cloudflare Worker beside the static site. permits.ryweller.com stays on GitHub
 | `POST /api/visit` | Anonymous visit beacon (`frontend/src/lib/visits.ts`) |
 | `/confirm`, `/unsubscribe` | Links in emails (GET shows a button, POST acts; POST is also RFC 8058 one-click) |
 | `/img/map-<week>.png` | Each week's email map, copied from the site so old emails keep their own map |
-| `/admin` | Admin page, signed in as **Neptune** (permits.ryweller.com/admin forwards here) |
+| `/admin` | Admin page, signed in as **Neptune** (permits.ryweller.com/admin forwards here): visitors (with a California / Colorado split), subscribers, weekly email, audit log, and the dev **Backlog** (items in `src/backlog.mjs`, status/priority/notes in D1) |
 | cron, hourly 15:23–23:23 UTC Mon and Tue | Weekly digest, sent at the first run after the weekly data refresh reaches the site |
 
-Storage is the D1 database `ca-permits` (`fa528a5c-…`, schema in `migrations/`, already applied). Email goes through
+Storage is the D1 database `ca-permits` (`fa528a5c-…`, schema in `migrations/`; 0001–0002 applied, `0003_backlog.sql` must be applied once in the D1 console before backlog changes can save). Email goes through
 [Resend](https://resend.com/docs/api-reference/emails/send-batch-emails).
 
 ## Sign-up API (for the form)
