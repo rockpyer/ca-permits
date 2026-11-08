@@ -52,10 +52,12 @@ MIN_APD_PKEY = 333_000
 BATCH = 400
 # Seconds between requests to the Data Explorer.
 DELAY = float(os.environ.get("WY_DELAY", "1.0"))
-# APD detail pages fetched per run, one request each, slower than the reports. On 2026-11-07
-# the site's firewall began rejecting every request after about 1,600 detail pages in two
-# hours, so the backlog fills over many weekly runs instead of one long backfill.
-DETAIL_LIMIT = int(os.environ.get("WY_DETAIL_LIMIT", "300"))
+# APD detail pages fetched per run, one request each. On 2026-11-07 the site's firewall began
+# rejecting every request after about 1,600 detail pages in two hours. The weekly run keeps
+# this light: newly approved APDs only (about 15-25 a week), capped here. The pending queue
+# is not backfilled unless WY_DETAIL_PENDING=1 (see BACKLOG.md for better sources).
+DETAIL_LIMIT = int(os.environ.get("WY_DETAIL_LIMIT", "50"))
+DETAIL_PENDING = os.environ.get("WY_DETAIL_PENDING") == "1"
 DETAIL_DELAY = float(os.environ.get("WY_DETAIL_DELAY", "3.0"))
 # Consecutive detail failures (other than a firewall rejection) before giving up for the run.
 MAX_CONSECUTIVE_FAILURES = 5
@@ -383,8 +385,9 @@ def point(feature: dict[str, Any]) -> tuple[float | None, float | None]:
 # ---------------------------------------------------------------------------- run
 
 
-def detail_queue(apds: list[dict[str, Any]], details: dict[str, dict[str, Any]]) -> list[tuple[str, str]]:
-    """(api, pkey) pairs still missing a detail page: approved first, newest first, then pending."""
+def detail_queue(apds: list[dict[str, Any]], details: dict[str, dict[str, Any]], pending: bool = True) -> list[tuple[str, str]]:
+    """(api, pkey) pairs still missing a detail page: approved first, newest first, then pending
+    ones if `pending`."""
     by_api: dict[str, dict[str, Any]] = {}
     for row in apds:
         api = row.get("api")
@@ -395,8 +398,8 @@ def detail_queue(apds: list[dict[str, Any]], details: dict[str, dict[str, Any]])
             by_api[api] = row
     rows = list(by_api.values())
     approved = sorted((row for row in rows if row.get("approved_date")), key=lambda row: row["approved_date"], reverse=True)
-    pending = sorted((row for row in rows if not row.get("approved_date")), key=lambda row: int(row["source_key"]), reverse=True)
-    return [(row["api"], row["source_key"]) for row in approved + pending]
+    waiting = sorted((row for row in rows if not row.get("approved_date")), key=lambda row: int(row["source_key"]), reverse=True)
+    return [(row["api"], row["source_key"]) for row in approved + (waiting if pending else [])]
 
 
 def fetch_details(
@@ -487,7 +490,7 @@ def run() -> None:
 
     # 4. APD detail pages, once per API.
     details = {row["api"]: row for row in read_jsonl(DETAILS_FILE)}
-    queue = detail_queue(apds, details)
+    queue = detail_queue(apds, details, pending=DETAIL_PENDING)
     fetched, failed, stopped = fetch_details(lambda pkey: fetch_detail(client, pkey), queue[:DETAIL_LIMIT], details, checked)
 
     # 5. Spuds since the history start.

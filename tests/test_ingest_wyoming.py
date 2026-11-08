@@ -167,6 +167,7 @@ def test_detail_queue_fetches_each_api_once_approved_newest_first():
     ]
     queue = detail_queue(apds, {"49-009-5": {}})
     assert queue == [("49-009-2", "300"), ("49-009-1", "200"), ("49-009-4", "500"), ("49-009-3", "400")]
+    assert detail_queue(apds, {"49-009-5": {}}, pending=False) == [("49-009-2", "300"), ("49-009-1", "200")]
 
 
 def test_well_record_and_api_helpers():

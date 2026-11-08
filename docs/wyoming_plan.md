@@ -63,7 +63,7 @@ Stack on the Colorado branch, which already adds per-state routing (`src/main.ts
 
 Decided 2026-11-07: history from 2025-01-01; new-well APDs counted apart from renewals; federal/fee mineral filter in V1 from the APD detail pages; no email to WOGCC for now. Built on the Colorado follow-up branch (#23) after moving the shared page code to `frontend/src/state/`.
 
-- `backend/ingest_wyoming.py` writes `data/wy/apds.jsonl` (APDs received or approved since 2025-01-01, plus every APD waiting on approval), `details.jsonl` (detail page by API), `spuds.jsonl` (every Wyoming spud since 2025-01-01) and `etl_runs.jsonl`. Detail pages are fetched once per API, up to `WY_DETAIL_LIMIT` (300) per run, 3 s apart, approved APDs first, and saved every 100. The run stops fetching detail pages at the first firewall rejection or after 5 failures in a row, and records why in `etl_runs.jsonl`.
+- `backend/ingest_wyoming.py` writes `data/wy/apds.jsonl` (APDs received or approved since 2025-01-01, plus every APD waiting on approval), `details.jsonl` (detail page by API), `spuds.jsonl` (every Wyoming spud since 2025-01-01) and `etl_runs.jsonl`. Detail pages are fetched once per API for newly approved APDs only, up to `WY_DETAIL_LIMIT` (50) per run, 3 s apart, and saved every 100. The pending queue is not backfilled (`WY_DETAIL_PENDING=1` turns it on). The run stops fetching detail pages at the first firewall rejection or after 5 failures in a row, and records why in `etl_runs.jsonl`.
 - `.github/workflows/weekly-wy-ingest.yml` runs Mondays at 12:13 UTC; a successful run redeploys the site. `keep-undead.yml` now also re-enables the Colorado and Wyoming ingests.
 - `frontend/scripts/snapshot-wy.mjs` joins APDs to detail pages and writes `public/data/wy/`. Spuds without a detail page take their mineral class from the well's lease number (`WYW`/`WYE` federal, `ST` state).
 - The Baker Hughes parser now also sums Wyoming rigs (18 for the week of 2026-11-06).
@@ -87,7 +87,7 @@ First run, 2026-11-07: 8,592 APDs kept (13,629 returned), 559 spuds since 2025-0
 
 ### Open items
 
-1. **Detail backfill.** Every APD approved since 2025-01-01 has its detail page (1,238; 832 of 965 new-well approvals are on federal or mixed-federal minerals). The pending queue does not: 446 of 7,006. The first backfill was stopped by the site's firewall (see issue 2). At 300 a week the queue fills in about five months; a faster backfill needs WOGCC's permission or a bulk ownership source. Until then, pending APDs without detail show as "Detail not loaded".
+1. **Detail backfill.** Every APD approved since 2025-01-01 has its detail page (1,238; 832 of 965 new-well approvals are on federal or mixed-federal minerals). The pending queue does not: 446 of 7,006. The first backfill was stopped by the site's firewall (see issue 2). Decided 2026-11-08: no further backfill of the queue from detail pages. Pending APDs without detail show as "Detail not loaded" until a lighter source is found (see BACKLOG.md, Wyoming data fetch).
 2. **Parent-company table** (`src/wy/operators.ts`) has only Anadarko E&P Onshore → Occidental. Check the rest before adding.
 3. **Tribal minerals.** The classifier maps `IND`/`TRIB` to Tribal; no Wind River example has been checked yet.
 4. **Spud coverage.** Spuds come from wells whose API is on a stored APD or whose status is Well Spudded. A well spudded since 2025 on an APD received before mid-2023 and not renewed would be missed.
