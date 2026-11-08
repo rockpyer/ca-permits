@@ -64,6 +64,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:now
 .okmsg{color:var(--ok);font-size:13px;min-height:1em;margin:4px 0}
 #login{max-width:340px;margin:12vh auto}
 #login label{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--muted);margin-bottom:10px}
+#login .pw{display:flex;gap:6px}#login .pw input{flex:1;min-width:0}#login button.primary{width:100%;padding:8px}
 .empty{color:var(--muted)}
 .chart svg{display:block;width:100%;height:160px}
 .chart .bar{fill:var(--bar)}.chart text{fill:var(--muted);font-size:11px}
@@ -82,10 +83,13 @@ code{font-size:12px}
 <main>
   <form id="login" class="card" hidden>
     <h1 style="margin-bottom:12px">Permits admin</h1>
-    <label>Username <input name="username" autocomplete="username" required></label>
-    <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
-    <p class="err" id="loginErr"></p>
-    <button class="primary" type="submit">Sign in</button>
+    <label>Username <input name="username" autocomplete="username" value="Neptune" required autocapitalize="off" spellcheck="false"></label>
+    <label>Password
+      <span class="pw"><input name="password" id="pw" type="password" autocomplete="current-password" required autofocus>
+      <button type="button" id="pwShow" aria-pressed="false" aria-label="Show password">Show</button></span></label>
+    <p class="err" id="loginErr" role="alert"></p>
+    <button class="primary" type="submit" id="loginBtn">Sign in</button>
+    <p class="hint">Stays signed in on this browser for 30 days, renewed while you use it.</p>
   </form>
 
   <div id="app" hidden>
@@ -178,8 +182,9 @@ code{font-size:12px}
   const when = (t) => t ? new Date(t).toLocaleString('en-US', { timeZone: 'America/Denver', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }) : '';
   async function api(method, path, body) {
     const r = await fetch(path, { method, headers: { 'x-permits': '1', ...(body && { 'content-type': 'application/json' }) }, body: body && JSON.stringify(body), credentials: 'same-origin' });
-    if (r.status === 401) { show(false); throw new Error('Sign in first'); }
     const j = await r.json().catch(() => ({}));
+    // A 401 from the sign-in call itself is a wrong password: show the server's reason, not "Sign in first".
+    if (r.status === 401 && path !== '/api/login') { show(false); throw new Error('Signed out. Sign in again.'); }
     if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
     return j;
   }
@@ -187,13 +192,22 @@ code{font-size:12px}
     ? `<table><thead><tr>${cols.map((c) => `<th class="${c.num ? 'num' : ''}">${esc(c.h)}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${cols.map((c) => `<td class="${c.num ? 'num' : ''}">${c.f ? c.f(r) : esc(r[c.k])}</td>`).join('')}</tr>`).join('')}</tbody></table>`
     : `<p class="empty">${empty}</p>`;
 
-  function show(signedIn) { $('#login').hidden = signedIn; $('#app').hidden = !signedIn; }
+  function show(signedIn) { $('#login').hidden = signedIn; $('#app').hidden = !signedIn; if (!signedIn) setTimeout(() => $('#pw')?.focus(), 0); }
   $('#login').addEventListener('submit', async (e) => {
     e.preventDefault(); $('#loginErr').textContent = '';
-    const f = new FormData(e.target);
-    try { await api('POST', '/api/login', { username: f.get('username'), password: f.get('password') }); show(true); markOwner(); load(); }
-    catch (err) { $('#loginErr').textContent = err.message; }
+    const f = new FormData(e.target), btn = $('#loginBtn');
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    try { await api('POST', '/api/login', { username: f.get('username'), password: f.get('password') }); $('#pw').value = ''; show(true); markOwner(); load(); }
+    catch (err) { $('#loginErr').textContent = err.message; $('#pw').select(); }
+    finally { btn.disabled = false; btn.textContent = 'Sign in'; }
   });
+  $('#pwShow').onclick = () => {
+    const pw = $('#pw'), shown = pw.type === 'text';
+    pw.type = shown ? 'password' : 'text';
+    $('#pwShow').textContent = shown ? 'Show' : 'Hide';
+    $('#pwShow').setAttribute('aria-pressed', String(!shown));
+    pw.focus();
+  };
   $('#logout').onclick = async () => { await api('POST', '/api/logout'); show(false); };
   // Marks this network as the owner's so its visits to the site are not counted (the site's visitor id lives on
   // another origin, so the browser itself cannot be marked from here).

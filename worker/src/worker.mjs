@@ -7,7 +7,7 @@
 //   /api/login, /api/admin/*     the admin page (public/admin.html), signed in as ADMIN_USER
 // The cron trigger sends the weekly digest (src/digest.mjs).
 import { handleAdmin } from './admin.mjs';
-import { login, logout, sessionUser } from './auth.mjs';
+import { login, logout, renewCookie, sessionUser } from './auth.mjs';
 import { runWeekly, serveImage } from './digest.mjs';
 import { confirm, subscribe, unsubscribe } from './subscribe.mjs';
 import { recordVisit } from './visits.mjs';
@@ -40,7 +40,10 @@ export async function handle(req, env) {
   const u = await sessionUser(req, env);
   if (path === '/api/me') return json({ user: u?.username || null });
   if (!u) return json({ error: 'Sign in first' }, 401);
-  if (path.startsWith('/api/admin/')) return handleAdmin(req, env, u.username, path);
+  if (path.startsWith('/api/admin/')) {
+    const res = await handleAdmin(req, env, u.username, path);
+    return u.renewed ? withHeaders(res, { 'set-cookie': renewCookie(req) }) : res;
+  }
   return json({ error: 'Not found' }, 404);
 }
 

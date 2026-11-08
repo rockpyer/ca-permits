@@ -40,8 +40,10 @@ Content-Type: application/json
 - **Append-only audit log** (`audit_log`) of every sign-up, confirmation, unsubscribe, sign-in, export, erase and send.
   People appear only as an HMAC of their email, so erasing someone leaves the log intact without their address.
 - **No IP addresses stored** anywhere: rate limits and owner-exclusion use salted hashes.
-- **Admin:** PBKDF2 password hash (secret), HttpOnly/Secure/SameSite=Strict session cookie stored hashed, 10 failed
-  sign-ins per 15 minutes, custom-header CSRF guard, strict CSP on `/admin`.
+- **Admin:** PBKDF2 password hash (secret), HttpOnly/Secure/SameSite=Strict session cookie stored hashed (30 days,
+  renewed when used in its last week), 10 failed sign-ins per 15 minutes per network with the tries left shown, custom-header
+  CSRF guard, strict CSP on `/admin`. Forgot the password? Make a new hash with `node scripts/hash-password.mjs 'new password'`
+  and replace the `ADMIN_PW` secret.
 - **Recovery:** D1 Time Travel restores the database to any minute in the last 30 days.
 - **Deliverability/compliance:** List-Unsubscribe + one-click headers ([Gmail/Yahoo bulk-sender rules](https://support.google.com/a/answer/81126)),
   postal address in every email ([CAN-SPAM](https://www.ftc.gov/business-guidance/resources/can-spam-act-compliance-guide-business)).
