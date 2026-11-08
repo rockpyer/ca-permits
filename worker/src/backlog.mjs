@@ -17,6 +17,7 @@ export const STATUSES = ['todo', 'doing', 'done', 'dropped'];
 export const THEMES = {
   site: 'Multi-state site',
   co: 'Colorado data and analysis',
+  wy: 'Wyoming data and analysis',
   ca: 'California data and analysis',
   map: 'Map',
   ui: 'Pages and UI',
@@ -35,6 +36,9 @@ const OPENFREEMAP = ['OpenFreeMap (free vector tiles, no key)', 'https://openfre
 const BH = ['Baker Hughes North America rig count', 'https://rigcount.bakerhughes.com/na-rig-count'];
 const CALGEM_DL = ['CalGEM public downloads', 'https://wellstar-public.conservation.ca.gov/General/PublicDownloads/Index'];
 const WOGCC = ['Wyoming Oil and Gas Conservation Commission data', 'https://wogcc.wyo.gov/'];
+const WOGCC_DE = ['WOGCC Data Explorer', 'https://dataexplorer.wogcc.wyo.gov/'];
+const BLM_NAV = ['BLM Navigator (national data portal)', 'https://navigator.blm.gov/'];
+const MLRS = ['BLM Mineral & Land Records System (MLRS)', 'https://mlrs.blm.gov/'];
 const UTDOGM = ['Utah Division of Oil, Gas and Mining data', 'https://oilgas.ogm.utah.gov/'];
 
 // size: S (a day or two), M (about a week), L (several weeks). sum: one line in the list. deps: ids that should ship
@@ -73,6 +77,12 @@ export const ITEMS = [
     sum: 'Remove the draft label and noindex, add /co to the sitemap, give it a social card and an About section.',
     what: 'In frontend/scripts/route-pages.mjs drop draft: true for co. Add a Colorado methodology section (sources, status groups, history start, expiration notes). Make a Colorado social preview image. Add a non-affiliation line for ECMC (already in the footer).',
     why: 'It is live but hidden from search and unlinked.' },
+  { id: 'ops-wy-first-run', priority: 'p1', theme: 'ops', size: 'S', src: 'Wyoming build, Nov 8',
+    title: 'Check the first scheduled WOGCC ingest',
+    sum: 'Confirm Monday\'s "Weekly WOGCC ingest" ran without tripping the Data Explorer firewall, committed data/wy, and redeployed.',
+    what: 'The job runs Mondays at 12:13 UTC, after the CalGEM and ECMC jobs. In data/wy/etl_runs.jsonl check details_fetched and details_stopped. A firewall rejection on the reports fails the run without changing data; if that happens, skip a week before retrying. Extend keepalive.yml so a stale WOGCC run raises the same alert as CalGEM.',
+    why: 'On Nov 7 a one-time backfill of APD detail pages tripped the firewall for over an hour. The weekly run is now light (about 40 report requests and up to 50 detail pages), but it has not run on schedule yet.',
+    links: [WOGCC_DE] },
   { id: 'map-tiles', priority: 'p1', theme: 'map', size: 'S', src: 'BACKLOG.md',
     title: 'Move the basemap off tile.openstreetmap.org',
     sum: 'OSM\'s own tiles are not meant for production traffic; switch to OpenFreeMap (no key) for both states.',
@@ -103,6 +113,23 @@ export const ITEMS = [
     what: 'Options: COGIS scout cards per API for wells spudded since 2024 (rate-limited scraping), or an ECMC records request for a Form 2 approval export. The undrilled layer already gives approval dates for permits not yet drilled.',
     why: 'Days-to-spud only covers permits approved since Jan 1, which leaves out slow ones.',
     links: [COGIS] },
+  { id: 'wy-blm-minerals', priority: 'p2', theme: 'wy', size: 'M', src: 'Owner, Nov 8',
+    title: 'Federal vs fee for Wyoming from a BLM map layer',
+    sum: 'Intersect each APD\'s surface and bottom-hole location with BLM\'s federal mineral estate layer instead of fetching WOGCC detail pages.',
+    what: 'Find BLM\'s subsurface (federal mineral estate) layer for Wyoming and check that it separates split estate from full federal. Download it once, intersect SHL and BHL points in the ingest, and use the result where an APD has no detail page. Compare against the 1,620 APDs that do have detail to measure agreement.',
+    why: 'About 6,560 pending APDs show "Detail not loaded" for minerals, and fetching their detail pages is what tripped the firewall. This needs zero WOGCC requests.',
+    links: [BLM_NAV] },
+  { id: 'ops-polite-fetch', priority: 'p2', theme: 'ops', size: 'M', src: 'Owner, Nov 8',
+    title: 'One polite fetch client for every state ingest',
+    sum: 'Shared session with a contact User-Agent, per-host rate limit with jitter, backoff on 429/503 and firewall pages, and a request count per run.',
+    what: 'Move the pieces now in ingest_wyoming.py (rejection check, consecutive-failure stop, delays) into backend/fetch.py and use it from the CalGEM, ECMC and WOGCC ingests. Record requests per host in each etl_runs entry and show them, with any stop reason, on the admin page. After a block, skip that host\'s optional requests the next week instead of retrying.',
+    why: 'The owner does not want high-intensity scraping. Request counts make the load visible and keep it from creeping up as states are added.' },
+  { id: 'wy-well-lookup', priority: 'p2', theme: 'wy', size: 'S', src: 'Wyoming build, Nov 8',
+    title: 'Smaller weekly well lookup for Wyoming',
+    sum: 'Stop pulling the full WFS WELL layer (about 24 MB, 121,000 wells) each week.',
+    what: 'Query only the APIs on stored APDs (cql_filter WellId IN (...) in batches) plus wells with status SP, or new well keys since the last run.',
+    why: 'It is the largest single request in the weekly run.',
+    links: [WOGCC_DE] },
   { id: 'co-url-filters', priority: 'p2', theme: 'ui', size: 'S', src: 'Colorado build, Nov 6',
     title: 'Shareable filter links on /co',
     sum: 'Keep the date range, operators, counties and status in the URL, as California does.',
@@ -140,6 +167,24 @@ export const ITEMS = [
     sum: 'CRC appears under several names; offer the parent in the filter, not only in Operator Analysis.' },
 
   /* ---------- Later ---------- */
+  { id: 'wy-blm-apd', priority: 'p3', theme: 'wy', size: 'M', src: 'Wyoming build, Nov 8',
+    title: 'BLM lease and permit status for federal Wyoming wells',
+    sum: 'Show which federal and mixed-federal APDs also have a BLM permit to drill, so "approved" means cleared to spud.',
+    what: 'Look up leases and BLM APD status from MLRS or BLM\'s public data. Match on API or lease number. Add a "BLM permit" column and filter.',
+    why: '86% of 2025-26 new-well approvals are on federal or mixed-federal minerals; a WOGCC approval alone does not clear them to spud.',
+    links: [MLRS] },
+  { id: 'wy-bulk-extract', priority: 'p3', theme: 'wy', size: 'S', src: 'Owner, Nov 8',
+    title: 'Ask WOGCC for a bulk APD extract',
+    sum: 'An APD list with mineral ownership, or permission for a slow one-time backfill, instead of page-by-page requests.',
+    what: 'Owner decision (Nov 7): no email for now. When ready, ask what bulk exports exist, mention the weekly load (about 90 requests), and offer to slow it further.',
+    links: [WOGCC] },
+  { id: 'wy-changed-only', priority: 'p3', theme: 'wy', size: 'S', src: 'Wyoming build, Nov 8',
+    title: 'Fetch only what changed in Wyoming',
+    sum: 'Skip report rows whose status and dates match the stored row; refresh APDs older than a year monthly, not weekly.',
+    why: 'Cuts the weekly report requests by most of the 13,600 keys checked.' },
+  { id: 'wy-parents', priority: 'p3', theme: 'wy', size: 'S', src: 'Wyoming build, Nov 8',
+    title: 'Wyoming parent-company table',
+    sum: 'Only Anadarko E&P Onshore → Occidental is mapped. Check the rest before adding; lives in frontend/src/wy/operators.ts.' },
   { id: 'ca-combined', priority: 'p3', theme: 'ca', size: 'M', src: 'Colorado build, Nov 6',
     title: 'California permits and drilling on one page',
     sum: 'Bring the Colorado layout (approval → spud → inventory, operator scorecard) to California; link or fold in /drilling.',
@@ -170,9 +215,9 @@ export const ITEMS = [
 
   /* ---------- Ideas ---------- */
   { id: 'site-wy-ut', priority: 'p4', theme: 'site', size: 'L', src: 'Owner, Nov 6', deps: ['site-routing'],
-    title: 'Wyoming and Utah pages',
-    sum: 'Research permit, spud and status sources for WOGCC and Utah DOGM, then add /wy and /ut on the same pattern.',
-    links: [WOGCC, UTDOGM] },
+    title: 'Utah page',
+    sum: 'Research permit, spud and status sources for Utah DOGM, then add /ut on the shared state page code. Check robots.txt and rate limits first; Wyoming\'s site blocked a heavy backfill.',
+    links: [UTDOGM] },
   { id: 'co-compliance', priority: 'p4', theme: 'co', size: 'M', src: 'Colorado research, Nov 6',
     title: 'Colorado spills, inspections and violations',
     sum: 'ECMC\'s daily export includes spills, NOAVs and inspections; show them by operator alongside activity.',
@@ -191,6 +236,9 @@ export const ITEMS = [
   { id: 'done-co-history', priority: 'p1', theme: 'co', size: 'S', status: 'done', src: 'PR #23, Nov 7',
     title: 'Colorado history from Jan 1, 2026',
     sum: '706 permits and 565 spuds; monthly view of approvals, spuds and rigs.' },
+  { id: 'done-wy-draft', priority: 'p1', theme: 'wy', size: 'L', status: 'done', src: 'PR #24, Nov 8',
+    title: 'Wyoming draft page at /wy',
+    sum: 'APDs, the pending queue, statewide spuds, Wyoming rigs, federal vs fee filter; shared state page code for /co and /wy. Weekly WOGCC ingest kept light.' },
   { id: 'done-admin', priority: 'p1', theme: 'admin', size: 'M', status: 'done', src: 'PR #14, #15',
     title: 'Admin page with visitors, subscribers, weekly email and audit log' },
 ];
