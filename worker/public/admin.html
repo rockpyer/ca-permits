@@ -38,6 +38,29 @@ td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .hint{color:var(--muted);font-size:12px;margin:6px 0 0}
 .err{color:var(--err);font-size:13px;min-height:1em;margin:4px 0}
+/* Backlog */
+.bbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.bbar input[type=search]{flex:1;min-width:180px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:4px 10px}.seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip{border-radius:999px;padding:2px 10px;font-size:12px}.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.bgroup{margin-bottom:16px}.bgroup>h3{font-size:13px;margin:0 0 6px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:flex;gap:8px;align-items:baseline}
+.bgroup>h3 .goal{text-transform:none;letter-spacing:0;font-weight:400}
+.bitem{background:var(--panel);border:1px solid var(--line);border-radius:6px;margin-bottom:6px}
+.bitem>summary{list-style:none;cursor:pointer;padding:8px 12px;display:grid;grid-template-columns:auto 1fr auto;gap:4px 10px;align-items:baseline}
+.bitem>summary::-webkit-details-marker{display:none}
+.bitem .rk{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px;min-width:2.2em}
+.bitem .tt{font-weight:600}.bitem .sm{grid-column:2/4;color:var(--muted);font-size:13px}
+.tags{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.tag{font-size:11px;border:1px solid var(--line);border-radius:3px;padding:0 5px;color:var(--muted);white-space:nowrap}
+.tag.st-doing{border-color:var(--focus);color:var(--focus)}.tag.st-done{border-color:var(--ok);color:var(--ok)}.tag.st-dropped{text-decoration:line-through}
+.bitem.is-done .tt,.bitem.is-dropped .tt{color:var(--muted)}
+.bbody{padding:0 12px 12px 12px;border-top:1px solid var(--line);font-size:13px}
+.bbody dl{display:grid;grid-template-columns:110px 1fr;gap:4px 10px;margin:10px 0}.bbody dt{color:var(--muted)}.bbody dd{margin:0}
+.bbody textarea{width:100%;min-height:60px}
+.bctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+@media (max-width:640px){.bitem>summary{grid-template-columns:auto 1fr}.tags{grid-column:2;justify-content:flex-start}.bitem .sm{grid-column:2}.bbody dl{grid-template-columns:1fr}}
 .okmsg{color:var(--ok);font-size:13px;min-height:1em;margin:4px 0}
 #login{max-width:340px;margin:12vh auto}
 #login label{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--muted);margin-bottom:10px}
@@ -77,12 +100,14 @@ code{font-size:12px}
       <button role="tab" data-tab="subs" aria-selected="false">Subscribers</button>
       <button role="tab" data-tab="digest" aria-selected="false">Weekly email</button>
       <button role="tab" data-tab="audit" aria-selected="false">Audit log</button>
+      <button role="tab" data-tab="backlog" aria-selected="false">Backlog</button>
     </nav>
 
     <section data-panel="visitors">
       <div class="tiles" id="tiles"></div>
       <div class="card"><h2>Visits per day</h2><div class="chart" id="chart"></div></div>
       <div class="card"><h2>Who is visiting <span class="n">by network owner (company, agency, university, ISP)</span></h2><div class="wrap" id="orgs"></div></div>
+      <div class="card"><h2>By state page <span class="n">/co is Colorado; everything else is California</span></h2><div class="wrap" id="sites"></div></div>
       <div class="grid">
         <div class="card"><h2>Pages</h2><div class="wrap" id="paths"></div></div>
         <div class="card"><h2>Referrers</h2><div class="wrap" id="referrers"></div></div>
@@ -122,6 +147,19 @@ code{font-size:12px}
       </div>
       <div class="card"><h2>History</h2><div class="wrap" id="history"></div></div>
       <div class="card"><h2>Preview</h2><iframe id="preview" title="Digest preview" sandbox></iframe></div>
+    </section>
+
+    <section data-panel="backlog" hidden>
+      <div class="bbar">
+        <input id="bQ" type="search" placeholder="Search the backlog" aria-label="Search the backlog">
+        <span class="seg" role="group" aria-label="Group by"><button data-g="theme" aria-pressed="true">By theme</button><button data-g="priority" aria-pressed="false">By priority</button></span>
+        <select id="bPri" aria-label="Priority"><option value="">All priorities</option></select>
+        <label><input type="checkbox" id="bDone"> Show done and dropped</label>
+      </div>
+      <div class="chips" id="bThemes" aria-label="Themes"></div>
+      <p class="hint" id="bInfo"></p>
+      <div id="bList"></div>
+      <p class="hint">Ranked in build order within each priority. Status, priority and notes save for you; the list itself lives in <code>worker/src/backlog.mjs</code>, with design notes in <code>BACKLOG.md</code> and <code>docs/colorado_plan.md</code>.</p>
     </section>
 
     <section data-panel="audit" hidden>
@@ -172,7 +210,7 @@ code{font-size:12px}
   $('#refresh').onclick = () => load();
   $('#days').onchange = () => load();
 
-  function load() { ({ visitors, subs: loadSubs, digest: loadDigest, audit: () => loadAudit(true) })[tab]().catch((e) => console.error(e)); }
+  function load() { ({ visitors, subs: loadSubs, digest: loadDigest, audit: () => loadAudit(true), backlog: loadBacklog })[tab]().catch((e) => console.error(e)); }
 
   /* ----- Visitors ----- */
   function chart(daily, days) {
@@ -195,6 +233,8 @@ code{font-size:12px}
       { h: 'Network', f: (r) => `${esc(r.org)}<span class="org">${esc((r.places || '').split(',').slice(0, 3).join(' · '))}</span>` },
       { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 }, { h: 'Over 1 min', k: 'engaged', num: 1 },
       { h: 'Time', f: (r) => dur(r.seconds), num: 1 }, { h: 'Last', f: (r) => esc(when(r.last)), num: 1 }], s.orgs);
+    $('#sites').innerHTML = table([{ h: 'State page', k: 'site' }, { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 },
+      { h: 'Over 1 min', k: 'engaged', num: 1 }, { h: 'Time', f: (r) => dur(r.seconds), num: 1 }, { h: 'Average', f: (r) => dur(r.visits ? Math.round(r.seconds / r.visits) : 0), num: 1 }], s.sites || []);
     $('#paths').innerHTML = table([{ h: 'Page', k: 'path' }, { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 }, { h: 'Time', f: (r) => dur(r.seconds), num: 1 }], s.paths);
     $('#referrers').innerHTML = table([{ h: 'From', k: 'referrer' }, { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 }], s.referrers);
     $('#states').innerHTML = table([{ h: 'State', f: (r) => esc(r.region || r.code) }, { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 }, { h: 'Time', f: (r) => dur(r.seconds), num: 1 }], s.states);
@@ -284,6 +324,76 @@ code{font-size:12px}
   $('#moreAudit').onclick = () => loadAudit(false);
 
   fetch('/api/me', { credentials: 'same-origin' }).then((r) => r.json()).then((m) => { show(!!m.user); if (m.user) { markOwner(); load(); } }).catch(() => show(false));
+
+  /* ----- Backlog ----- */
+  // Filters are kept per browser; items, status, priority and notes come from /api/admin/backlog.
+  let bl = null;
+  const BF = { group: 'theme', priority: '', done: false, themes: [], q: '' };
+  try { Object.assign(BF, JSON.parse(localStorage.getItem('permits.backlog') || '{}'), { q: '' }); } catch { /* storage blocked */ }
+  const bKeep = () => { try { localStorage.setItem('permits.backlog', JSON.stringify({ ...BF, q: '' })); } catch { /* storage blocked */ } };
+  const SIZE = { S: 'S · days', M: 'M · a week', L: 'L · weeks' };
+  async function loadBacklog() {
+    try { bl = await api('GET', '/api/admin/backlog'); } catch (e) { $('#bInfo').textContent = e.message; return; }
+    const sel = $('#bPri');
+    if (sel.options.length === 1) bl.priorities.forEach((p) => sel.add(new Option(`${p.name} (${p.id.toUpperCase()})`, p.id)));
+    sel.value = BF.priority; $('#bDone').checked = BF.done;
+    drawBacklog();
+  }
+  function drawBacklog() {
+    if (!bl) return;
+    document.querySelectorAll('[data-g]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.g === BF.group));
+    $('#bThemes').innerHTML = Object.entries(bl.themes).map(([k, name]) =>
+      `<button class="chip" data-theme="${esc(k)}" aria-pressed="${BF.themes.includes(k)}">${esc(name)}</button>`).join('');
+    const q = BF.q.toLowerCase();
+    const items = bl.items.filter((i) => (BF.done || (i.status !== 'done' && i.status !== 'dropped'))
+      && (!BF.priority || i.priority === BF.priority) && (!BF.themes.length || BF.themes.includes(i.theme))
+      && (!q || [i.title, i.sum, i.what, i.why, i.notes, i.id].join(' ').toLowerCase().includes(q)));
+    const pri = Object.fromEntries(bl.priorities.map((p, n) => [p.id, { ...p, n }]));
+    const groups = BF.group === 'theme'
+      ? Object.entries(bl.themes).map(([k, name]) => ({ key: k, name, goal: '', items: items.filter((i) => i.theme === k) }))
+      : bl.priorities.map((p) => ({ key: p.id, name: `${p.name} (${p.id.toUpperCase()})`, goal: p.goal, items: items.filter((i) => i.priority === p.id) }));
+    // Within a theme, order by priority then rank; within a priority, by rank.
+    groups.forEach((g) => g.items.sort((a, b) => (BF.group === 'theme' ? pri[a.priority].n - pri[b.priority].n : 0) || a.rank - b.rank));
+    const open = bl.items.filter((i) => i.status === 'todo' || i.status === 'doing').length;
+    $('#bInfo').textContent = `${items.length} shown · ${open} open · ${bl.items.filter((i) => i.status === 'done').length} done · list updated ${bl.updated}`;
+    $('#bList').innerHTML = groups.filter((g) => g.items.length).map((g) => `<div class="bgroup"><h3>${esc(g.name)} <span>${g.items.length}</span>${g.goal ? ` <span class="goal">${esc(g.goal)}</span>` : ''}</h3>${g.items.map((i) => bItem(i, pri)).join('')}</div>`).join('')
+      || '<p class="empty">Nothing matches.</p>';
+  }
+  function bItem(i, pri) {
+    const byId = Object.fromEntries(bl.items.map((x) => [x.id, x]));
+    const rows = [['Why', i.why], ['What', i.what], ['Waits on', (i.deps || []).map((d) => `${byId[d]?.title || d}${byId[d]?.status === 'done' ? ' (done)' : ''}`).join('; ')],
+      ['Size', SIZE[i.size] || i.size], ['From', i.src], ['Planned', i.planned !== i.priority ? `${pri[i.planned]?.name} (moved)` : ''],
+      ['Changed', i.changed_at ? when(i.changed_at) : '']].filter(([, v]) => v);
+    const links = (i.links || []).map(([label, href]) => `<li><a href="${esc(href)}" target="_blank" rel="noreferrer">${esc(label)}</a></li>`).join('');
+    return `<details class="bitem is-${esc(i.status)}" data-id="${esc(i.id)}"><summary><span class="rk">#${i.rank}</span><span class="tt">${esc(i.title)}</span>
+      <span class="tags"><span class="tag">${esc(BF.group === 'theme' ? pri[i.priority]?.name : bl.themes[i.theme])}</span><span class="tag">${esc(i.size || '')}</span><span class="tag st-${esc(i.status)}">${esc(i.status)}</span></span>
+      ${i.sum ? `<span class="sm">${esc(i.sum)}</span>` : ''}</summary>
+      <div class="bbody"><dl>${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${links ? `<ul>${links}</ul>` : ''}
+        <div class="bctl"><span class="seg" role="group" aria-label="Status">${bl.statuses.map((s) => `<button data-st="${s}" aria-pressed="${i.status === s}">${s}</button>`).join('')}</span>
+          <select data-pri aria-label="Priority">${bl.priorities.map((p) => `<option value="${p.id}"${p.id === i.priority ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>
+        <textarea data-notes placeholder="Notes" aria-label="Notes">${esc(i.notes)}</textarea></div></details>`;
+  }
+  async function bSave(id, patch) {
+    try { await api('PATCH', `/api/admin/backlog/${encodeURIComponent(id)}`, patch); } catch (e) { alert(e.message); return false; }
+    Object.assign(bl.items.find((i) => i.id === id), patch, { changed_at: new Date().toISOString() });
+    return true;
+  }
+  const keepOpen = (id) => { drawBacklog(); const d = document.querySelector(`.bitem[data-id="${CSS.escape(id)}"]`); if (d) d.open = true; };
+  $('[data-panel="backlog"]').addEventListener('click', async (e) => {
+    const t = e.target.closest('button'); if (!t) return;
+    if (t.dataset.g) { BF.group = t.dataset.g; bKeep(); return drawBacklog(); }
+    if (t.dataset.theme) { const k = t.dataset.theme; BF.themes = BF.themes.includes(k) ? BF.themes.filter((x) => x !== k) : [...BF.themes, k]; bKeep(); return drawBacklog(); }
+    const id = t.closest('.bitem')?.dataset.id;
+    if (id && t.dataset.st && await bSave(id, { status: t.dataset.st })) keepOpen(id);
+  });
+  $('[data-panel="backlog"]').addEventListener('change', async (e) => {
+    const t = e.target, id = t.closest('.bitem')?.dataset.id;
+    if (t.id === 'bPri') { BF.priority = t.value; bKeep(); return drawBacklog(); }
+    if (t.id === 'bDone') { BF.done = t.checked; bKeep(); return drawBacklog(); }
+    if (id && t.matches('[data-pri]') && await bSave(id, { priority: t.value })) keepOpen(id);
+    if (id && t.matches('[data-notes]')) await bSave(id, { notes: t.value });
+  });
+  $('#bQ').addEventListener('input', (e) => { BF.q = e.target.value.trim(); drawBacklog(); });
 })();
 </script>
 </body>

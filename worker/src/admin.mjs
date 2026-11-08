@@ -1,5 +1,6 @@
 // Admin API behind the Neptune sign-in: visitor analytics, the subscriber list, digest preview and sending, and the
 // audit log. Every change and every export is written to audit_log.
+import { ITEMS, PRIORITIES, STATUSES as BSTATUSES, THEMES, UPDATED } from './backlog.mjs';
 import { ensureMap, loadDigest, renderDigest, runWeekly } from './digest.mjs';
 import { sendMail } from './mail.mjs';
 import { checkEmailShape } from './subscribe.mjs';
@@ -17,10 +18,13 @@ async function stats(req, env) {
   // nth: this browser's visit number, all time, so "returning" counts visitors seen before the period too.
   const V = `WITH v AS (SELECT *, (SELECT count(*) FROM visits w WHERE w.vid = visits.vid AND w.started_at <= visits.started_at) nth FROM visits WHERE started_at >= ?1)`;
   const q = (sql) => DB.prepare(`${V} ${sql}`).bind(since);
-  const [totals, daily, paths, referrers, countries, states, orgs, events, recent, subs, signups, marks] = await DB.batch([
+  const [totals, daily, sites, paths, referrers, countries, states, orgs, events, recent, subs, signups, marks] = await DB.batch([
     q(`SELECT count(*) visits, count(DISTINCT vid) visitors, coalesce(sum(seconds), 0) seconds, coalesce(sum(mobile), 0) mobile,
        count(DISTINCT CASE WHEN nth > 1 THEN vid END) returners, coalesce(sum(seconds > 60), 0) engaged FROM v`),
     q(`SELECT substr(started_at, 1, 10) day, count(*) visits, count(DISTINCT vid) visitors FROM v GROUP BY day ORDER BY day`),
+    // Which state page: /co... is Colorado; everything else is the California app (it lives at the root for now).
+    q(`SELECT CASE WHEN path = '/co' OR path LIKE '/co/%' THEN 'Colorado' ELSE 'California' END site, count(*) visits,
+       count(DISTINCT vid) visitors, coalesce(sum(seconds), 0) seconds, coalesce(sum(seconds > 60), 0) engaged FROM v GROUP BY 1 ORDER BY visits DESC`),
     q(`SELECT path, count(*) visits, count(DISTINCT vid) visitors, sum(seconds) seconds FROM v GROUP BY path ORDER BY visits DESC LIMIT 30`),
     q(`SELECT coalesce(referrer, '(direct)') referrer, count(*) visits, count(DISTINCT vid) visitors FROM v GROUP BY 1 ORDER BY visits DESC LIMIT 30`),
     q(`SELECT coalesce(country, '') country, count(*) visits, count(DISTINCT vid) visitors, sum(seconds) seconds FROM v GROUP BY 1 ORDER BY visits DESC LIMIT 40`),
@@ -37,7 +41,7 @@ async function stats(req, env) {
     DB.prepare(`SELECT kind, count(*) n, max(at) last FROM owner_marks GROUP BY kind`)
   ]);
   return json({
-    days, admin: env.ADMIN_USER, totals: totals.results[0], daily: daily.results, paths: paths.results, referrers: referrers.results,
+    days, admin: env.ADMIN_USER, totals: totals.results[0], daily: daily.results, sites: sites.results, paths: paths.results, referrers: referrers.results,
     countries: countries.results, states: states.results, orgs: orgs.results, events: events.results,
     recent: recent.results.map((r) => ({ ...r, events: JSON.parse(r.events || '{}') })),
     subscribers: Object.fromEntries(subs.results.map((r) => [r.status, r.n])), signups: signups.results, owner: marks.results
@@ -126,6 +130,40 @@ async function auditLog(req, env) {
   return json({ entries: r.results.map((e) => ({ ...e, detail: JSON.parse(e.detail || '{}') })) });
 }
 
+/* ---------- Backlog ---------- */
+// Items come from src/backlog.mjs in rank order; the owner's status, priority and notes are in D1 (backlog_state).
+const BIDS = new Set(ITEMS.map((i) => i.id)), PIDS = new Set(PRIORITIES.map((p) => p.id));
+async function backlog(req, env, user, id) {
+  if (req.method === 'GET' && !id) {
+    let st = [];
+    try { st = (await env.DB.prepare('SELECT id, status, priority, notes, updated_at FROM backlog_state').all()).results; } catch { /* table not created yet */ }
+    const by = new Map(st.map((x) => [x.id, x]));
+    return json({
+      updated: UPDATED, themes: THEMES, priorities: PRIORITIES, statuses: BSTATUSES,
+      items: ITEMS.map((i, n) => {
+        const x = by.get(i.id);
+        return { ...i, rank: n + 1, planned: i.priority, priority: PIDS.has(x?.priority) ? x.priority : i.priority,
+          status: BSTATUSES.includes(x?.status) ? x.status : (i.status || 'todo'), notes: x?.notes || '', changed_at: x?.updated_at || null };
+      }),
+    });
+  }
+  if (req.method === 'PATCH' && id) {
+    if (!BIDS.has(id)) return json({ error: 'No such item' }, 404);
+    const b = await body(req);
+    if (b.status != null && !BSTATUSES.includes(b.status)) return json({ error: 'Bad status' }, 422);
+    if (b.priority != null && !PIDS.has(b.priority)) return json({ error: 'Bad priority' }, 422);
+    const now = iso(), notes = b.notes != null ? String(b.notes).slice(0, 4000) : null;
+    try {
+      await env.DB.prepare(`INSERT INTO backlog_state (id, status, priority, notes, updated_at) VALUES (?1, ?2, ?3, coalesce(?4, ''), ?5)
+        ON CONFLICT(id) DO UPDATE SET status = coalesce(?2, backlog_state.status), priority = coalesce(?3, backlog_state.priority),
+          notes = coalesce(?4, backlog_state.notes), updated_at = ?5`).bind(id, b.status ?? null, b.priority ?? null, notes, now).run();
+    } catch { return json({ error: 'Backlog storage is not set up yet: apply migrations/0003_backlog.sql' }, 503); }
+    await audit(env, req, user, 'backlog_update', null, { id, status: b.status, priority: b.priority, notes: notes != null });
+    return json({ ok: true, updated_at: now });
+  }
+  return json({ error: 'Method not allowed' }, 405);
+}
+
 export async function handleAdmin(req, env, user, path) {
   if (path === '/api/admin/stats' && req.method === 'GET') return stats(req, env);
   // Marks this browser and network as the owner's, so the owner's own visits are not counted.
@@ -134,5 +172,6 @@ export async function handleAdmin(req, env, user, path) {
   const s = /^\/api\/admin\/subscribers(?:\/([^/]+))?$/.exec(path); if (s) return subscribers(req, env, user, s[1], false);
   const d = /^\/api\/admin\/digest\/(preview|test|send|history)$/.exec(path); if (d) return digest(req, env, user, d[1]);
   if (path === '/api/admin/audit' && req.method === 'GET') return auditLog(req, env);
+  const bl = /^\/api\/admin\/backlog(?:\/([^/]+))?$/.exec(path); if (bl) return backlog(req, env, user, bl[1] && decodeURIComponent(bl[1]));
   return json({ error: 'Not found' }, 404);
 }

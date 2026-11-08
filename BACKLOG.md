@@ -1,27 +1,12 @@
 # Backlog
 
-Working list of ideas. ROADMAP.md holds the committed product direction; items move there once scoped.
+Design notes behind the backlog. ROADMAP.md holds the committed product direction.
 
-## To do
+## Working list
 
-- [ ] **Confirm the Baker Hughes rig count in production.** After a deploy, check `data/meta.json` → `sources.rigCount`. If it fails, the error lists the candidate links found on the page.
-- [ ] **Link `/drilling` from the main page** once the drilling data is ready to feature.
-- [ ] **Map tiles.** `tile.openstreetmap.org` isn't meant for production traffic ([tile policy](https://operations.osmfoundation.org/policies/tiles/)). Move to [OpenFreeMap](https://openfreemap.org/) (no key) or a free MapTiler plan.
-- [ ] **Say which date the counts use.** Add a "Filed / Approved" toggle or a "by approval date" label. It explains the gap with CalGEM's dashboard (419 vs 427 New Drill).
-- [ ] **Operator name variants.** CRC appears under several names. Offer the parent rollup in the operator filter, not just in Operator Analysis.
-- [ ] **Unmatched tracker spuds.** List the tracker spuds that don't match a current-year approved permit, so matching can be checked.
-- [ ] **Show the ingest date alongside the latest permit date**, so a stalled ingest is visible on the page.
-- [ ] **Mobile, second pass.** The KPI rows are tall on phones; consider a denser two-column layout and a collapsible drilling filter panel.
-- [ ] **Session links in two old commit messages on `main`** (from #4 and #5). Removing them needs a force-push, so it waits on the owner's approval.
-
-### Done
-- [x] README updated for the static snapshot, sources, previews, and workflows.
-- [x] Real pages for `/drilling`, `/prod`, `/about-methodology` (HTTP 200) with their own social cards.
-- [x] Map, `/drilling`, and `/prod` load on demand; the main bundle is about half its previous size.
-- [x] `keep-undead` workflow re-enables scheduled workflows.
-- [x] Keyboard navigation in the multi-select filters.
-- [x] Phone width: no horizontal scroll; drilling notes move below the charts.
-- [x] Pool names from the CalGEM wells CSV.
+The ranked to-do list moved to the admin page's **Backlog** tab (`permits-api.ryweller.com/admin` → Backlog), grouped by
+theme and priority, with status and notes saved per item. Items live in `worker/src/backlog.mjs`; edit that file to add or
+re-rank work. The sections below keep the longer design notes the items point to.
 
 ## Data
 

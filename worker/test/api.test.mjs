@@ -205,6 +205,7 @@ test('visits are recorded without addresses, and the owner network is left out',
   const s = (await owner('GET', '/api/admin/stats?days=7')).j;
   assert.equal(s.totals.visits, 1);
   assert.equal(s.paths[0].path, '/drilling');
+  assert.deepEqual(s.sites.map((x) => [x.site, x.visits]), [['California', 1]]);
   await beacon(owner, 'pageload0002');
   assert.equal(env.DB.db.prepare('SELECT count(*) n FROM visits').get().n, 1);
 });
@@ -282,4 +283,28 @@ test('the hourly schedule sends once a week, waits for fresh data, and logs a st
 test('the cron runs on Monday and Tuesday by name (Cloudflare counts 1 as Sunday)', () => {
   const cfg = fs.readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
   assert.match(cfg, /"crons": \["23 15-23 \* \* MON,TUE"\]/);
+});
+
+test('the backlog lists items with defaults, saves status, priority and notes, and rejects bad values', async () => {
+  const { env } = await setup(), admin = client(env, '9.9.9.9');
+  assert.equal((await admin('GET', '/api/admin/backlog')).status, 401);
+  await admin('POST', '/api/login', { username: 'Neptune', password: PW });
+  const first = (await admin('GET', '/api/admin/backlog')).j;
+  assert.ok(first.items.length > 10);
+  assert.ok(Object.keys(first.themes).includes('co'));
+  const item = first.items.find((i) => i.status === 'todo');
+  assert.equal(item.rank, first.items.indexOf(item) + 1);
+  assert.equal(first.items.find((i) => i.id === 'done-co-draft').status, 'done');
+  assert.equal((await admin('PATCH', `/api/admin/backlog/${item.id}`, { status: 'doing', priority: 'p4', notes: 'started' })).status, 200);
+  assert.equal((await admin('PATCH', `/api/admin/backlog/${item.id}`, { status: 'maybe' })).status, 422);
+  assert.equal((await admin('PATCH', `/api/admin/backlog/${item.id}`, { priority: 'p9' })).status, 422);
+  assert.equal((await admin('PATCH', '/api/admin/backlog/no-such-item', { status: 'done' })).status, 404);
+  const again = (await admin('GET', '/api/admin/backlog')).j.items.find((i) => i.id === item.id);
+  assert.deepEqual([again.status, again.priority, again.planned, again.notes], ['doing', 'p4', item.priority, 'started']);
+  // A notes-only change keeps the earlier status and priority.
+  await admin('PATCH', `/api/admin/backlog/${item.id}`, { notes: 'halfway' });
+  const third = (await admin('GET', '/api/admin/backlog')).j.items.find((i) => i.id === item.id);
+  assert.deepEqual([third.status, third.priority, third.notes], ['doing', 'p4', 'halfway']);
+  const actions = (await admin('GET', '/api/admin/audit')).j.entries.map((e) => e.action);
+  assert.equal(actions.filter((a) => a === 'backlog_update').length, 2);
 });
