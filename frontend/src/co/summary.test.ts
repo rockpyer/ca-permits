@@ -10,6 +10,7 @@ import {
   filterSpuds,
   filterUndrilled,
   inventoryByApprovalQuarter,
+  monthlyActivity,
   monthsBetween,
   operatorScorecard,
   summarize,
@@ -169,6 +170,15 @@ describe('Colorado pipeline views', () => {
     expect(weeks).toEqual([
       { week: '2026-08-31', approvals: 1, spuds: 1, rigs: 9 },
       { week: '2026-09-07', approvals: 1, spuds: 1, rigs: 10 }
+    ]);
+  });
+
+  it('rolls approvals and spuds up by month with the average weekly rig count', () => {
+    const months = monthlyActivity(permits, spuds, [{ date: '2026-09-04', colorado: 9 }, { date: '2026-09-11', colorado: 10 }], '2026-08-15', '2026-10-02');
+    expect(months).toEqual([
+      { week: '2026-08', approvals: 0, spuds: 0, rigs: null },
+      { week: '2026-09', approvals: 2, spuds: 2, rigs: 9.5 },
+      { week: '2026-10', approvals: 0, spuds: 0, rigs: null }
     ]);
   });
 

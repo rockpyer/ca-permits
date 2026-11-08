@@ -26,6 +26,7 @@ import {
   filterUndrilled,
   formationOf,
   inventoryByApprovalQuarter,
+  monthlyActivity,
   monthsBetween,
   operatorScorecard,
   summarize,
@@ -129,7 +130,8 @@ export function CoApp() {
                 rigWeeks={rigWeeks}
               />
               <ActivityPanel
-                data={weeklyActivity(filtered, filteredSpuds, rigWeeks, filters.startDate, filters.endDate)}
+                weekly={weeklyActivity(filtered, filteredSpuds, rigWeeks, filters.startDate, filters.endDate)}
+                monthly={monthlyActivity(filtered, filteredSpuds, rigWeeks, filters.startDate, filters.endDate)}
                 hasRigs={Boolean(rigWeeks)}
               />
               <section className="grid grid-cols-1 gap-3 xl:grid-cols-2" aria-label="Map and operators">
@@ -339,12 +341,36 @@ const LEGEND_STYLE = { fontSize: 12, paddingTop: 4 };
 // Legend labels stay dark; the swatch carries the series color, so light colors stay readable.
 const legendText = (value: string) => <span style={{ color: CHART.label }}>{value}</span>;
 
-function ActivityPanel({ data, hasRigs }: { data: ReturnType<typeof weeklyActivity>; hasRigs: boolean }) {
+function ActivityPanel({
+  weekly,
+  monthly,
+  hasRigs
+}: {
+  weekly: ReturnType<typeof weeklyActivity>;
+  monthly: ReturnType<typeof monthlyActivity>;
+  hasRigs: boolean;
+}) {
+  const [period, setPeriod] = useState<'week' | 'month'>('month');
+  const data = period === 'week' ? weekly : monthly;
+  const label = period === 'week' ? 'Weekly' : 'Monthly';
   return (
     <Panel
-      title="Weekly approved permits, spuds, and Colorado rig count"
-      subtitle="Approvals are Form 2 permits; spuds are every Colorado well spudded that week. The latest weeks fill in as operators report spuds."
+      title={`${label} approved permits, spuds, and Colorado rig count`}
+      subtitle={`Approvals are Form 2 permits; spuds are every Colorado well spudded in the ${period}. The latest ${period}s fill in as operators report spuds.${period === 'month' ? ' Monthly rigs are the average of weekly counts.' : ''}`}
     >
+      <div className="mb-2 inline-flex border border-line text-xs" role="group" aria-label="Chart period">
+        {(['month', 'week'] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={period === value}
+            className={`px-2.5 py-1 ${period === value ? 'bg-slate-50 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+            onClick={() => setPeriod(value)}
+          >
+            {value === 'month' ? 'Monthly' : 'Weekly'}
+          </button>
+        ))}
+      </div>
       <ul className="mb-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-slate-200" aria-label="Chart legend">
         <li className="flex items-center gap-2">
           <span className="inline-block h-3.5 w-3.5" style={{ background: APPROVAL_COLOR }} aria-hidden="true" />
@@ -370,13 +396,13 @@ function ActivityPanel({ data, hasRigs }: { data: ReturnType<typeof weeklyActivi
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 8, right: hasRigs ? 4 : 8, bottom: 0, left: 4 }}>
             <CartesianGrid stroke={CHART.grid} vertical={false} />
-            <XAxis dataKey="week" tick={{ fill: CHART.axis, fontSize: 11 }} tickFormatter={shortDate} minTickGap={16} />
+            <XAxis dataKey="week" tick={{ fill: CHART.axis, fontSize: 11 }} tickFormatter={(value: string) => (period === 'week' ? shortDate(value) : monthLabel(value))} minTickGap={16} />
             <YAxis
               yAxisId="count"
               allowDecimals={false}
               tick={{ fill: CHART.axis, fontSize: 11 }}
               width={44}
-              label={{ value: 'Permits and spuds per week', angle: -90, position: 'insideLeft', offset: 10, style: { fill: CHART.label, fontSize: 11, textAnchor: 'middle' } }}
+              label={{ value: `Permits and spuds per ${period}`, angle: -90, position: 'insideLeft', offset: 10, style: { fill: CHART.label, fontSize: 11, textAnchor: 'middle' } }}
             />
             {hasRigs && (
               <YAxis
@@ -391,7 +417,11 @@ function ActivityPanel({ data, hasRigs }: { data: ReturnType<typeof weeklyActivi
                 label={{ value: 'Colorado rigs', angle: 90, position: 'insideRight', offset: 10, style: { fill: RIG_COLOR, fontSize: 11, fontWeight: 600, textAnchor: 'middle' } }}
               />
             )}
-            <Tooltip content={<CompactChartTooltip />} cursor={{ fill: CHART.cursorFill }} labelFormatter={(value) => `Week of ${longDate(String(value))}`} />
+            <Tooltip
+              content={<CompactChartTooltip />}
+              cursor={{ fill: CHART.cursorFill }}
+              labelFormatter={(value) => (period === 'week' ? `Week of ${longDate(String(value))}` : monthLabel(String(value), true))}
+            />
             <Bar yAxisId="count" dataKey="approvals" name="Approved permits" fill={APPROVAL_COLOR} />
             <Bar yAxisId="count" dataKey="spuds" name="Spuds" fill={SPUD_COLOR} />
             {hasRigs && (
@@ -404,7 +434,7 @@ function ActivityPanel({ data, hasRigs }: { data: ReturnType<typeof weeklyActivi
                 strokeDasharray="5 3"
                 dot={{ r: 3.5, fill: SURFACE.panel, stroke: RIG_COLOR, strokeWidth: 2 }}
                 connectNulls
-                type="stepAfter"
+                type={period === 'week' ? 'stepAfter' : 'linear'}
               />
             )}
           </ComposedChart>
@@ -542,6 +572,7 @@ function CategoryPanel({
               type="category"
               dataKey="name"
               width={170}
+              interval={0}
               tickLine={false}
               axisLine={false}
               tick={({ x, y, payload }) => (
@@ -797,6 +828,10 @@ function Notes({ meta }: { meta: CoMeta | null }) {
 
 function longDate(iso: string) {
   return new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+}
+
+function monthLabel(month: string, long = false) {
+  return new Date(`${month}-01T00:00:00Z`).toLocaleDateString('en-US', { month: long ? 'long' : 'short', year: long ? 'numeric' : '2-digit', timeZone: 'UTC' });
 }
 
 function shortDate(iso: string) {
