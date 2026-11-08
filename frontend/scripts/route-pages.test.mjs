@@ -74,4 +74,14 @@ describe('draft state pages', () => {
     expect(page).not.toContain('CalGEM and WellSTAR data, updated weekly');
     expect(sitemapXml('2026-11-06')).not.toContain('/co/');
   });
+
+  it('builds /wy as a draft page too', async () => {
+    const { draftHtml } = await import('./route-pages.mjs');
+    const route = ROUTES.find((item) => item.path === 'wy');
+    const page = draftHtml(routeHtml(html, route), route);
+    expect(page).toContain('<meta name="robots" content="noindex" />');
+    expect(page).toContain('<link rel="canonical" href="https://permits.ryweller.com/wy/" />');
+    expect(page).toContain('<h1>Wyoming drilling permits and spuds (draft)</h1>');
+    expect(sitemapXml('2026-11-06')).not.toContain('/wy/');
+  });
 });

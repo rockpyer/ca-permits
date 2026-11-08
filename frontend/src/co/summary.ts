@@ -1,6 +1,9 @@
-import { approvalToSpudDays, daysBetween, lifecycle, LIFECYCLE_LABELS, LIFECYCLES, type Lifecycle } from './lifecycle';
+import { activitySeries, countBy, daysBetween, median, monthsBetween, quarterOf, stackedCategories, stackedWeeks, weekStart } from '../state/stats';
+import { approvalToSpudDays, lifecycle, LIFECYCLE_LABELS, LIFECYCLES, type Lifecycle } from './lifecycle';
 import { operatorFor, type OperatorView } from './operators';
 import type { CoFilters, CoPermit, CoSpud, CoUndrilled, RigWeek } from './types';
+
+export { countBy, median, monthsBetween, quarterOf, weekStart };
 
 export function defaultCoFilters(bounds: { minDate: string; maxDate: string }): CoFilters {
   return {
@@ -34,72 +37,14 @@ export function applyCoFilters(rows: CoPermit[], filters: CoFilters, view: Opera
   });
 }
 
-export function countBy<T>(rows: T[], key: (row: T) => string) {
-  const counts = new Map<string, number>();
-  rows.forEach((row) => counts.set(key(row), (counts.get(key(row)) || 0) + 1));
-  return Array.from(counts.entries())
-    .map(([value, count]) => ({ value, count }))
-    .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
-}
-
-/** Monday of the ISO week holding `iso` (YYYY-MM-DD). */
-export function weekStart(iso: string) {
-  const date = new Date(`${iso}T00:00:00Z`);
-  const offset = (date.getUTCDay() + 6) % 7;
-  date.setUTCDate(date.getUTCDate() - offset);
-  return date.toISOString().slice(0, 10);
-}
-
 /** Approvals per week, split by current lifecycle; empty weeks are kept. */
 export function weeklyByLifecycle(rows: CoPermit[], asOf: string, startDate: string, endDate: string) {
-  const weeks = new Map<string, Record<string, number | string>>();
-  if (startDate && endDate) {
-    for (let week = weekStart(startDate); week <= endDate; week = shiftDays(week, 7)) weeks.set(week, emptyWeek(week));
-  }
-  rows.forEach((row) => {
-    if (!row.approved_date) return;
-    const week = weekStart(row.approved_date);
-    const bucket = weeks.get(week) || emptyWeek(week);
-    const stage = lifecycle(row, asOf);
-    bucket[stage] = (bucket[stage] as number) + 1;
-    weeks.set(week, bucket);
-  });
-  return Array.from(weeks.values()).sort((a, b) => String(a.week).localeCompare(String(b.week)));
-}
-
-function emptyWeek(week: string) {
-  return Object.fromEntries([['week', week], ...LIFECYCLES.map((key) => [key, 0])]) as Record<string, number | string>;
-}
-
-export function shiftDays(iso: string, days: number) {
-  const date = new Date(`${iso}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
+  return stackedWeeks(rows, (row) => row.approved_date, (row) => lifecycle(row, asOf), LIFECYCLES, startDate, endDate);
 }
 
 /** Top categories with a lifecycle split; the rest fold into "Other". */
 export function categoryByLifecycle(rows: CoPermit[], asOf: string, key: (row: CoPermit) => string, limit: number) {
-  const ranked = countBy(rows, key);
-  const top = new Set(ranked.slice(0, limit).map((item) => item.value));
-  const buckets = new Map<string, Record<string, number | string>>();
-  rows.forEach((row) => {
-    const name = top.has(key(row)) ? key(row) : 'Other';
-    const bucket = buckets.get(name) || Object.fromEntries([['name', name], ['total', 0], ...LIFECYCLES.map((stage) => [stage, 0])]);
-    const stage = lifecycle(row, asOf);
-    bucket[stage] = (bucket[stage] as number) + 1;
-    bucket.total = (bucket.total as number) + 1;
-    buckets.set(name, bucket);
-  });
-  return Array.from(buckets.values()).sort((a, b) =>
-    a.name === 'Other' ? 1 : b.name === 'Other' ? -1 : (b.total as number) - (a.total as number)
-  );
-}
-
-export function median(values: number[]) {
-  if (!values.length) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[middle] : Math.round((sorted[middle - 1] + sorted[middle]) / 2);
+  return stackedCategories(rows, key, (row) => lifecycle(row, asOf), LIFECYCLES, limit);
 }
 
 export type CoSummary = {
@@ -158,55 +103,16 @@ export function filterUndrilled(rows: CoUndrilled[], filters: CoFilters, view: O
   );
 }
 
+const coRigs = (rigWeeks: RigWeek[] | null) => rigWeeks?.map((week) => ({ date: week.date, value: week.colorado })) ?? null;
+
 /** Rig count weeks are published Fridays; each lands in the Monday week that holds it. */
 export function weeklyActivity(permits: CoPermit[], spuds: CoSpud[], rigWeeks: RigWeek[] | null, startDate: string, endDate: string) {
-  const weeks = new Map<string, { week: string; approvals: number; spuds: number; rigs: number | null }>();
-  const bucket = (week: string) => {
-    if (!weeks.has(week)) weeks.set(week, { week, approvals: 0, spuds: 0, rigs: null });
-    return weeks.get(week)!;
-  };
-  if (startDate && endDate) for (let week = weekStart(startDate); week <= endDate; week = shiftDays(week, 7)) bucket(week);
-  permits.forEach((row) => row.approved_date && (bucket(weekStart(row.approved_date)).approvals += 1));
-  spuds.forEach((row) => (bucket(weekStart(row.spud_date)).spuds += 1));
-  rigWeeks?.forEach((rig) => {
-    const week = weeks.get(weekStart(rig.date));
-    if (week && typeof rig.colorado === 'number') week.rigs = rig.colorado;
-  });
-  return Array.from(weeks.values()).sort((a, b) => a.week.localeCompare(b.week));
+  return activitySeries('week', { approvals: permits.map((row) => row.approved_date), spuds: spuds.map((row) => row.spud_date) }, coRigs(rigWeeks), startDate, endDate);
 }
 
 /** Approvals and spuds per calendar month; rigs are the average of that month's weekly counts. */
 export function monthlyActivity(permits: CoPermit[], spuds: CoSpud[], rigWeeks: RigWeek[] | null, startDate: string, endDate: string) {
-  const months = new Map<string, { week: string; approvals: number; spuds: number; rigs: number | null; rigWeeks: number[] }>();
-  const bucket = (month: string) => {
-    if (!months.has(month)) months.set(month, { week: month, approvals: 0, spuds: 0, rigs: null, rigWeeks: [] });
-    return months.get(month)!;
-  };
-  if (startDate && endDate) {
-    for (let month = startDate.slice(0, 7); month <= endDate.slice(0, 7); month = nextMonth(month)) bucket(month);
-  }
-  permits.forEach((row) => row.approved_date && (bucket(row.approved_date.slice(0, 7)).approvals += 1));
-  spuds.forEach((row) => (bucket(row.spud_date.slice(0, 7)).spuds += 1));
-  rigWeeks?.forEach((rig) => {
-    const month = months.get(rig.date.slice(0, 7));
-    if (month && typeof rig.colorado === 'number') month.rigWeeks.push(rig.colorado);
-  });
-  return Array.from(months.values())
-    .sort((a, b) => a.week.localeCompare(b.week))
-    .map(({ rigWeeks: values, ...month }) => ({
-      ...month,
-      rigs: values.length ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10 : null
-    }));
-}
-
-function nextMonth(month: string) {
-  const [year, value] = month.split('-').map(Number);
-  return value === 12 ? `${year + 1}-01` : `${year}-${String(value + 1).padStart(2, '0')}`;
-}
-
-export function monthsBetween(startDate: string, endDate: string) {
-  const days = daysBetween(startDate, endDate);
-  return days === null ? 0 : Math.max(days + 1, 1) / 30.44;
+  return activitySeries('month', { approvals: permits.map((row) => row.approved_date), spuds: spuds.map((row) => row.spud_date) }, coRigs(rigWeeks), startDate, endDate);
 }
 
 export type ScorecardRow = {
@@ -241,10 +147,6 @@ export function operatorScorecard(
       return { ...item, spudsPerMonth, monthsOfInventory: spudsPerMonth > 0 ? item.inventory / spudsPerMonth : null };
     })
     .sort((a, b) => b.spuds + b.inventory + b.approvals - (a.spuds + a.inventory + a.approvals) || a.name.localeCompare(b.name));
-}
-
-export function quarterOf(iso: string) {
-  return `${iso.slice(0, 4)} Q${Math.floor((Number(iso.slice(5, 7)) - 1) / 3) + 1}`;
 }
 
 /** Undrilled permits by approval quarter, split by whether the expiration date has passed. */
