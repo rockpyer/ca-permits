@@ -111,7 +111,10 @@ code{font-size:12px}
       <div class="tiles" id="tiles"></div>
       <div class="card"><h2>Visits per day</h2><div class="chart" id="chart"></div></div>
       <div class="card"><h2>Who is visiting <span class="n">by network owner (company, agency, university, ISP)</span></h2><div class="wrap" id="orgs"></div></div>
-      <div class="card"><h2>By state page <span class="n">/co is Colorado; everything else is California</span></h2><div class="wrap" id="sites"></div></div>
+      <div class="grid">
+        <div class="card"><h2>By state page <span class="n">/co is Colorado, /wy is Wyoming; everything else is California</span></h2><div class="wrap" id="sites"></div></div>
+        <div class="card"><h2>Sign-ups by page <span class="n">requested in the period; confirmed so far</span></h2><div class="wrap" id="signupPages"></div></div>
+      </div>
       <div class="grid">
         <div class="card"><h2>Pages</h2><div class="wrap" id="paths"></div></div>
         <div class="card"><h2>Referrers</h2><div class="wrap" id="referrers"></div></div>
@@ -248,7 +251,10 @@ code{font-size:12px}
       { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 }, { h: 'Over 1 min', k: 'engaged', num: 1 },
       { h: 'Time', f: (r) => dur(r.seconds), num: 1 }, { h: 'Last', f: (r) => esc(when(r.last)), num: 1 }], s.orgs);
     $('#sites').innerHTML = table([{ h: 'State page', k: 'site' }, { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 },
-      { h: 'Over 1 min', k: 'engaged', num: 1 }, { h: 'Time', f: (r) => dur(r.seconds), num: 1 }, { h: 'Average', f: (r) => dur(r.visits ? Math.round(r.seconds / r.visits) : 0), num: 1 }], s.sites || []);
+      { h: 'Over 1 min', k: 'engaged', num: 1 }, { h: 'Time', f: (r) => dur(r.seconds), num: 1 }, { h: 'Average', f: (r) => dur(r.visits ? Math.round(r.seconds / r.visits) : 0), num: 1 },
+      { h: 'Sign-ups', f: (r) => fmt(r.signups || 0), num: 1 }, { h: 'Confirmed', f: (r) => fmt(r.confirmed || 0), num: 1 }], s.sites || []);
+    $('#signupPages').innerHTML = table([{ h: 'State page', k: 'site' }, { h: 'Page', k: 'path' }, { h: 'Sign-ups', k: 'requested', num: 1 },
+      { h: 'Confirmed', k: 'confirmed', num: 1 }], s.signupPages || [], 'No sign-ups in this period.');
     $('#paths').innerHTML = table([{ h: 'Page', k: 'path' }, { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 }, { h: 'Time', f: (r) => dur(r.seconds), num: 1 }], s.paths);
     $('#referrers').innerHTML = table([{ h: 'From', k: 'referrer' }, { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 }], s.referrers);
     $('#states').innerHTML = table([{ h: 'State', f: (r) => esc(r.region || r.code) }, { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 }, { h: 'Time', f: (r) => dur(r.seconds), num: 1 }], s.states);

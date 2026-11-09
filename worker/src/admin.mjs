@@ -10,6 +10,11 @@ import { DAY, audit, iso, json } from './util.mjs';
 async function body(req) { try { return await req.json(); } catch { return {}; } }
 
 /* ---------- Visitors ---------- */
+// Which state page a path belongs to: /co and /wy are their states; everything else is the California app (it lives
+// at the root for now: /, /drilling, /prod, /about-methodology).
+const STATE_PREFIXES = [['co', 'Colorado'], ['wy', 'Wyoming']];
+const stateOf = (col) => `CASE ${STATE_PREFIXES.map(([p, name]) => `WHEN ${col} = '/${p}' OR ${col} LIKE '/${p}/%' THEN '${name}'`).join(' ')} ELSE 'California' END`;
+
 async function stats(req, env) {
   const p = new URL(req.url).searchParams, DB = env.DB;
   const days = Math.max(1, Math.min(365, +p.get('days') || 30)), since = iso(Date.now() - days * DAY);
@@ -18,12 +23,11 @@ async function stats(req, env) {
   // nth: this browser's visit number, all time, so "returning" counts visitors seen before the period too.
   const V = `WITH v AS (SELECT *, (SELECT count(*) FROM visits w WHERE w.vid = visits.vid AND w.started_at <= visits.started_at) nth FROM visits WHERE started_at >= ?1)`;
   const q = (sql) => DB.prepare(`${V} ${sql}`).bind(since);
-  const [totals, daily, sites, paths, referrers, countries, states, orgs, events, recent, subs, signups, marks] = await DB.batch([
+  const [totals, daily, sites, paths, referrers, countries, states, orgs, events, recent, subs, signups, marks, byPage] = await DB.batch([
     q(`SELECT count(*) visits, count(DISTINCT vid) visitors, coalesce(sum(seconds), 0) seconds, coalesce(sum(mobile), 0) mobile,
        count(DISTINCT CASE WHEN nth > 1 THEN vid END) returners, coalesce(sum(seconds > 60), 0) engaged FROM v`),
     q(`SELECT substr(started_at, 1, 10) day, count(*) visits, count(DISTINCT vid) visitors FROM v GROUP BY day ORDER BY day`),
-    // Which state page: /co... is Colorado; everything else is the California app (it lives at the root for now).
-    q(`SELECT CASE WHEN path = '/co' OR path LIKE '/co/%' THEN 'Colorado' ELSE 'California' END site, count(*) visits,
+    q(`SELECT ${stateOf('path')} site, count(*) visits,
        count(DISTINCT vid) visitors, coalesce(sum(seconds), 0) seconds, coalesce(sum(seconds > 60), 0) engaged FROM v GROUP BY 1 ORDER BY visits DESC`),
     q(`SELECT path, count(*) visits, count(DISTINCT vid) visitors, sum(seconds) seconds FROM v GROUP BY path ORDER BY visits DESC LIMIT 30`),
     q(`SELECT coalesce(referrer, '(direct)') referrer, count(*) visits, count(DISTINCT vid) visitors FROM v GROUP BY 1 ORDER BY visits DESC LIMIT 30`),
@@ -38,13 +42,21 @@ async function stats(req, env) {
     q(`SELECT substr(vid, 1, 6) vid, started_at, path, referrer, seconds, clicks, country, region_code code, city, org, mobile, nth, events FROM v ORDER BY started_at DESC LIMIT 150`),
     DB.prepare(`SELECT status, count(*) n FROM subscribers GROUP BY status`),
     DB.prepare(`SELECT substr(confirmed_at, 1, 10) day, count(*) n FROM subscribers WHERE confirmed_at >= ?1 GROUP BY day ORDER BY day`).bind(since),
-    DB.prepare(`SELECT kind, count(*) n, max(at) last FROM owner_marks GROUP BY kind`)
+    DB.prepare(`SELECT kind, count(*) n, max(at) last FROM owner_marks GROUP BY kind`),
+    // Sign-ups requested in the period, by the page the form was on.
+    DB.prepare(`SELECT ${stateOf("coalesce(consent_source, '/')")} site, coalesce(consent_source, '/') path, count(*) requested,
+      count(confirmed_at) confirmed FROM subscribers WHERE created_at >= ?1 GROUP BY 1, 2 ORDER BY requested DESC`).bind(since)
   ]);
+  const bySite = (site) => byPage.results.filter((r) => r.site === site);
+  for (const r of sites.results) {
+    r.signups = bySite(r.site).reduce((n, x) => n + x.requested, 0);
+    r.confirmed = bySite(r.site).reduce((n, x) => n + x.confirmed, 0);
+  }
   return json({
     days, admin: env.ADMIN_USER, totals: totals.results[0], daily: daily.results, sites: sites.results, paths: paths.results, referrers: referrers.results,
     countries: countries.results, states: states.results, orgs: orgs.results, events: events.results,
     recent: recent.results.map((r) => ({ ...r, events: JSON.parse(r.events || '{}') })),
-    subscribers: Object.fromEntries(subs.results.map((r) => [r.status, r.n])), signups: signups.results, owner: marks.results
+    subscribers: Object.fromEntries(subs.results.map((r) => [r.status, r.n])), signups: signups.results, signupPages: byPage.results, owner: marks.results
   });
 }
 
