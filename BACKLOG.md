@@ -75,6 +75,24 @@ The WOGCC Data Explorer's firewall began rejecting every request after about 1,6
 - **Shared polite fetch client for all states.** One requests session with a contact User-Agent, per-host rate limit with jitter, backoff on 429/503 and firewall pages, and a per-run request count. Record request counts in `etl_runs.jsonl` and show them, with any `details_stopped` reason, on `/admin`.
 - **Alert on a block.** If a run records a firewall rejection, skip detail pages the next week and flag it on `/admin` instead of retrying.
 
+## Operator profiles
+
+Regulator operator names are legal entities, often private-equity-backed subsidiaries whose brand and owner differ from the name on the permit. Checked 2026-11-09:
+
+- **TEP ROCKY MOUNTAIN LLC** (ECMC #96850) is Terra Energy Partners' Piceance operator. Flywheel Energy (Oklahoma City) took over the asset in 2025 ([Hart Energy](https://www.hartenergy.com/exclusives/flywheel-energy-acquires-terras-colorado-piceance-gas-assets-213535/)); the ECMC record now lists a second, Oklahoma City address.
+- **Logos Operating, LLC** operates for LOGOS Energy (Farmington, NM; [logosenergyllc.com](http://www.logosenergyllc.com)), San Juan Basin Mancos. Sixth Street reportedly agreed to buy it for about $1B in June 2026 ([Hart Energy](https://www.hartenergy.com/energy-market-transactions/acquisitions-and-divestitures/he-logos-sixth-street-san-juan/)).
+
+| Source | Free | Use |
+|---|---|---|
+| State regulator operator record | Yes | Operator number, addresses, financial assurance, contacts. Colorado deep-links: `https://ecmc.state.co.us/cogisdb/NameAddressSearch/NameAddrSearch2?co={operator_number}&fn=&ln=&recct=10`. CalGEM WellSTAR and the WOGCC Data Explorer render in the browser, with no stable per-operator URL found. |
+| Company website | Yes | Best description of what the company does; needs a hand lookup because names differ. |
+| Trade press (Hart Energy, local papers) | Partly | Ownership changes and deals. |
+| Secretary of State, [OpenCorporates](https://opencorporates.com/) | Yes | Formation date and registered agent; often only a Delaware parent. |
+| [SEC EDGAR full-text search](https://efts.sec.gov/LATEST/search-index?q=) | Yes | Form D filings sometimes name sponsors and officers. |
+| Shale Experts, shalexp, DrillingEdge | Paid or ad-supported | Repackaged state data; not linked. |
+
+Plan: regulator link for every operator, a dated hand-kept profile for the top 30 to 50 per state, and labeled news and OpenCorporates searches for the rest. Re-check profiles when the admin page shows a new operator address or a parent change.
+
 ## UI
 
 - Done (Nov 9): the California header says counts are by approval date, and the date filter is titled "Approval date".

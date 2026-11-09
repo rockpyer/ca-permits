@@ -175,6 +175,12 @@ export const ITEMS = [
   { id: 'ca-parent-filter', priority: 'p2', theme: 'ca', size: 'S', status: 'done', src: 'PR #12',
     title: 'Parent rollup in the California operator filter',
     sum: 'Already shipped: the filter rail\'s Parent / Operator toggle (default Parent) lists California Resources Corp., and selecting it matches all eight CRC operators of record.' },
+  { id: 'ui-operator-links', priority: 'p2', theme: 'ui', size: 'M', src: 'Owner, Nov 9', deps: ['co-parents'],
+    title: 'Operator links in the permit detail drawer',
+    sum: 'Link each operator to its regulator record, a hand-kept company profile for the top operators, and a news search for the rest.',
+    what: 'Three tiers in DetailDrawer on all three state pages. (1) Regulator record: Colorado deep-links by operator number (NameAddrSearch2?co={operator_number}, checked with TEP Rocky Mountain, #96850); CalGEM and WOGCC have no stable per-operator URL, so link their search pages. (2) A hand-kept profile file (e.g. data/operator_profiles.json) keyed by regulator operator name: brand name, website, parent or owner, one-line description, source URL, as-of date. Start with the top 30 to 50 operators by permit count per state. (3) For everyone else, a news search and an OpenCorporates name search, labeled as searches. Skip paid aggregators (Shale Experts, shalexp); they repackage state data. Design notes in BACKLOG.md, "Operator profiles".',
+    why: 'Regulator names often hide the business: TEP Rocky Mountain LLC is Terra Energy Partners, now run by Flywheel Energy (2025); Logos Operating LLC is LOGOS Energy, reported sold to Sixth Street in 2026. Ownership moves faster than the names, so each profile needs a date.',
+    links: [['ECMC operator name, address and financial assurance search', 'https://ecmc.state.co.us/cogisdb/NameAddressSearch/NameAddrSearch'], ['OpenCorporates', 'https://opencorporates.com/'], WOGCC_DE] },
 
   /* ---------- Later ---------- */
   { id: 'wy-blm-apd', priority: 'p3', theme: 'wy', size: 'M', src: 'Wyoming build, Nov 8',
