@@ -640,10 +640,6 @@ function AboutMethodology({ onNavigateHome, onNavigate }: { onNavigateHome: () =
             completion, and casing details are not in the public layers, so records link to WellSTAR. Well locations can lag
             new permits.
           </MethodBlock>
-          <MethodBlock title="Use and credit">
-            Public data, provided as is. This is an independent project, not affiliated with or endorsed by CalGEM. Check
-            official CalGEM records before relying on any figure.
-          </MethodBlock>
           <MethodBlock title="Contact">
             Questions, corrections, or a permit that looks wrong:{' '}
             <a className={LINK_CLASS} href={CONTACT_MAILTO}>
@@ -651,6 +647,7 @@ function AboutMethodology({ onNavigateHome, onNavigate }: { onNavigateHome: () =
             </a>
             .
           </MethodBlock>
+          <TermsOfUse />
         </div>
 
         <section className="mt-8 border border-line bg-panel/50 p-4 text-sm leading-6 text-slate-300" aria-label="Built by Ryan Weller">
@@ -695,6 +692,79 @@ function AboutMethodology({ onNavigateHome, onNavigate }: { onNavigateHome: () =
         </div>
       </div>
     </main>
+  );
+}
+
+const TERMS_UPDATED = 'November 9, 2026';
+
+function TermsOfUse() {
+  return (
+    <section id="terms" className="scroll-mt-6 border-t border-line pt-4 md:col-span-2" aria-labelledby="terms-heading">
+      <h2 id="terms-heading" className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+        Terms of use
+      </h2>
+      <p className="text-xs text-slate-500">Last updated {TERMS_UPDATED}</p>
+      <div className="mt-3 space-y-4">
+        <p>By using this site you agree to these terms. If you do not agree, do not use the site.</p>
+        <TermsItem title="Permitted use">
+          You may view, filter, and export permit data for your own research, analysis, reporting, and internal business use.
+          When you publish figures or charts from this site, credit &ldquo;California well permit activity,
+          permits.ryweller.com.&rdquo; Search engines may index and link to these pages as allowed in robots.txt.
+        </TermsItem>
+        <TermsItem title="Prohibited use">
+          <p>Unless you have prior written consent, you may not:</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-400">
+            <li>Use bots, scrapers, crawlers, or other automated tools to extract data, pages, or code from the site or its API.</li>
+            <li>Resell, sublicense, or redistribute the site&apos;s data compilations, charts, or exports, or include them in a paid product or service.</li>
+            <li>Copy, mirror, or frame the site, or use it to build a substantially similar service.</li>
+            <li>Reverse engineer, decompile, or copy any part of the site&apos;s source code, data pipeline, or API.</li>
+            <li>Circumvent rate limits, access controls, or other technical protections.</li>
+            <li>Interfere with or overload the service, or probe it for vulnerabilities.</li>
+            <li>Use the site for any unlawful purpose or in violation of others&apos; rights.</li>
+          </ul>
+        </TermsItem>
+        <TermsItem title="Public records">
+          The underlying permit records are public records published by CalGEM. These terms do not limit your use of records
+          you obtain directly from CalGEM through the sources listed above.
+        </TermsItem>
+        <TermsItem title="Intellectual property">
+          The site&apos;s design, source code, text, charts, groupings, and data compilations are &copy;{' '}
+          {TERMS_UPDATED.slice(-4)} Ryan Weller and protected by copyright and other laws. All rights not expressly granted
+          here are reserved.
+        </TermsItem>
+        <TermsItem title="As is and as available">
+          The site and its data are provided &ldquo;as is&rdquo; and &ldquo;as available,&rdquo; without warranties of any
+          kind, express or implied, including accuracy, completeness, timeliness, fitness for a particular purpose, or
+          uninterrupted availability. Figures may contain errors or lag official records. Nothing here is legal,
+          regulatory, engineering, or investment advice. Check official CalGEM records before relying on any figure.
+        </TermsItem>
+        <TermsItem title="Limitation of liability">
+          To the fullest extent permitted by law, Ryan Weller is not liable for any direct, indirect, incidental, or
+          consequential damages arising from your use of, or inability to use, the site or its data.
+        </TermsItem>
+        <TermsItem title="Independence">
+          This is an independent project, not affiliated with or endorsed by CalGEM or the State of California.
+        </TermsItem>
+        <TermsItem title="Changes and enforcement">
+          These terms may change at any time; the date above shows the latest revision, and continued use means you accept
+          the current terms. Access may be limited or blocked for anyone who violates them. To request consent for a use not
+          permitted here, email{' '}
+          <a className={LINK_CLASS} href={CONTACT_MAILTO}>
+            ryan@ryweller.com
+          </a>
+          .
+        </TermsItem>
+      </div>
+    </section>
+  );
+}
+
+function TermsItem({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{title}</h3>
+      <div>{children}</div>
+    </div>
   );
 }
 
