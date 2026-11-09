@@ -308,3 +308,34 @@ test('the backlog lists items with defaults, saves status, priority and notes, a
   const actions = (await admin('GET', '/api/admin/audit')).j.entries.map((e) => e.action);
   assert.equal(actions.filter((a) => a === 'backlog_update').length, 2);
 });
+
+test('sign-in explains failures: wrong password, tries left, lockout, and a missing password secret', async () => {
+  const { env } = await setup(), c = client(env, '5.5.5.5');
+  const bad = await c('POST', '/api/login', { username: 'Neptune', password: 'nope' });
+  assert.equal(bad.status, 401);
+  assert.equal(bad.j.error, 'Wrong password.');
+  assert.match((await c('POST', '/api/login', { username: 'Poseidon', password: 'nope' })).j.error, /Wrong username \(it is Neptune\) or password/);
+  for (let i = 0; i < 6; i++) await c('POST', '/api/login', { username: 'Neptune', password: 'nope' });
+  assert.match((await c('POST', '/api/login', { username: 'Neptune', password: 'nope' })).j.error, /1 try left/);
+  assert.match((await c('POST', '/api/login', { username: 'Neptune', password: 'nope' })).j.error, /No tries left/);
+  const locked = await c('POST', '/api/login', { username: 'Neptune', password: PW });
+  assert.equal(locked.status, 429);
+  assert.match(locked.j.error, /15 minutes/);
+  // Another network is not locked out.
+  assert.equal((await client(env, '6.6.6.6')('POST', '/api/login', { username: 'Neptune', password: PW })).status, 200);
+  const noSecret = await client({ ...env, ADMIN_PW: '' }, '7.7.7.7')('POST', '/api/login', { username: 'Neptune', password: PW });
+  assert.equal(noSecret.status, 503);
+  assert.match(noSecret.j.error, /ADMIN_PW/);
+});
+
+test('sessions last 30 days and renew when used in their last week', async () => {
+  const { env } = await setup(), c = client(env, '8.8.8.8');
+  const r = await c('POST', '/api/login', { username: 'Neptune', password: PW });
+  assert.match(r.headers.get('set-cookie'), /Max-Age=2592000/);
+  env.DB.db.prepare('UPDATE sessions SET expires_at = ?').run(new Date(Date.now() + 2 * 86400e3).toISOString());
+  const s = await c('GET', '/api/admin/backlog');
+  assert.equal(s.status, 200);
+  assert.match(s.headers.get('set-cookie') || '', /Max-Age=2592000/);
+  const left = Date.parse(env.DB.db.prepare('SELECT expires_at FROM sessions').get().expires_at) - Date.now();
+  assert.ok(left > 29 * 86400e3);
+});
