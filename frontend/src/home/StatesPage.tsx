@@ -92,7 +92,7 @@ export function StatesPage() {
         <header className="pb-5 sm:pb-7">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="font-condensed text-lg font-bold leading-none tracking-tight text-accent md:hidden">
+              <p className="font-condensed text-lg font-bold leading-none tracking-tight text-slate-50 md:hidden">
                 Weller<span className="text-steel">Tracker</span>
               </p>
               <h1 className="mt-1 font-condensed text-[1.75rem] font-bold leading-[1.02] tracking-tight text-slate-50 sm:text-5xl">
