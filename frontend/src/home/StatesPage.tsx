@@ -200,7 +200,7 @@ function StateRow({ state, summary, loaded }: { state: (typeof STATES)[number]; 
   return (
     <a
       href={siteHref(`/${state.code}`)}
-      className="group grid grid-cols-[76px_minmax(0,1fr)] gap-x-3 gap-y-2 border-b border-line py-4 transition hover:bg-panel md:grid-cols-[150px_minmax(0,1fr)_280px] md:gap-x-6 md:py-5"
+      className="state-row group grid grid-cols-[76px_minmax(0,1fr)] gap-x-3 gap-y-2 border-b border-line py-4 transition hover:bg-panel md:grid-cols-[150px_minmax(0,1fr)_280px] md:gap-x-6 md:py-5"
       aria-label={`${state.name}${state.draft ? ' (draft)' : ''}: open the ${state.name} page`}
     >
       <div className="row-span-2 self-start md:row-span-1">
@@ -264,11 +264,11 @@ function StateMap({ code, points, name, measure, year }: { code: Code; points: A
       <path d={outline} fill="#ffffff" stroke="#46525e" strokeWidth="1" strokeLinejoin="round" />
       {older.map(([lon, lat], index) => {
         const [x, y] = project([lon, lat]);
-        return <circle key={`o${index}`} cx={x} cy={y} r="1.6" fill={STEEL} fillOpacity="0.5" />;
+        return <circle key={`o${index}`} className="map-dot" cx={x} cy={y} r="1.6" fill={STEEL} fillOpacity="0.5" />;
       })}
       {latest.map(([lon, lat], index) => {
         const [x, y] = project([lon, lat]);
-        return <circle key={`l${index}`} cx={x} cy={y} r="2.6" fill={ACCENT} stroke="#ffffff" strokeWidth="0.6" />;
+        return <circle key={`l${index}`} className="map-dot map-dot-latest" cx={x} cy={y} r="2.6" fill={ACCENT} stroke="#ffffff" strokeWidth="0.6" />;
       })}
     </svg>
   );

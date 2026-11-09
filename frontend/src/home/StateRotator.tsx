@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 // Each name gets a taller slot than the line so descenders (Wyoming's y and g) show and the next name stays out of view.
 const STEP = 1.45;
 
-export function StateRotator({ names, interval = 1200 }: { names: string[]; interval?: number }) {
+export function StateRotator({ names, interval = 2600 }: { names: string[]; interval?: number }) {
   const [index, setIndex] = useState(0);
   const [animate, setAnimate] = useState(true);
   const [reduced] = useState(() => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -26,7 +26,7 @@ export function StateRotator({ names, interval = 1200 }: { names: string[]; inte
     const reset = window.setTimeout(() => {
       setAnimate(false);
       setIndex(0);
-    }, 450);
+    }, 900);
     return () => window.clearTimeout(reset);
   }, [index, names.length]);
 
@@ -46,7 +46,7 @@ export function StateRotator({ names, interval = 1200 }: { names: string[]; inte
           className="absolute left-0 top-0 flex flex-col"
           style={{
             transform: `translateY(-${index * STEP}em)`,
-            transition: animate ? 'transform 420ms cubic-bezier(.2,.8,.2,1)' : 'none'
+            transition: animate ? 'transform 850ms cubic-bezier(.45,0,.25,1)' : 'none'
           }}
         >
           {strip.map((name, position) => (
