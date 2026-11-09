@@ -70,7 +70,7 @@ The WOGCC Data Explorer's firewall began rejecting every request after about 1,6
 - **Federal lease and BLM permit status from BLM.** Lease numbers are on [MLRS](https://mlrs.blm.gov/). BLM APD status would show which federal wells are cleared to spud, the gap noted in `docs/wyoming_plan.md`.
 - **Ask WOGCC for a bulk extract.** An APD list with mineral ownership, or permission for a slow one-time backfill. The Data Explorer's CSV export and the statewide well header download suggest they are open to bulk use.
 - **Lighter well lookup.** The weekly run pulls the full WFS `WELL` layer (about 24 MB, 121,000 wells) to match APIs. Query only the stored APIs (`cql_filter` `WellId IN (...)` in batches) or new well keys instead.
-- **Fetch only what changed.** Detail pages are already once per API. Also skip report rows whose status and dates match the stored row, and refresh old APDs monthly instead of weekly.
+- [x] **Fetch only what changed** (Nov 9). Weekly runs request report rows only for keys whose WFS status code changed or that are new; a full refresh runs every 28 days.
 - **Shared polite fetch client for all states.** One requests session with a contact User-Agent, per-host rate limit with jitter, backoff on 429/503 and firewall pages, and a per-run request count. Record request counts in `etl_runs.jsonl` and show them, with any `details_stopped` reason, on `/admin`.
 - **Alert on a block.** If a run records a firewall rejection, skip detail pages the next week and flag it on `/admin` instead of retrying.
 

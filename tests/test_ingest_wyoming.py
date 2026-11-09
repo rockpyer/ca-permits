@@ -9,12 +9,16 @@ from ingest_wyoming import (
     APD_COLUMNS,
     Blocked,
     SourceError,
+    changed_keys,
     check_rejected,
     apd_record,
     dedupe,
     detail_queue,
     detail_record,
     fetch_details,
+    full_refresh_due,
+    read_codes,
+    write_codes,
     keep_apd,
     mineral_class,
     normalize_wy_api,
@@ -230,3 +234,79 @@ def test_fetch_details_stops_after_consecutive_failures():
     fetched, failed, stopped = fetch_details(fetch, queue, {}, "2026-11-07")
     assert (fetched, failed) == (0, 5)
     assert stopped == "5 detail pages failed in a row"
+
+
+def test_changed_keys_requests_new_and_changed_codes_only():
+    previous = {"100": "PE", "200": "AP", "300": "IA"}
+    current = {"100": "AP", "200": "AP", "300": "IA", "400": "PE"}
+    assert changed_keys(current, previous, full=False) == ["100", "400"]
+    assert changed_keys(current, previous, full=True) == ["100", "200", "300", "400"]
+    assert changed_keys(current, {}, full=False) == ["100", "200", "300", "400"]
+
+
+def test_full_refresh_every_four_weeks_or_when_forced():
+    assert full_refresh_due(None, "2026-11-09")
+    assert not full_refresh_due("2026-11-02", "2026-11-09")
+    assert full_refresh_due("2026-10-12", "2026-11-09")
+    assert full_refresh_due("2026-11-08", "2026-11-09", force=True)
+
+
+def test_codes_round_trip(tmp_path, monkeypatch):
+    import store
+
+    monkeypatch.setattr(store, "DATA_DIR", tmp_path)
+    write_codes({"339172": "AP"}, {"934780": "PR"}, "2026-11-09")
+    assert read_codes() == ({"339172": "AP"}, {"934780": "PR"}, "2026-11-09")
+
+
+def test_second_run_requests_only_changed_keys(tmp_path, monkeypatch):
+    import store
+    import ingest_wyoming as wy
+
+    monkeypatch.setattr(store, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(wy, "MIN_APD_KEYS", 1)
+    monkeypatch.setattr(wy, "MIN_WELL_FEATURES", 1)
+    monkeypatch.delenv("WY_FULL", raising=False)
+
+    codes = {"340001": "PE", "340002": "AP"}
+    well_status = {"4900001": "SP"}
+    requested = []
+
+    def feature(props, lon=-105.0, lat=43.0):
+        return {"properties": props, "geometry": {"coordinates": [lon, lat]}}
+
+    def wfs(client, layer, properties, cql=None):
+        if layer == "WELL":
+            return [feature({"PKey": k, "WellId": "49-009-50002-00", "Status": v}) for k, v in well_status.items()]
+        if layer == "APDVertical":
+            return []
+        return [feature({"PKey": int(k), "GISCode": v}) for k, v in codes.items()]
+
+    def apd_row(key):
+        status = "Waiting on Approval" if codes[key] == "PE" else "Active Permit"
+        approved = "" if codes[key] == "PE" else "03/01/2026"
+        return {"PKey": key, "API Number": f"49-009-5{key[-4:]}", "Operator": "EOG RESOURCES INC", "APD Status": status,
+                "APD Received Date": "01/05/2026", "APD Approved Date": approved, "Application Type": "CREATE NEW APD"}
+
+    def report(client, name, keys, expected):
+        requested.append((name, list(keys)))
+        if name == "StandardAPD.xml":
+            return [apd_row(key) for key in keys]
+        return [{"PKey": k, "API Number": "49-009-50002", "Well Status": "Well Spudded", "Spud Date": "04/01/2026"} for k in keys]
+
+    monkeypatch.setattr(wy, "wfs_features", wfs)
+    monkeypatch.setattr(wy, "report", report)
+    monkeypatch.setattr(wy, "fetch_detail", lambda client, pkey: parse_detail_page(DETAIL_PAGE))
+
+    wy.run()
+    assert requested == [("StandardAPD.xml", ["340001", "340002"]), ("StandardWell.xml", ["4900001"])]
+
+    requested.clear()
+    codes["340001"] = "AP"  # approved since the last run
+    wy.run()
+    assert requested == [("StandardAPD.xml", ["340001"])]  # the unchanged APD and well are not requested
+    apds = {row["source_key"]: row for row in store.read_jsonl("wy/apds.jsonl")}
+    assert apds["340001"]["approved_date"] == "2026-03-01"
+    assert apds["340002"]["spud_date"] == "2026-04-01"  # still joined to the stored well
+    run = store.read_jsonl("wy/etl_runs.jsonl")[0]["details"]
+    assert (run["full_refresh"], run["apd_keys_requested"], run["well_keys_requested"]) == (False, 1, 0)
