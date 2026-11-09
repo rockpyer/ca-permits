@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, Mail } from 'lucide-react';
+import { NewsletterSignup } from '../components/NewsletterSignup';
 import { SiteNav } from '../components/SiteNav';
+import { Wordmark } from '../components/Wordmark';
+import { StateRotator } from './StateRotator';
 import { siteHref } from '../lib/routes';
 import { longDate, shortDate } from '../state/format';
 import { OUTLINES, projector } from './outlines';
@@ -78,118 +81,159 @@ export function useStatesSummary() {
 
 export function StatesPage() {
   const { summaries, loaded } = useStatesSummary();
+  const [emailList, setEmailList] = useState<Code>('ca');
   useEffect(() => {
-    document.title = 'Oil and gas well permit activity by state';
+    document.title = 'WellerTracker – Oil and gas well activity by state';
   }, []);
+  const anyWeek = Object.values(summaries)[0]?.week;
 
   return (
     <div className="min-h-screen bg-ink text-slate-200">
       <SiteNav current="home" />
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10" aria-label="Well permit activity by state">
-        <header className="border-b border-line pb-6">
-          <h1 className="product-title">
-            <span>Oil and gas</span>
-            <span> well permit activity by state</span>
-          </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">
-            Approved drilling permits, spuds and rig counts from each state&apos;s oil and gas regulator, updated weekly. Each card
-            shows the latest full week (Monday to Sunday) in that state&apos;s data.
+      <main className="mx-auto max-w-6xl px-4 pb-10 pt-6 sm:px-6 sm:pt-10" aria-label="Well permit activity by state">
+        <header className="pb-5 sm:pb-7">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="md:hidden">
+                <Wordmark />
+              </p>
+              <h1
+                className="mt-2 font-condensed text-[1.75rem] font-bold leading-[1.1] tracking-tight text-slate-50 sm:text-5xl"
+                aria-label="Oil and gas well activity for California, Colorado and Wyoming"
+              >
+                <span aria-hidden="true">Oil and gas well activity </span>
+                <StateRotator names={STATES.map((state) => state.name)} />
+              </h1>
+            </div>
+            <a
+              href="https://ryweller.com"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 shrink-0 text-[10px] uppercase tracking-[0.16em] text-slate-500 hover:text-accent md:hidden"
+            >
+              by <span className="font-semibold text-slate-300">Ryan Weller</span>
+            </a>
+          </div>
+          <p className="mt-3 max-w-2xl text-[15px] leading-6 text-slate-400 sm:text-base">
+            Explore permit and drilling activity across key oil and gas states.{' '}
+            <a className="font-semibold text-slate-200 underline decoration-accent decoration-2 underline-offset-4 hover:text-accent" href="#weekly-emails">
+              Sign up for weekly emails
+            </a>{' '}
+            and stay on top of current activity.
+          </p>
+          <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+            <span className="inline-flex items-center gap-1.5">
+              <Dot color={STEEL} opacity={0.6} /> Permits this year
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Dot color={ACCENT} /> Latest week
+            </span>
+            <span>{anyWeek ? `Updated weekly · latest full week ${weekLabel(anyWeek)}` : 'Updated weekly'}</span>
           </p>
         </header>
 
-        <section className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3" aria-label="States">
+        <section aria-label="States" className="border-t-2 border-slate-50">
+          <div className="hidden grid-cols-[150px_minmax(0,1fr)_280px] gap-6 border-b border-line py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 md:grid">
+            <span>This year&apos;s permits</span>
+            <span>{anyWeek ? `Week of ${weekLabel(anyWeek)}` : 'Latest week'}</span>
+            <span>Last 12 weeks</span>
+          </div>
           {STATES.map((state) => (
-            <StateCard key={state.code} state={state} summary={summaries[state.code]} loaded={loaded} />
+            <StateRow key={state.code} state={state} summary={summaries[state.code]} loaded={loaded} />
           ))}
         </section>
 
-        <footer className="mt-10 space-y-2 border-t border-line pt-4 text-xs leading-5 text-slate-500">
-          <p>
-            Maps show this year&apos;s permit surface locations, rounded to about 1 km. Spuds are reported by operators after the fact, so
-            the latest week&apos;s count rises as reports arrive. Rig counts are Baker Hughes weekly counts.{' '}
-            <a className="text-slate-300 underline decoration-line underline-offset-2 hover:text-accent" href={siteHref('/about')}>
-              About these pages
-            </a>
-            .
-          </p>
-          <p className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <span>
-              Independent project, not affiliated with or endorsed by any state agency. Built by{' '}
-              <a className="text-slate-300 underline decoration-line underline-offset-2 hover:text-accent" href="https://ryweller.com" target="_blank" rel="noreferrer">
-                Ryan Weller
+        <div className="mt-8 grid gap-6 md:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="space-y-2 text-xs leading-5 text-slate-500">
+            <p>
+              Dots are this year&apos;s permit surface locations, rounded to about 1 km; orange is the latest week. Spuds are reported by
+              operators after the fact, so recent weeks fill in. Rigs are Baker Hughes weekly counts.{' '}
+              <a className="text-slate-300 underline decoration-line underline-offset-2 hover:text-accent" href={siteHref('/about')}>
+                Sources and terms
               </a>
               .
-            </span>
-            <a
-              className="inline-flex items-center gap-1.5 border border-line px-2.5 py-1 font-semibold text-slate-300 transition hover:border-accent hover:text-accent"
-              href="mailto:ryan@ryweller.com?subject=Well%20permit%20activity"
-            >
-              <Mail size={13} aria-hidden="true" />
-              Questions or issues
-            </a>
-          </p>
-        </footer>
+            </p>
+            <p className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <span>
+                Independent service by{' '}
+                <a className="text-slate-300 underline decoration-line underline-offset-2 hover:text-accent" href="https://ryweller.com" target="_blank" rel="noreferrer">
+                  Ryan Weller
+                </a>
+                , not affiliated with or endorsed by any state agency.
+              </span>
+              <a
+                className="inline-flex items-center gap-1.5 border border-line px-2.5 py-1 font-semibold text-slate-300 transition hover:border-accent hover:text-accent"
+                href="mailto:ryan@ryweller.com?subject=Well%20permit%20activity"
+              >
+                <Mail size={13} aria-hidden="true" />
+                Questions or issues
+              </a>
+            </p>
+          </div>
+          <section id="weekly-emails" className="scroll-mt-4" aria-label="Weekly emails">
+            <div className="mb-2 flex items-center gap-1" role="tablist" aria-label="Choose a state">
+              {STATES.map((state) => (
+                <button
+                  key={state.code}
+                  type="button"
+                  role="tab"
+                  aria-selected={emailList === state.code}
+                  onClick={() => setEmailList(state.code)}
+                  className={`border px-2.5 py-1 text-xs font-semibold transition ${
+                    emailList === state.code ? 'border-slate-50 bg-slate-50 text-panel' : 'border-line text-slate-400 hover:border-accent hover:text-accent'
+                  }`}
+                >
+                  {state.name}
+                </button>
+              ))}
+            </div>
+            <NewsletterSignup key={emailList} list={emailList} />
+          </section>
+        </div>
       </main>
     </div>
   );
 }
 
-function StateCard({ state, summary, loaded }: { state: (typeof STATES)[number]; summary?: StateSummary; loaded: boolean }) {
+function StateRow({ state, summary, loaded }: { state: (typeof STATES)[number]; summary?: StateSummary; loaded: boolean }) {
   const year = summary?.week.end.slice(0, 4) ?? '';
   return (
     <a
       href={siteHref(`/${state.code}`)}
-      className="group flex flex-col border border-line bg-panel transition hover:border-accent focus-visible:border-accent"
+      className="state-row group grid grid-cols-[76px_minmax(0,1fr)] gap-x-3 gap-y-2 border-b border-line py-4 transition hover:bg-panel md:grid-cols-[150px_minmax(0,1fr)_280px] md:gap-x-6 md:py-5"
       aria-label={`${state.name}${state.draft ? ' (draft)' : ''}: open the ${state.name} page`}
     >
-      <div className="flex items-start justify-between gap-3 px-4 pt-4 sm:px-5">
-        <div>
-          <h2 className="font-condensed text-2xl font-bold leading-tight text-slate-50">{state.name}</h2>
-          <p className="mt-0.5 text-xs leading-5 text-slate-500">{summary ? `Week of ${weekLabel(summary.week)}` : loaded ? '' : 'Loading latest week'}</p>
-        </div>
-        {state.draft && (
-          <span className="mt-1 border border-amber/60 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber">Draft</span>
-        )}
-      </div>
-
-      <div className="mt-2 border-y border-line bg-ink/60 px-4 py-3 sm:px-5">
+      <div className="row-span-2 self-start md:row-span-1">
         <StateMap code={state.code} points={summary?.points ?? []} name={state.name} measure={state.measure} year={year} />
-        {summary?.points && (
-          <p className="mt-1 flex flex-wrap gap-x-3 text-[11px] leading-4 text-slate-500">
-            <span className="inline-flex items-center gap-1">
-              <Dot color={STEEL} opacity={0.55} /> {state.measure}, {year} to date
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <Dot color={ACCENT} /> Latest week
-            </span>
-          </p>
-        )}
       </div>
 
-      <div className="flex flex-1 flex-col px-4 pb-4 pt-3 sm:px-5">
+      <div className="min-w-0">
+        <div className="flex items-baseline gap-2">
+          <h2 className="font-condensed text-xl font-bold leading-none text-slate-50 sm:text-2xl">{state.name}</h2>
+          {state.draft && <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber">Draft</span>}
+          <ArrowRight size={16} aria-hidden="true" className="ml-auto shrink-0 text-slate-500 transition group-hover:translate-x-0.5 group-hover:text-accent md:hidden" />
+        </div>
         {summary ? (
           <>
-            <dl className="grid grid-cols-3 gap-2">
+            <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
               {stats(summary).map(([label, value]) => (
-                <div key={label} className="flex flex-col">
-                  <dt className="text-xs leading-4 text-slate-500">{label}</dt>
-                  <dd className="mt-auto pt-1 font-condensed text-2xl font-bold tabular-nums text-slate-50">{value}</dd>
+                <div key={label} className="flex items-baseline gap-1.5">
+                  <dd className="font-condensed text-xl font-bold tabular-nums leading-none text-slate-50 sm:text-2xl">{value}</dd>
+                  <dt className="text-xs text-slate-500">{label}</dt>
                 </div>
               ))}
             </dl>
-            {summary.series && <WeeklyBars series={summary.series} title={`${state.measure} by week, last ${summary.series.length} weeks`} />}
-            <p className="mt-3 text-xs leading-5 text-slate-400">{yearToDate(summary)}</p>
-            <p className="text-xs leading-5 text-slate-500">
-              Source: {summary.source}. Data through {longDate(summary.dataThrough)}.
+            <p className="mt-2 hidden text-xs leading-5 text-slate-400 sm:block">
+              {yearToDate(summary)} {summary.source}, data through {longDate(summary.dataThrough)}.
             </p>
           </>
         ) : (
-          <p className="text-sm leading-5 text-slate-400">{state.blurb}</p>
+          <p className="mt-1 text-xs text-slate-500">{loaded ? state.blurb : 'Loading latest week'}</p>
         )}
-        <span className="mt-auto inline-flex items-center gap-1.5 pt-4 text-sm font-semibold text-slate-300 group-hover:text-accent">
-          Open {state.name}
-          <ArrowRight size={15} aria-hidden="true" />
-        </span>
+      </div>
+
+      <div className="col-start-2 min-w-0 md:col-start-auto">
+        {summary?.series && <WeeklyBars series={summary.series} label={`${state.measure} by week, last ${summary.series.length} weeks`} measure={state.measure} />}
       </div>
     </a>
   );
@@ -198,17 +242,17 @@ function StateCard({ state, summary, loaded }: { state: (typeof STATES)[number];
 function Dot({ color, opacity = 1 }: { color: string; opacity?: number }) {
   return (
     <svg width="8" height="8" aria-hidden="true">
-      <circle cx="4" cy="4" r="3" fill={color} fillOpacity={opacity} />
+      <circle cx="4" cy="4" r="3.5" fill={color} fillOpacity={opacity} />
     </svg>
   );
 }
 
-const MAP_W = 320;
-const MAP_H = 170;
+const MAP_W = 150;
+const MAP_H = 120;
 
 function StateMap({ code, points, name, measure, year }: { code: Code; points: Array<[number, number, number]>; name: string; measure: string; year: string }) {
   const ring = OUTLINES[code];
-  const project = projector(ring, MAP_W, MAP_H);
+  const project = projector(ring, MAP_W, MAP_H, 3);
   const outline = ring.map((point, index) => `${index ? 'L' : 'M'}${project(point).map((value) => value.toFixed(1)).join(',')}`).join('') + 'Z';
   const older = points.filter((point) => !point[2]);
   const latest = points.filter((point) => point[2]);
@@ -217,31 +261,27 @@ function StateMap({ code, points, name, measure, year }: { code: Code; points: A
     : `Outline of ${name}.`;
   return (
     <svg viewBox={`0 0 ${MAP_W} ${MAP_H}`} className="block h-auto w-full" role="img" aria-label={label}>
-      <path d={outline} fill="#ffffff" stroke="#8a96a3" strokeWidth="1" strokeLinejoin="round" />
+      <path d={outline} fill="#ffffff" stroke="#46525e" strokeWidth="1" strokeLinejoin="round" />
       {older.map(([lon, lat], index) => {
         const [x, y] = project([lon, lat]);
-        return <circle key={`o${index}`} cx={x} cy={y} r="2.2" fill={STEEL} fillOpacity="0.45" />;
+        return <circle key={`o${index}`} className="map-dot" cx={x} cy={y} r="1.6" fill={STEEL} fillOpacity="0.5" />;
       })}
       {latest.map(([lon, lat], index) => {
         const [x, y] = project([lon, lat]);
-        return <circle key={`l${index}`} cx={x} cy={y} r="3.2" fill={ACCENT} stroke="#ffffff" strokeWidth="0.8" />;
+        return <circle key={`l${index}`} className="map-dot map-dot-latest" cx={x} cy={y} r="2.6" fill={ACCENT} stroke="#ffffff" strokeWidth="0.6" />;
       })}
     </svg>
   );
 }
 
-function WeeklyBars({ series, title }: { series: Array<{ end: string; count: number }>; title: string }) {
-  const width = 300, height = 52, gap = 3;
+function WeeklyBars({ series, label: title, measure }: { series: Array<{ end: string; count: number }>; label: string; measure: string }) {
+  const width = 280, height = 44, gap = 3;
   const max = Math.max(1, ...series.map((week) => week.count));
   const barWidth = (width - gap * (series.length - 1)) / series.length;
   const label = `${title}: ${series.map((week) => `${shortDate(week.end)} ${week.count}`).join(', ')}.`;
   return (
-    <figure className="mt-4">
-      <figcaption className="flex items-baseline justify-between text-[11px] leading-4 text-slate-500">
-        <span>{title}</span>
-        <span className="tabular-nums">max {number(max)}</span>
-      </figcaption>
-      <svg viewBox={`0 0 ${width} ${height}`} className="mt-1 block h-auto w-full" role="img" aria-label={label}>
+    <figure>
+      <svg viewBox={`0 0 ${width} ${height}`} className="block h-9 w-full md:h-11" preserveAspectRatio="none" role="img" aria-label={label}>
         <line x1="0" x2={width} y1={height - 0.5} y2={height - 0.5} stroke="#d5dbe2" />
         {series.map((week, index) => {
           const barHeight = (week.count / max) * (height - 2);
@@ -254,17 +294,18 @@ function WeeklyBars({ series, title }: { series: Array<{ end: string; count: num
               width={barWidth}
               height={Math.max(barHeight, week.count ? 1 : 0)}
               fill={last ? ACCENT : STEEL}
-              fillOpacity={last ? 1 : 0.6}
+              fillOpacity={last ? 1 : 0.55}
             >
               <title>{`Week ending ${longDate(week.end)}: ${number(week.count)}`}</title>
             </rect>
           );
         })}
       </svg>
-      <div className="mt-0.5 flex justify-between text-[11px] leading-4 text-slate-500">
+      <figcaption className="mt-1 flex justify-between gap-2 text-[10px] leading-3 text-slate-500">
         <span>{shortDate(series[0].end)}</span>
+        <span className="truncate">{measure} per week, peak {number(max)}</span>
         <span>{shortDate(series[series.length - 1].end)}</span>
-      </div>
+      </figcaption>
     </figure>
   );
 }
@@ -273,13 +314,13 @@ function stats(summary: StateSummary): Array<[string, string]> {
   const rigs = summary.rigs ? number(summary.rigs.count) : '–';
   if (summary.code === 'ca') {
     return [
-      ['New Drill permits', number(summary.newDrills ?? 0)],
-      ['All approved permits', number(summary.approvals)],
+      ['New Drill', number(summary.newDrills ?? 0)],
+      ['All permits', number(summary.approvals)],
       ['Rigs', rigs]
     ];
   }
   return [
-    [summary.code === 'wy' ? 'Approved APDs' : 'Approved permits', number(summary.approvals)],
+    [summary.code === 'wy' ? 'APDs approved' : 'Approved', number(summary.approvals)],
     ['Spuds', number(summary.spuds ?? 0)],
     ['Rigs', rigs]
   ];

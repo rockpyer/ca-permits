@@ -33,7 +33,7 @@ const TERMS: Array<[string, string]> = [
 export function AboutPage() {
   const { summaries } = useStatesSummary();
   useEffect(() => {
-    document.title = 'About WellerTracker · Well permit activity by state';
+    document.title = 'About | WellerTracker';
   }, []);
 
   return (
@@ -125,7 +125,7 @@ export function AboutPage() {
             Use and license
           </h2>
           <p className="mt-3 text-sm leading-6 text-slate-400">
-            You may link to any page and quote individual figures with credit: &ldquo;Well permit activity, permits.ryweller.com&rdquo;.
+            You may link to any page and quote individual figures with credit: &ldquo;WellerTracker, permits.ryweller.com&rdquo;.
             Copying the code, design or compiled datasets, scraping the site, and using it to train models are not permitted without
             permission. The underlying public records are available from each regulator.
           </p>

@@ -85,7 +85,7 @@ export function WyApp() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    document.title = 'Wyoming drilling permits and spuds (draft)';
+    document.title = 'Wyoming drilling permits and spuds (draft) | WellerTracker';
     loadWyData()
       .then((data) => {
         setApds(data.apds);
@@ -127,7 +127,7 @@ export function WyApp() {
       error={error}
       rail={<WyFilterRail apds={apds} extraOperators={extraOperators} filters={filters} view={view} bounds={meta?.dateBounds} onChange={setFilters} onViewChange={setView} />}
       footerCount={`${approved.length.toLocaleString()} approved APDs and ${pending.length.toLocaleString()} pending under the filters, from ${apds.length.toLocaleString()} loaded`}
-      disclaimer="Independent project, not affiliated with or endorsed by the Wyoming Oil and Gas Conservation Commission. WOGCC records remain the system of record."
+      disclaimer="Independent service by Ryan Weller, not affiliated with or endorsed by the Wyoming Oil and Gas Conservation Commission. WOGCC records remain the system of record."
       contactSubject="Wyoming drilling permit activity"
       links={[
         ['/', 'All states'],
