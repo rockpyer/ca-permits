@@ -16,12 +16,12 @@ Writes, under data/wy/:
   waiting on approval. Merged by PKey, never deleted.
 - details.jsonl: APD detail page fields by API (fetched once per API).
 - spuds.jsonl: every Wyoming well spudded since HISTORY_START. Merged by API.
+- wells.jsonl: the Standard Well rows for stored APIs, merged by API, so a run that
+  re-fetches only changed wells can still join every APD to its well.
+- source_codes.jsonl: each APD and well key with the status code the WFS gave it last run.
+  Weekly runs request report rows only for keys that are new or whose code changed; a full
+  refresh runs every FULL_REFRESH_DAYS.
 - etl_runs.jsonl.
-
-Modes (data/ingest_plan.json, store.ingest_mode): a full run every four weeks re-reads every
-APD key since MIN_APD_PKEY and the statewide well layer. Weekly delta runs in between read
-only new APD keys, open APDs (a rotating quarter of the pending queue), and wells that are
-spudding or already matched to open APDs: about 15 requests instead of about 60.
 """
 
 from __future__ import annotations
@@ -59,6 +59,11 @@ APDS_FILE = "wy/apds.jsonl"
 DETAILS_FILE = "wy/details.jsonl"
 SPUDS_FILE = "wy/spuds.jsonl"
 RUNS_FILE = "wy/etl_runs.jsonl"
+WELLS_FILE = "wy/wells.jsonl"
+CODES_FILE = "wy/source_codes.jsonl"
+# Report rows are re-fetched for every key at least this often, to pick up date or name
+# corrections that do not change a key's WFS status code. WY_FULL=1 forces one.
+FULL_REFRESH_DAYS = 28
 
 HISTORY_START = "2025-01-01"
 # APD keys rise with receipt. 333000 was received around mid-2023, early enough to catch
@@ -72,7 +77,7 @@ DELAY = float(os.environ.get("WY_DELAY", "1.0"))
 # rejecting every request after about 1,600 detail pages in two hours. The weekly run keeps
 # this light: newly approved APDs only, capped by data/ingest_plan.json (WY_DETAIL_LIMIT
 # overrides). The pending queue is not backfilled unless WY_DETAIL_PENDING=1 (see BACKLOG.md
-# for better sources).
+# for better sources). The week after a firewall rejection, no detail pages are fetched.
 DETAIL_PENDING = os.environ.get("WY_DETAIL_PENDING") == "1"
 DETAIL_DELAY = float(os.environ.get("WY_DETAIL_DELAY", "3.0"))
 # Consecutive detail failures (other than a firewall rejection) before giving up for the run.
@@ -225,34 +230,6 @@ def trs(value: Any) -> str | None:
         return None
     match = re.match(r"Sec\s*(\d+)\s*\|\s*T(\d+[NS])\s*\|\s*R(\d+[EW])", text)
     return f"{int(match.group(1))}-{match.group(2)}-{match.group(3)}" if match else text
-
-
-def delta_apd_keys(apds: list[dict[str, Any]], week: int, rotation: int) -> list[str]:
-    """Stored APD keys a delta run re-reads: active permits, drilling permits with no spud
-    date yet, and one `rotation`-th of the pending queue (by key), so each pending APD is
-    re-checked every `rotation` weeks. Settled APDs wait for the next full run."""
-    keys = []
-    for row in apds:
-        status, key = row.get("apd_status"), row["source_key"]
-        if status == "Active Permit" or (status == "Drilling or Drilled Permit" and not row.get("spud_date")):
-            keys.append(key)
-        elif status == "Waiting on Approval" and int(key) % rotation == week % rotation:
-            keys.append(key)
-    return sorted(keys, key=int)
-
-
-def delta_well_keys(apds: list[dict[str, Any]], spuds: list[dict[str, Any]]) -> set[str]:
-    """Well keys already matched to approved APDs or spuds that have not completed yet."""
-    rows = [row for row in apds if row.get("approved_date")] + list(spuds)
-    return {str(row["well_pkey"]) for row in rows if row.get("well_pkey") and not row.get("completion_date")}
-
-
-def blocked_last_run(runs: list[dict[str, Any]]) -> bool:
-    """True when the latest run met the firewall: the next run then skips detail pages."""
-    if not runs:
-        return False
-    details = runs[0].get("details") or {}
-    return bool(details.get("blocked")) or "firewall" in str(details.get("details_stopped") or "")
 
 
 def keep_apd(row: dict[str, Any]) -> bool:
@@ -424,6 +401,82 @@ def point(feature: dict[str, Any]) -> tuple[float | None, float | None]:
     return None, None
 
 
+# ---------------------------------------------------------------------------- change tracking
+
+
+def read_codes() -> tuple[dict[str, str], dict[str, str], str | None]:
+    """APD codes, well codes and the date of the last full refresh from CODES_FILE."""
+    apd: dict[str, str] = {}
+    well: dict[str, str] = {}
+    last_full = None
+    for row in read_jsonl(CODES_FILE):
+        kind, _, key = row["key"].partition(":")
+        if kind == "apd":
+            apd[key] = row["code"]
+        elif kind == "well":
+            well[key] = row["code"]
+        elif kind == "meta" and key == "last_full":
+            last_full = row["code"]
+    return apd, well, last_full
+
+
+def write_codes(apd: dict[str, str], well: dict[str, str], last_full: str | None) -> None:
+    rows = [{"key": f"apd:{key}", "code": code} for key, code in apd.items()]
+    rows += [{"key": f"well:{key}", "code": code} for key, code in well.items()]
+    if last_full:
+        rows.append({"key": "meta:last_full", "code": last_full})
+    write_jsonl(CODES_FILE, rows, key="key")
+
+
+def full_refresh_due(last_full: str | None, today: str, force: bool = False) -> bool:
+    if force or not last_full:
+        return True
+    return (date.fromisoformat(today) - date.fromisoformat(last_full)).days >= FULL_REFRESH_DAYS
+
+
+def rotation_keys(apds: list[dict[str, Any]], week: int, rotation: int) -> set[str]:
+    """For a changes-only run with no saved codes yet (the first one): stored APDs that are
+    active, drilling with no spud date, or in this week's quarter of the pending queue. The
+    other stored APDs keep the values from the last full run until the next one."""
+    keys = set()
+    for row in apds:
+        status, key = row.get("apd_status"), row["source_key"]
+        if status == "Active Permit" or (status == "Drilling or Drilled Permit" and not row.get("spud_date")):
+            keys.add(key)
+        elif status == "Waiting on Approval" and int(key) % rotation == week % rotation:
+            keys.add(key)
+    return keys
+
+
+def blocked_last_run(runs: list[dict[str, Any]]) -> bool:
+    """True when the latest run met the firewall: the next run then skips detail pages."""
+    if not runs:
+        return False
+    details = runs[0].get("details") or {}
+    return bool(details.get("blocked")) or "firewall" in str(details.get("details_stopped") or "")
+
+
+def run_mode(last_full: str | None, today: str, full_every_days: int) -> str:
+    """'full' or 'delta'. INGEST_MODE=full|delta or WY_FULL=1 forces one. With saved codes,
+    full when the last full refresh is `full_every_days` old. With none yet, the run history
+    decides (store.ingest_mode), so the first changes-only run does not have to be full."""
+    forced = os.environ.get("INGEST_MODE", "").strip().lower()
+    if os.environ.get("WY_FULL") == "1" or forced == "full":
+        return "full"
+    if forced == "delta":
+        return "delta"
+    if last_full:
+        return "full" if (date.fromisoformat(today) - date.fromisoformat(last_full)).days >= full_every_days else "delta"
+    return ingest_mode(RUNS_FILE, "wogcc_data_explorer", full_every_days)
+
+
+def changed_keys(current: dict[str, str], previous: dict[str, str], full: bool) -> list[str]:
+    """Keys to request from a report: all on a full refresh, else new keys and keys whose
+    WFS status code changed since the last run."""
+    keys = current if full else {key for key, code in current.items() if previous.get(key) != code}
+    return sorted(keys, key=int)
+
+
 # ---------------------------------------------------------------------------- run
 
 
@@ -477,43 +530,50 @@ def fetch_details(
     return fetched, failed, stopped
 
 
-def run(mode: str, plan: dict[str, Any]) -> None:
+def run(plan: dict[str, Any]) -> None:
     client = session()
     today = date.today()
     checked = today.isoformat()
     limits = plan.get("limits", {})
-    stored_apds = read_jsonl(APDS_FILE)
-    stored_spuds = read_jsonl(SPUDS_FILE)
-    stored_keys = {row["source_key"] for row in stored_apds}
-    full = mode == "full"
     notes: list[str] = []
 
-    # 1. APD keys and surface locations. A delta reads only keys above the highest stored one.
-    newest = max((int(key) for key in stored_keys), default=MIN_APD_PKEY - 1)
-    cql = f"PKey>={MIN_APD_PKEY}" if full else f"PKey>{newest}"
-    locations: dict[str, tuple[float | None, float | None]] = {}
-    for layer in ("APDVertical", "APDNonVertical"):
-        for feature in wfs_features(client, layer, ["PKey", "the_geom"], cql):
-            locations[str(feature["properties"]["PKey"])] = point(feature)
-    if full:
-        fail_if_count_collapsed("WFS APD keys", len(locations), MIN_APD_KEYS)
-        report_keys = sorted(locations, key=int)
-    else:
-        rotation = int(limits.get("pending_rotation_weeks", 4))
-        report_keys = sorted(set(locations) | set(delta_apd_keys(stored_apds, today.isocalendar()[1], rotation)), key=int)
+    previous_apd, previous_well, last_full = read_codes()
+    mode = run_mode(last_full, checked, int(plan.get("full_every_days", FULL_REFRESH_DAYS)))
+    full = mode == "full"
+    stored_apds = read_jsonl(APDS_FILE)
+    stored_keys = {row["source_key"] for row in stored_apds}
 
-    # 2. APD report.
-    raw_apds = report(client, "StandardAPD.xml", report_keys, APD_COLUMNS)
+    # 1. APD keys, status codes and surface locations (one WFS request per layer).
+    locations: dict[str, tuple[float | None, float | None]] = {}
+    apd_codes: dict[str, str] = {}
+    for layer in ("APDVertical", "APDNonVertical"):
+        for feature in wfs_features(client, layer, ["PKey", "GISCode", "the_geom"], f"PKey>={MIN_APD_PKEY}"):
+            key = str(feature["properties"]["PKey"])
+            locations[key] = point(feature)
+            apd_codes[key] = feature["properties"].get("GISCode") or ""
+    fail_if_count_collapsed("WFS APD keys", len(locations), MIN_APD_KEYS)
+
+    # 2. APD report, for new and changed keys only (all keys on a full refresh).
+    if full or previous_apd:
+        apd_keys = changed_keys(apd_codes, previous_apd, full)
+    else:
+        # First changes-only run: no saved codes to compare, so read keys not stored yet plus
+        # a rotating share of open APDs (about 2,400 keys instead of every one).
+        rotation = int(limits.get("pending_rotation_weeks", 4))
+        # "New" means above the highest stored key: older keys not stored fell outside the
+        # history window on the last full run.
+        newest = max((int(key) for key in stored_keys), default=0)
+        new_keys = {key for key in apd_codes if int(key) > newest}
+        wanted = new_keys | (rotation_keys(stored_apds, today.isocalendar()[1], rotation) & set(apd_codes))
+        apd_keys = sorted(wanted, key=int)
+        notes.append("no saved status codes yet: read new keys and a rotating share of open APDs; codes saved for next week")
+    raw_apds = report(client, "StandardAPD.xml", apd_keys, APD_COLUMNS) if apd_keys else []
     if full:
         fail_if_count_collapsed("Standard APD report", len(raw_apds), MIN_APD_KEYS)
-    else:
-        fail_if_count_collapsed("Standard APD report (delta)", len(raw_apds), len(report_keys) // 2)
     incoming = []
     for raw in raw_apds:
         record = apd_record(raw, checked)
-        if record["source_key"] in locations:
-            # Otherwise the stored location stays (merge_rows keeps columns not given).
-            record["latitude"], record["longitude"] = locations[record["source_key"]]
+        record["latitude"], record["longitude"] = locations.get(record["source_key"], (None, None))
         incoming.append(record)
     # Stored APDs are always updated, so one that leaves the window does not keep a stale status.
     kept = [row for row in incoming if keep_apd(row) or row["source_key"] in stored_keys]
@@ -521,41 +581,32 @@ def run(mode: str, plan: dict[str, Any]) -> None:
     apds = merge_rows(stored_apds, kept, "source_key", apd_changes)
     # An APD no longer returned by the source keeps its last values.
 
-    # 3. Wells. Full: the statewide WFS layer, matched by API, then the well report for every
-    #    stored API plus wells marked spudded (catches spuds on APDs from before the history
-    #    window). Delta: wells marked spudded plus wells already matched to open APDs.
-    if full:
-        well_features = wfs_features(client, "WELL", ["PKey", "WellId", "Status"])
-        fail_if_count_collapsed("WFS wells", len(well_features), MIN_WELL_FEATURES)
-        # Every APD the report returned (back to MIN_APD_PKEY), not only the kept ones: a well
-        # spudded since HISTORY_START can sit on an APD approved before it.
-        apis = (
-            {row["api"] for row in incoming if row.get("api")}
-            | {row["api"] for row in apds if row.get("api")}
-            | {row["api"] for row in stored_spuds}
-        )
-        well_keys = {
-            str(feature["properties"]["PKey"])
-            for feature in well_features
-            if normalize_wy_api(feature["properties"].get("WellId")) in apis or feature["properties"].get("Status") == "SP"
-        }
-    else:
-        well_keys = delta_well_keys(apds, stored_spuds)
-        try:
-            well_keys |= {str(f["properties"]["PKey"]) for f in wfs_features(client, "WELL", ["PKey", "Status"], "Status='SP'")}
-        except Blocked:
-            raise
-        except (requests.RequestException, SourceError) as error:
-            notes.append(f"spudding-well filter failed ({error}); used matched wells only")
-            print(notes[-1], file=sys.stderr)
-    wells = [well_record(raw, checked) for raw in report(client, "StandardWell.xml", sorted(well_keys, key=int), WELL_COLUMNS_NEEDED)]
-    wells_by_api = {well["api"]: well for well in wells if well["api"]}
+    # 3. Wells: WFS key and status code by API, then the well report for wells on stored APDs
+    #    plus wells marked spudded (catches spuds on APDs from before the history window),
+    #    again only where new or changed.
+    well_features = wfs_features(client, "WELL", ["PKey", "WellId", "Status"])
+    fail_if_count_collapsed("WFS wells", len(well_features), MIN_WELL_FEATURES)
+    stored_wells = {row["api"]: row for row in read_jsonl(WELLS_FILE)}
+    # Every APD the report returned (back to MIN_APD_PKEY), not only the kept ones: a well
+    # spudded since HISTORY_START can sit on an APD approved before it.
+    apis = (
+        {row["api"] for row in incoming if row.get("api")}
+        | {row["api"] for row in apds if row.get("api")}
+        | {row["api"] for row in read_jsonl(SPUDS_FILE)}
+        | set(stored_wells)
+    )
+    well_codes = {
+        str(feature["properties"]["PKey"]): feature["properties"].get("Status") or ""
+        for feature in well_features
+        if normalize_wy_api(feature["properties"].get("WellId")) in apis or feature["properties"].get("Status") == "SP"
+    }
+    well_keys = changed_keys(well_codes, previous_well, full)
+    wells = [well_record(raw, checked) for raw in report(client, "StandardWell.xml", well_keys, WELL_COLUMNS_NEEDED)] if well_keys else []
+    stored_wells.update({well["api"]: well for well in wells if well["api"]})
+    wells_by_api = stored_wells
 
     for row in apds:
         well = wells_by_api.get(row.get("api"))
-        if not well and not full:
-            continue  # A delta did not look this well up; keep what is stored.
-        row["well_pkey"] = well["well_pkey"] if well else None
         row["well_status"] = well["well_status"] if well else None
         row["well_status_date"] = well["well_status_date"] if well else None
         row["spud_date"] = well["spud_date"] if well else None
@@ -575,7 +626,6 @@ def run(mode: str, plan: dict[str, Any]) -> None:
     spuds = [
         {
             "api": well["api"],
-            "well_pkey": well["well_pkey"],
             "spud_date": well["spud_date"],
             "completion_date": well["completion_date"],
             "well_name": well["well_name"],
@@ -590,15 +640,18 @@ def run(mode: str, plan: dict[str, Any]) -> None:
             "longitude": well["longitude"],
             "checked_date": checked,
         }
-        for well in wells
+        for well in wells_by_api.values()
         if well["api"] and well["spud_date"] and HISTORY_START <= well["spud_date"] <= checked
     ]
     spud_changes = row_changes()
-    spuds = merge_rows(stored_spuds, spuds, "api", spud_changes)
+    spuds = merge_rows(read_jsonl(SPUDS_FILE), spuds, "api", spud_changes)
 
     write_jsonl(APDS_FILE, apds, key="source_key")
     write_jsonl(DETAILS_FILE, list(details.values()), key="api")
     write_jsonl(SPUDS_FILE, spuds, key="api")
+    write_jsonl(WELLS_FILE, list(wells_by_api.values()), key="api")
+    # Codes are saved only after every write, so a failed run re-requests what it missed.
+    write_codes(apd_codes, well_codes, checked if full else last_full)
     record_run(
         "wogcc_data_explorer",
         source_count=len(raw_apds),
@@ -607,8 +660,9 @@ def run(mode: str, plan: dict[str, Any]) -> None:
         rows=apd_changes,
         details={
             "history_start": HISTORY_START,
-            "apd_keys_requested": len(report_keys),
-            "new_apd_keys": len(set(locations) - stored_keys),
+            "full_refresh": full,
+            "apd_keys_requested": len(apd_keys),
+            "well_keys_requested": len(well_keys),
             "apds_stored": len(apds),
             "wells_checked": len(wells),
             "spuds_stored": len(spuds),
@@ -626,18 +680,18 @@ def run(mode: str, plan: dict[str, Any]) -> None:
         runs_file=RUNS_FILE,
     )
     print(
-        f"wy ingest ({mode}): {len(report_keys)} APD keys read, {apd_changes}; {len(apds)} stored; "
-        f"{len(wells)} wells; {len(spuds)} spuds ({spud_changes['new']} new); details fetched {fetched}, "
-        f"failed {failed}, still missing {max(len(queue) - fetched, 0)}"
+        f"wy ingest ({'full' if full else 'changes only'}): {len(apd_keys)} APD keys and {len(well_keys)} well keys requested; "
+        f"{len(kept)} APDs kept of {len(raw_apds)}, {len(apds)} stored; {len(wells)} wells refreshed; "
+        f"{len(spuds)} spuds; details fetched {fetched}, failed {failed}, still missing {max(len(queue) - fetched, 0)}"
     )
 
 
 def main() -> None:
     plan = load_plan("wogcc")
-    mode = ingest_mode(RUNS_FILE, "wogcc_data_explorer", plan["full_every_days"])
     try:
-        run(mode, plan)
+        run(plan)
     except Exception as error:
+        mode = run_mode(read_codes()[2], date.today().isoformat(), int(plan.get("full_every_days", FULL_REFRESH_DAYS)))
         record_failure("wogcc_data_explorer", error, runs_file=RUNS_FILE, mode=mode, blocked=isinstance(error, Blocked))
         raise
 

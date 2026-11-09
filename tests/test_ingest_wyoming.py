@@ -9,12 +9,16 @@ from ingest_wyoming import (
     APD_COLUMNS,
     Blocked,
     SourceError,
+    changed_keys,
     check_rejected,
     apd_record,
     dedupe,
     detail_queue,
     detail_record,
     fetch_details,
+    full_refresh_due,
+    read_codes,
+    write_codes,
     keep_apd,
     mineral_class,
     normalize_wy_api,
@@ -232,8 +236,85 @@ def test_fetch_details_stops_after_consecutive_failures():
     assert stopped == "5 detail pages failed in a row"
 
 
-def test_delta_apd_keys_rotate_the_pending_queue():
-    from ingest_wyoming import delta_apd_keys
+def test_changed_keys_requests_new_and_changed_codes_only():
+    previous = {"100": "PE", "200": "AP", "300": "IA"}
+    current = {"100": "AP", "200": "AP", "300": "IA", "400": "PE"}
+    assert changed_keys(current, previous, full=False) == ["100", "400"]
+    assert changed_keys(current, previous, full=True) == ["100", "200", "300", "400"]
+    assert changed_keys(current, {}, full=False) == ["100", "200", "300", "400"]
+
+
+def test_full_refresh_every_four_weeks_or_when_forced():
+    assert full_refresh_due(None, "2026-11-09")
+    assert not full_refresh_due("2026-11-02", "2026-11-09")
+    assert full_refresh_due("2026-10-12", "2026-11-09")
+    assert full_refresh_due("2026-11-08", "2026-11-09", force=True)
+
+
+def test_codes_round_trip(tmp_path, monkeypatch):
+    import store
+
+    monkeypatch.setattr(store, "DATA_DIR", tmp_path)
+    write_codes({"339172": "AP"}, {"934780": "PR"}, "2026-11-09")
+    assert read_codes() == ({"339172": "AP"}, {"934780": "PR"}, "2026-11-09")
+
+
+def test_second_run_requests_only_changed_keys(tmp_path, monkeypatch):
+    import store
+    import ingest_wyoming as wy
+
+    monkeypatch.setattr(store, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(wy, "MIN_APD_KEYS", 1)
+    monkeypatch.setattr(wy, "MIN_WELL_FEATURES", 1)
+    monkeypatch.delenv("WY_FULL", raising=False)
+    monkeypatch.delenv("INGEST_MODE", raising=False)
+
+    codes = {"340001": "PE", "340002": "AP"}
+    well_status = {"4900001": "SP"}
+    requested = []
+
+    def feature(props, lon=-105.0, lat=43.0):
+        return {"properties": props, "geometry": {"coordinates": [lon, lat]}}
+
+    def wfs(client, layer, properties, cql=None):
+        if layer == "WELL":
+            return [feature({"PKey": k, "WellId": "49-009-50002-00", "Status": v}) for k, v in well_status.items()]
+        if layer == "APDVertical":
+            return []
+        return [feature({"PKey": int(k), "GISCode": v}) for k, v in codes.items()]
+
+    def apd_row(key):
+        status = "Waiting on Approval" if codes[key] == "PE" else "Active Permit"
+        approved = "" if codes[key] == "PE" else "03/01/2026"
+        return {"PKey": key, "API Number": f"49-009-5{key[-4:]}", "Operator": "EOG RESOURCES INC", "APD Status": status,
+                "APD Received Date": "01/05/2026", "APD Approved Date": approved, "Application Type": "CREATE NEW APD"}
+
+    def report(client, name, keys, expected):
+        requested.append((name, list(keys)))
+        if name == "StandardAPD.xml":
+            return [apd_row(key) for key in keys]
+        return [{"PKey": k, "API Number": "49-009-50002", "Well Status": "Well Spudded", "Spud Date": "04/01/2026"} for k in keys]
+
+    monkeypatch.setattr(wy, "wfs_features", wfs)
+    monkeypatch.setattr(wy, "report", report)
+    monkeypatch.setattr(wy, "fetch_detail", lambda client, pkey: parse_detail_page(DETAIL_PAGE))
+
+    wy.run(store.load_plan("wogcc"))
+    assert requested == [("StandardAPD.xml", ["340001", "340002"]), ("StandardWell.xml", ["4900001"])]
+
+    requested.clear()
+    codes["340001"] = "AP"  # approved since the last run
+    wy.run(store.load_plan("wogcc"))
+    assert requested == [("StandardAPD.xml", ["340001"])]  # the unchanged APD and well are not requested
+    apds = {row["source_key"]: row for row in store.read_jsonl("wy/apds.jsonl")}
+    assert apds["340001"]["approved_date"] == "2026-03-01"
+    assert apds["340002"]["spud_date"] == "2026-04-01"  # still joined to the stored well
+    run = store.read_jsonl("wy/etl_runs.jsonl")[0]["details"]
+    assert (run["full_refresh"], run["apd_keys_requested"], run["well_keys_requested"]) == (False, 1, 0)
+
+
+def test_rotation_keys_and_blocked_last_run():
+    from ingest_wyoming import blocked_last_run, rotation_keys
 
     apds = [
         {"source_key": "100", "apd_status": "Waiting on Approval"},
@@ -243,78 +324,68 @@ def test_delta_apd_keys_rotate_the_pending_queue():
         {"source_key": "104", "apd_status": "Drilling or Drilled Permit"},
         {"source_key": "105", "apd_status": "Withdrawn"},
     ]
-    assert delta_apd_keys(apds, week=0, rotation=4) == ["100", "102", "104"]
-    assert delta_apd_keys(apds, week=1, rotation=4) == ["101", "102", "104"]
-
-
-def test_delta_well_keys_and_blocked_last_run():
-    from ingest_wyoming import blocked_last_run, delta_well_keys
-
-    apds = [
-        {"approved_date": "2026-10-01", "well_pkey": "7"},
-        {"approved_date": "2026-10-01", "well_pkey": "8", "completion_date": "2026-11-01"},
-        {"approved_date": None, "well_pkey": "9"},
-    ]
-    assert delta_well_keys(apds, [{"well_pkey": "10"}]) == {"7", "10"}
+    assert rotation_keys(apds, week=0, rotation=4) == {"100", "102", "104"}
+    assert rotation_keys(apds, week=1, rotation=4) == {"101", "102", "104"}
     assert blocked_last_run([{"details": {"details_stopped": "APD detail 1: the Data Explorer firewall rejected the request"}}])
     assert blocked_last_run([{"details": {"blocked": True}}])
     assert not blocked_last_run([{"details": {"details_stopped": "5 detail pages failed in a row"}}])
     assert not blocked_last_run([])
 
 
-def test_delta_run_reads_only_new_and_open_apds(tmp_path, monkeypatch):
-    import ingest_wyoming as wy
+def test_first_changes_only_run_reads_new_and_open_apds_and_saves_codes(tmp_path, monkeypatch):
+    """No saved codes, but a full run five days ago: read new keys plus a rotating share of
+    open APDs instead of every key, and save codes so the next run compares them."""
     import store
+    import ingest_wyoming as wy
+    from datetime import date as real_date
 
     monkeypatch.setattr(store, "DATA_DIR", tmp_path)
-    monkeypatch.delenv("WY_DETAIL_LIMIT", raising=False)
+    monkeypatch.setattr(wy, "MIN_APD_KEYS", 1)
+    monkeypatch.setattr(wy, "MIN_WELL_FEATURES", 1)
+    for name in ("WY_FULL", "INGEST_MODE", "WY_DETAIL_LIMIT"):
+        monkeypatch.delenv(name, raising=False)
+
+    class Today(real_date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 11, 9)  # ISO week 46: 46 % 4 == 2
+
+    monkeypatch.setattr(wy, "date", Today)
+    store.write_jsonl(wy.RUNS_FILE, [{"source": "wogcc_data_explorer", "status": "success", "finished_at": "2026-11-07T17:34:20+00:00", "details": {}}])
     store.write_jsonl(wy.APDS_FILE, [
-        {"source_key": "340000", "api": "49-005-00001", "apd_status": "Active Permit", "approved_date": "2026-10-01",
-         "latitude": 43.1, "longitude": -105.1, "well_pkey": "55"},
-        {"source_key": "340001", "api": "49-005-00002", "apd_status": "Withdrawn", "received_date": "2026-01-01",
-         "well_status": "AP", "latitude": 43.2, "longitude": -105.2},
+        {"source_key": "340000", "api": "49-009-50000", "apd_status": "Active Permit", "approved_date": "2026-10-01"},
+        {"source_key": "340001", "apd_status": "Waiting on Approval", "received_date": "2026-01-01"},
+        {"source_key": "340002", "apd_status": "Waiting on Approval", "received_date": "2026-01-01", "well_status": "AP"},
+        {"source_key": "340003", "apd_status": "Withdrawn", "received_date": "2026-01-01"},
     ], key="source_key")
-    calls = {"wfs": [], "report": []}
+    # 339000 is older than every stored key: outside the window, not new.
+    codes = {"339000": "WD", "340000": "AP", "340001": "PE", "340002": "PE", "340003": "WD", "340010": "PE"}
+    requested = []
 
-    def fake_wfs(client, layer, properties, cql=None):
-        calls["wfs"].append((layer, cql))
-        if layer == "APDVertical":
-            return [{"properties": {"PKey": 340005}, "geometry": {"coordinates": [-105.5, 43.5]}}]
+    def wfs(client, layer, properties, cql=None):
         if layer == "WELL":
-            return [{"properties": {"PKey": 66, "Status": "SP"}}]
-        return []
+            return [{"properties": {"PKey": 77, "WellId": "49-009-50000-00", "Status": "SP"}}]
+        if layer == "APDVertical":
+            return []
+        return [{"properties": {"PKey": int(k), "GISCode": v}, "geometry": {"coordinates": [-105.0, 43.0]}} for k, v in codes.items()]
 
-    def fake_report(client, name, keys, expected):
-        calls["report"].append((name, list(keys)))
+    def report(client, name, keys, expected):
+        requested.append((name, list(keys)))
         if name == "StandardAPD.xml":
-            return [
-                {**APD_ROW, "PKey": "340000", "API Number": "49-005-00001-00", "APD Status": "Drilling or Drilled Permit",
-                 "APD Received Date": "09/01/2026", "APD Approved Date": "10/01/2026"},
-                {**APD_ROW, "PKey": "340005", "API Number": "49-005-00003-00", "APD Status": "Waiting on Approval",
-                 "APD Received Date": "11/02/2026", "APD Approved Date": ""},
-            ]
-        return [
-            {"PKey": "55", "API Number": "49-005-00001-00", "Spud Date": "11/03/2026", "Well Status": "SP"},
-            {"PKey": "66", "API Number": "49-005-00009-00", "Spud Date": "11/04/2026", "Well Status": "SP"},
-        ]
+            return [{"PKey": k, "API Number": "49-009-50000" if k == "340000" else "", "APD Status": "Active Permit" if k == "340000" else "Waiting on Approval",
+                     "APD Received Date": "11/02/2026", "APD Approved Date": "10/01/2026" if k == "340000" else ""} for k in keys]
+        return [{"PKey": "77", "API Number": "49-009-50000", "Well Status": "SP", "Spud Date": "11/03/2026"}]
 
-    monkeypatch.setattr(wy, "wfs_features", fake_wfs)
-    monkeypatch.setattr(wy, "report", fake_report)
-    monkeypatch.setattr(wy, "fetch_detail", lambda client, pkey: {"APD Status": "x", "Mineral and Surface Ownership": "Mineral: FEE / Surface: FEE"})
+    monkeypatch.setattr(wy, "wfs_features", wfs)
+    monkeypatch.setattr(wy, "report", report)
+    monkeypatch.setattr(wy, "fetch_detail", lambda client, pkey: parse_detail_page(DETAIL_PAGE))
 
-    wy.run("delta", store.load_plan("wogcc"))
+    wy.run(store.load_plan("wogcc"))
 
-    assert calls["wfs"][0] == ("APDVertical", "PKey>340001")
-    assert calls["wfs"][2] == ("WELL", "Status='SP'")
-    apd_keys = calls["report"][0][1]
-    assert apd_keys == ["340000", "340005"]  # withdrawn APD waits for the full run
-    assert set(calls["report"][1][1]) == {"55", "66"}
-    apds = {row["source_key"]: row for row in store.read_jsonl(wy.APDS_FILE)}
-    assert apds["340000"]["latitude"] == 43.1  # stored location kept
-    assert apds["340000"]["spud_date"] == "2026-11-03"
-    assert apds["340001"]["well_status"] == "AP"  # not looked up, not cleared
-    assert apds["340005"]["latitude"] == 43.5
+    # 340002 is in this week's quarter (2 % 4 == 46 % 4); 340001 and the withdrawn APD wait.
+    assert requested[0] == ("StandardAPD.xml", ["340000", "340002", "340010"])
+    assert requested[1] == ("StandardWell.xml", ["77"])
     run = store.read_jsonl(wy.RUNS_FILE)[0]
-    assert run["mode"] == "delta" and run["rows"] == {"new": 1, "changed": 1, "unchanged": 0}
-    assert run["details"]["new_apd_keys"] == 1 and run["details"]["spuds_new"] == 2
-    assert run["details"]["details_limit"] == 15 and run["details"]["details_fetched"] == 1
+    assert run["mode"] == "delta" and run["rows"]["new"] == 1
+    assert run["details"]["spuds_new"] == 1 and run["details"]["details_limit"] == 15
+    assert read_codes()[0]["340001"] == "PE" and read_codes()[2] is None  # codes saved, still no full refresh date
