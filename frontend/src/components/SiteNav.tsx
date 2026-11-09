@@ -14,7 +14,7 @@ export const SITE_NAV_HEIGHT = 'h-10';
 export function SiteNav({ current }: { current: Page }) {
   return (
     <nav className={`${SITE_NAV_HEIGHT} flex items-center border-b border-line bg-panel`} aria-label="Site">
-      <a href={siteHref('/')} className="hidden shrink-0 pl-5 pr-2 font-condensed text-sm font-bold uppercase tracking-[0.16em] text-accent md:block">
+      <a href={siteHref('/')} className="hidden shrink-0 pl-5 pr-2 font-condensed text-lg font-bold leading-none tracking-tight text-accent md:block">
         WellerTracker
       </a>
       <ul className="flex h-full min-w-0 flex-1 items-center gap-x-4 overflow-x-auto whitespace-nowrap px-3 text-xs sm:gap-x-6 sm:px-5 sm:text-sm">
