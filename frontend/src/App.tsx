@@ -21,6 +21,7 @@ import { loadSb237DrillTrackerStats, SB237_DRILL_TRACKER_URL, SB237_PAGE_URL, sb
 import { operatorColorMap } from './lib/operatorColors';
 import { CRC_PARENT_MEMBERS, CRC_PARENT_NAME, operatorAnalysisRows, rowOperatorDisplayName, type OperatorView } from './lib/operators';
 import { caHref, routePath, siteHref } from './lib/routes';
+import { lastTwelveMonths, permitDate } from './lib/permitDates';
 import { SiteNav } from './components/SiteNav';
 import { countByValue, shiftDate } from './lib/summary';
 import { ACCENT, BRAND, CHART, CRC_MEMBER_SHADES, FUNCTIONAL_TYPE_COLORS, FIELD_COLORS, NOTICE_TYPE_COLORS, OPERATOR_SLOTS, SOURCE_TYPE_COLORS, SURFACE, WORK_COLORS } from './lib/palette';
@@ -105,16 +106,12 @@ export function App() {
   }, [dateBounds, filters, path]);
 
   const filteredRows = useMemo(() => applyFilters(rows, filters), [rows, filters]);
-  // Spare operator colors are ranked on the current year's New Drill and Existing permits (the
+  // Spare operator colors are ranked on the last 12 months of New Drill and Existing permits (the
   // default view), ignoring filters so a filter never repaints an operator.
-  const colorRows = useMemo(() => {
-    const year = (dateBounds.maxDate || new Date().toISOString()).slice(0, 4);
-    return rows.filter(
-      (row) =>
-        (row.notice_date_determination || row.notice_dated || '').startsWith(year) &&
-        DEFAULT_WORK_ACTIVITY_GROUPS.includes(workActivityGroup(row))
-    );
-  }, [rows, dateBounds.maxDate]);
+  const colorRows = useMemo(
+    () => lastTwelveMonths(rows, permitDate).filter((row) => DEFAULT_WORK_ACTIVITY_GROUPS.includes(workActivityGroup(row))),
+    [rows]
+  );
   const operatorColor = useMemo(() => operatorColorMap(colorRows), [colorRows]);
   const analysisRows = useMemo(() => operatorAnalysisRows(filteredRows, operatorView), [filteredRows, operatorView]);
   const lastRun = etlRuns[0];
@@ -323,6 +320,11 @@ function ActiveQuery({ filters, dateBounds }: { filters: Filters; dateBounds: Da
 
 type DateBounds = { minDate: string; maxDate: string };
 
+function yearStart(end: string, minDate: string) {
+  const start = `${end.slice(0, 4)}-01-01`;
+  return minDate && start < minDate ? minDate : start;
+}
+
 function quickViewPresets(rows: PermitActivity[], dateBounds: DateBounds): Array<{ label: string; filters: Filters; desktopOnly?: boolean }> {
   const base = defaultFilters(dateBounds);
   const daysBack = (days: number) => {
@@ -333,7 +335,8 @@ function quickViewPresets(rows: PermitActivity[], dateBounds: DateBounds): Array
 
   // `desktopOnly` presets are hidden on phones to keep the first screen short.
   return [
-    { label: 'Year to date', filters: base },
+    { label: 'Last 12 months', filters: base },
+    { label: 'Year to date', filters: { ...base, startDate: yearStart(base.endDate, dateBounds.minDate) } },
     { label: 'Last 30 days', filters: { ...base, startDate: daysBack(30) } },
     { label: 'Kern New Drill', filters: { ...base, workActivities: ['new_drills'], counties: ['Kern'] } },
     { label: CRC_PARENT_NAME, filters: { ...base, operators: [CRC_PARENT_NAME] }, desktopOnly: true },
@@ -870,7 +873,7 @@ function ChartColors() {
         type. Gray is always Other. Where the industry has a convention, the colors follow it: injectors are water blue,
         gas is red, steam is orange, and oil is black. California Resources blue and Chevron red come from their logos.
         Operator colors are fixed for California Resources, Chevron and Sentinel Peak; the next two largest parent
-        companies by this year&apos;s New Drill and Existing permits take amber and purple. Fields, counties and districts
+        companies by New Drill and Existing permits in the last 12 months take amber and purple. Fields, counties and districts
         have no fixed color; each chart gives its largest six a distinct color in a fixed order, and the rest are
         Other.
       </p>

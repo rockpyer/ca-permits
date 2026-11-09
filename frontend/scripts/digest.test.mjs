@@ -37,3 +37,18 @@ describe('buildDigest', () => {
     expect(buildDigest([{ operator_name: 'A' }])).toBeNull();
   });
 });
+
+describe('Kern quota projection across the new year', () => {
+  it('projects early January at the last 12 months pace', async () => {
+    const { buildDigest } = await import('./digest.mjs');
+    const kern = (date, key) => ({ source_key: key, notice_date_determination: date, notice_type: 'NOI - New Drill', county: 'Kern' });
+    // 365 Kern New Drill permits over the prior year (one a day), then 2 in the first 5 days of 2027.
+    const permits = Array.from({ length: 365 }, (_, i) => kern(new Date(Date.parse('2025-12-31T00:00:00Z') + i * 864e5).toISOString().slice(0, 10), `p${i}`));
+    permits.push(kern('2027-01-02', 'a'), kern('2027-01-05', 'b'));
+    const digest = buildDigest(permits, { generatedAt: 'now' });
+    expect(digest.kern.year).toBe('2027');
+    expect(digest.kern.ytd).toBe(2);
+    // 2 so far + about one a day for the remaining 360 days, not 2 / 5 days × 365 = 146.
+    expect(digest.kern.projected).toBeGreaterThan(300);
+  });
+});

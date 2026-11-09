@@ -8,7 +8,7 @@ import { siteHref } from '../lib/routes';
 import { longDate, shortDate } from '../state/format';
 import { OUTLINES, projector } from './outlines';
 
-// The states page at /: one card per state with an outline map of this year's permits, the latest
+// The states page at /: one card per state with an outline map of the last 12 months of permits, the latest
 // full week's numbers, and a 12-week chart (data/states.json, written by scripts/snapshot-states.mjs).
 
 type Code = 'ca' | 'co' | 'wy';
@@ -24,9 +24,12 @@ export type StateSummary = {
   approvals: number;
   newDrills?: number;
   spuds?: number;
-  ytdApprovals: number | null;
-  ytdNewDrills?: number | null;
-  ytdSpuds?: number;
+  // Last 12 months ending at week.end (rolling, so nothing resets on Jan 1).
+  yearApprovals?: number;
+  yearNewDrills?: number;
+  yearSpuds?: number;
+  // Set when the state's data starts inside that window (Colorado until 2027).
+  since?: string;
   rigs: Rigs;
   series?: Array<{ end: string; count: number }>;
   // [longitude, latitude, 1 if a permit there is from the latest week]
@@ -123,7 +126,7 @@ export function StatesPage() {
           </p>
           <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
             <span className="inline-flex items-center gap-1.5">
-              <Dot color={STEEL} opacity={0.6} /> Permits this year
+              <Dot color={STEEL} opacity={0.6} /> Permits, last 12 months
             </span>
             <span className="inline-flex items-center gap-1.5">
               <Dot color={ACCENT} /> Latest week
@@ -134,7 +137,7 @@ export function StatesPage() {
 
         <section aria-label="States" className="border-t-2 border-slate-50">
           <div className="hidden grid-cols-[150px_minmax(0,1fr)_280px] gap-6 border-b border-line py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 md:grid">
-            <span>This year&apos;s permits</span>
+            <span>Last 12 months</span>
             <span>{anyWeek ? `Week of ${weekLabel(anyWeek)}` : 'Latest week'}</span>
             <span>Last 12 weeks</span>
           </div>
@@ -146,7 +149,7 @@ export function StatesPage() {
         <div className="mt-8 grid gap-6 md:grid-cols-[minmax(0,1fr)_340px]">
           <div className="space-y-2 text-xs leading-5 text-slate-500">
             <p>
-              Dots are this year&apos;s permit surface locations, rounded to about 1 km; orange is the latest week. Spuds are reported by
+              Dots are permit surface locations from the last 12 months, rounded to about 1 km; orange is the latest week. Spuds are reported by
               operators after the fact, so recent weeks fill in. Rigs are Baker Hughes weekly counts.{' '}
               <a className="text-slate-300 underline decoration-line underline-offset-2 hover:text-accent" href={siteHref('/about')}>
                 Sources and terms
@@ -196,7 +199,6 @@ export function StatesPage() {
 }
 
 function StateRow({ state, summary, loaded }: { state: (typeof STATES)[number]; summary?: StateSummary; loaded: boolean }) {
-  const year = summary?.week.end.slice(0, 4) ?? '';
   return (
     <a
       href={siteHref(`/${state.code}`)}
@@ -204,7 +206,7 @@ function StateRow({ state, summary, loaded }: { state: (typeof STATES)[number]; 
       aria-label={`${state.name}${state.draft ? ' (draft)' : ''}: open the ${state.name} page`}
     >
       <div className="row-span-2 self-start md:row-span-1">
-        <StateMap code={state.code} points={summary?.points ?? []} name={state.name} measure={state.measure} year={year} />
+        <StateMap code={state.code} points={summary?.points ?? []} name={state.name} measure={state.measure} />
       </div>
 
       <div className="min-w-0">
@@ -250,14 +252,14 @@ function Dot({ color, opacity = 1 }: { color: string; opacity?: number }) {
 const MAP_W = 150;
 const MAP_H = 120;
 
-function StateMap({ code, points, name, measure, year }: { code: Code; points: Array<[number, number, number]>; name: string; measure: string; year: string }) {
+function StateMap({ code, points, name, measure }: { code: Code; points: Array<[number, number, number]>; name: string; measure: string }) {
   const ring = OUTLINES[code];
   const project = projector(ring, MAP_W, MAP_H, 3);
   const outline = ring.map((point, index) => `${index ? 'L' : 'M'}${project(point).map((value) => value.toFixed(1)).join(',')}`).join('') + 'Z';
   const older = points.filter((point) => !point[2]);
   const latest = points.filter((point) => point[2]);
   const label = points.length
-    ? `Map of ${name} with ${number(points.length)} locations of ${measure.toLowerCase()} in ${year}, ${number(latest.length)} from the latest week.`
+    ? `Map of ${name} with ${number(points.length)} locations of ${measure.toLowerCase()} in the last 12 months, ${number(latest.length)} from the latest week.`
     : `Outline of ${name}.`;
   return (
     <svg viewBox={`0 0 ${MAP_W} ${MAP_H}`} className="block h-auto w-full" role="img" aria-label={label}>
@@ -327,11 +329,11 @@ function stats(summary: StateSummary): Array<[string, string]> {
 }
 
 function yearToDate(summary: StateSummary) {
-  const year = summary.week.end.slice(0, 4);
+  if (summary.yearApprovals == null) return '';
+  const span = summary.since ? `Since ${longDate(summary.since)}` : 'Last 12 months';
   if (summary.code === 'ca') {
-    if (summary.ytdApprovals == null) return '';
-    return `${year} to date: ${number(summary.ytdNewDrills ?? 0)} New Drill permits of ${number(summary.ytdApprovals)} approved permits.`;
+    return `${span}: ${number(summary.yearNewDrills ?? 0)} New Drill permits of ${number(summary.yearApprovals)} approved permits.`;
   }
   const permits = summary.code === 'wy' ? 'approved APDs' : 'approved permits';
-  return `${year} to date: ${number(summary.ytdApprovals ?? 0)} ${permits}, ${number(summary.ytdSpuds ?? 0)} spuds.`;
+  return `${span}: ${number(summary.yearApprovals)} ${permits}, ${number(summary.yearSpuds ?? 0)} spuds.`;
 }

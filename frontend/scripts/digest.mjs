@@ -20,6 +20,10 @@ function top(map, n) {
 const KERN_QUOTA = 2000; // SB 237 annual cap on Kern New Drill permits; KERN_NEW_DRILL_ANNUAL_QUOTA in src/lib/production.ts.
 const daysInYear = (y) => ((y % 4 === 0 && y % 100 !== 0) || y % 400 === 0 ? 366 : 365);
 
+function kernProjection(ytd, trailing, elapsed, days) {
+  return elapsed >= 30 ? Math.round((ytd / elapsed) * days) : ytd + Math.round((trailing / 365) * (days - elapsed));
+}
+
 // spudded: Kern SB 237 wells with a spud date in the Drill Tracker, when the snapshot has it.
 export function buildDigest(permits, { generatedAt = new Date().toISOString(), maxNewDrills = 25, weeks = 12, spudded = null } = {}) {
   const dates = permits.map(permitDate).filter(Boolean).sort();
@@ -29,7 +33,7 @@ export function buildDigest(permits, { generatedAt = new Date().toISOString(), m
   const week = empty(), prior = empty(), ytd = empty();
   const operators = new Map(), fields = new Map(), counties = new Map(), seenBefore = new Set(), thisWeekOps = new Set();
   const newDrills = [];
-  let kernYtd = 0;
+  let kernYtd = 0, kernTrailing = 0;
   // 7-day windows ending at `end`, oldest first, for the email's weekly chart.
   const history = Array.from({ length: weeks }, (_, i) => ({ weekEnd: shift(end, -7 * (weeks - 1 - i)), ...empty() }));
   const firstStart = shift(end, -7 * weeks + 1);
@@ -46,10 +50,12 @@ export function buildDigest(permits, { generatedAt = new Date().toISOString(), m
       const w = history[weeks - 1 - Math.floor((Date.parse(end) - Date.parse(date)) / (7 * DAY))];
       w.total += 1; w[group] += 1;
     }
+    const kernNew = group === 'new_drills' && String(row.county || '').trim().toLowerCase() === 'kern';
     if (date.startsWith(year)) {
       ytd.total += 1; ytd[group] += 1;
-      if (group === 'new_drills' && String(row.county || '').trim().toLowerCase() === 'kern') kernYtd += 1;
+      if (kernNew) kernYtd += 1;
     }
+    if (kernNew && date > shift(end, -365)) kernTrailing += 1;
     if (date >= start) {
       week.total += 1; week[group] += 1;
       bump(operators, row.operator_name, group); bump(fields, row.field_name, group); bump(counties, row.county, group);
@@ -81,7 +87,8 @@ export function buildDigest(permits, { generatedAt = new Date().toISOString(), m
     ytd: { year, ...ytd },
     weeks: history,
     // Mirrors kernNewDrillQuotaStats() in src/lib/production.ts.
-    kern: { year, quota: KERN_QUOTA, ytd: kernYtd, projected: Math.round((kernYtd / elapsed) * daysInYear(+year)), spudded },
+    // Before day 30 of the year, the rest of the year is projected at the last 12 months' pace.
+    kern: { year, quota: KERN_QUOTA, ytd: kernYtd, projected: kernProjection(kernYtd, kernTrailing, elapsed, daysInYear(+year)), spudded },
     newDrillGroups: [...groups.values()].sort((a, b) => b.count - a.count || a.operator.localeCompare(b.operator)),
     // Operators with a permit this week and none before it in the data.
     newOperators: [...thisWeekOps].filter((name) => !seenBefore.has(name)).sort(),

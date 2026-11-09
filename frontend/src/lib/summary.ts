@@ -1,5 +1,5 @@
 import type { PermitActivity } from './types';
-import { permitDate } from './permitDates';
+import { lastTwelveMonths, permitDate } from './permitDates';
 import {
   FUNCTIONAL_TYPE_GROUPS,
   WORK_ACTIVITY_GROUPS,
@@ -34,8 +34,10 @@ function valueForKey(row: PermitActivity, key: keyof PermitActivity) {
   return typeof value === 'string' && value ? value : '';
 }
 
-export function isCurrentYear(row: PermitActivity) {
-  return permitDate(row).startsWith(String(new Date().getFullYear())) || false;
+// Rankings (top operators, fields) use the last 12 months of the rows given, ending at their latest date,
+// so they don't empty out on Jan 1 or depend on the visitor's clock.
+function recentRows(rows: PermitActivity[]) {
+  return lastTwelveMonths(rows, permitDate);
 }
 
 export function weeklyGroupedTrend(rows: PermitActivity[], weeks = 52) {
@@ -138,10 +140,10 @@ export function stackedMatrix(
   stackLimit = 5,
   keepStack: (stack: string) => boolean = () => true
 ) {
-  const currentYearRows = rows.filter(isCurrentYear);
-  const primaries = countBy(currentYearRows, primaryKey, primaryLimit).map((item) => item.name);
+  const recent = recentRows(rows);
+  const primaries = countBy(recent, primaryKey, primaryLimit).map((item) => item.name);
   // Stacks that fail keepStack (e.g. operators without a color) fold into Other.
-  const stacks = countBy(currentYearRows, stackKey, Number.MAX_SAFE_INTEGER)
+  const stacks = countBy(recent, stackKey, Number.MAX_SAFE_INTEGER)
     .map((item) => item.name)
     .filter(keepStack)
     .slice(0, stackLimit);
@@ -149,9 +151,9 @@ export function stackedMatrix(
   return primaries.map((primary) => {
     const entry: Record<string, string | number> = { name: primary };
     stacks.forEach((stack) => {
-      entry[stack] = currentYearRows.filter((row) => valueForKey(row, primaryKey) === primary && valueForKey(row, stackKey) === stack).length;
+      entry[stack] = recent.filter((row) => valueForKey(row, primaryKey) === primary && valueForKey(row, stackKey) === stack).length;
     });
-    const other = currentYearRows.filter(
+    const other = recent.filter(
       (row) => valueForKey(row, primaryKey) === primary && !stacks.includes(valueForKey(row, stackKey))
     ).length;
     if (other) entry.Other = other;
@@ -187,11 +189,11 @@ export function stackKeys(data: Record<string, string | number>[]) {
 }
 
 export function operatorWeeklyTrend(rows: PermitActivity[], operatorLimit = 5, weeks = 26) {
-  const currentYearRows = rows.filter(isCurrentYear);
-  const operators = countBy(currentYearRows, 'operator_name', operatorLimit).map((item) => item.name);
+  const recent = recentRows(rows);
+  const operators = countBy(recent, 'operator_name', operatorLimit).map((item) => item.name);
   const buckets = new Map<string, Record<string, string | number>>();
 
-  currentYearRows.forEach((row) => {
+  recent.forEach((row) => {
     const date = permitDate(row);
     const operator = rowOperatorDisplayName(row);
     if (!date || operator === 'Unknown' || !operators.includes(operator)) return;
@@ -211,12 +213,12 @@ export function operatorCumulativeDrillingTrend(rows: PermitActivity[], operator
 }
 
 export function operatorCumulativeWorkActivityTrend(rows: PermitActivity[], operatorLimit = 5, weeks = 52) {
-  const currentYearRows = rows.filter(
-    (row) => isCurrentYear(row) && rowOperatorDisplayName(row) !== 'Unknown' && workActivityGroup(row) !== 'abandonment'
+  const recent = recentRows(rows).filter(
+    (row) => rowOperatorDisplayName(row) !== 'Unknown' && workActivityGroup(row) !== 'abandonment'
   );
   const operatorTotals = new Map<string, number>();
 
-  currentYearRows.forEach((row) => {
+  recent.forEach((row) => {
     const operator = rowOperatorDisplayName(row);
     operatorTotals.set(operator, (operatorTotals.get(operator) || 0) + 1);
   });
@@ -228,7 +230,7 @@ export function operatorCumulativeWorkActivityTrend(rows: PermitActivity[], oper
 
   const weeksInScope = Array.from(
     new Set(
-      currentYearRows
+      recent
         .filter((row) => permitDate(row) && operators.includes(rowOperatorDisplayName(row)))
         .map((row) => weekStart(permitDate(row)))
     )
@@ -239,7 +241,7 @@ export function operatorCumulativeWorkActivityTrend(rows: PermitActivity[], oper
   const cumulative = new Map<string, number>(operators.map((operator) => [operator, 0]));
   const data = weeksInScope.map((week) => {
     const entry: Record<string, string | number> = { week };
-    currentYearRows.forEach((row) => {
+    recent.forEach((row) => {
       const date = permitDate(row);
       const operator = rowOperatorDisplayName(row);
       if (!date || !operators.includes(operator)) return;
@@ -257,10 +259,10 @@ export function operatorCumulativeWorkActivityTrend(rows: PermitActivity[], oper
 }
 
 export function operatorDrillingActivity(rows: PermitActivity[], operatorLimit = 10) {
-  const currentYearRows = rows.filter(isCurrentYear);
+  const recent = recentRows(rows);
   const counts = new Map<string, { name: string; new_drill: number; deepen: number; sidetrack: number; total: number }>();
 
-  currentYearRows.forEach((row) => {
+  recent.forEach((row) => {
     const operator = rowOperatorDisplayName(row);
     if (operator === 'Unknown' || !isDrillingActivityNotice(row)) {
       return;

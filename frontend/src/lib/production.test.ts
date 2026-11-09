@@ -106,7 +106,7 @@ describe('production helpers', () => {
     });
   });
 
-  it('calculates Kern new drill quota status from full-year pace', () => {
+  it('projects early January at the last 12 months pace, not a few days of this year', () => {
     const rows = [
       { ...baseRow, notice_dated: '2025-12-28', notice_date_determination: '2026-01-01', county: 'Kern', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' },
       {
@@ -144,10 +144,21 @@ describe('production helpers', () => {
     expect(kernNewDrillQuotaStats(rows, 2000)).toMatchObject({
       year: 2026,
       ytdCount: 2,
-      projectedCount: 73,
+      projectedCount: 4,
       ytdRemaining: 1998,
-      projectedRemaining: 1927
+      projectedRemaining: 1996,
+      projectionBasis: 'last 12 months pace'
     });
+  });
+
+  it('projects from this year\'s pace after the first 30 days', () => {
+    const kern = { ...baseRow, county: 'Kern', notice_type: 'NOI - New Drill', notice_type_label: 'New Drill' };
+    const rows = [
+      { ...kern, source_key: 'a', notice_date_determination: '2025-12-15' },
+      { ...kern, source_key: 'b', notice_date_determination: '2026-03-01' },
+      { ...kern, source_key: 'c', notice_date_determination: '2026-06-30' }
+    ];
+    expect(kernNewDrillQuotaStats(rows, 2000)).toMatchObject({ year: 2026, ytdCount: 2, projectedCount: 4, projectionBasis: 'year-to-date pace' });
   });
 
   it('builds an oil production projection row with permit wedge data', () => {

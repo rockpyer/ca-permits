@@ -144,7 +144,17 @@ export function kernNewDrillQuotaStats(rows: PermitActivity[], quota = KERN_NEW_
     const date = permitDate(row);
     return date && date >= yearStart && date <= endDate;
   }).length;
-  const projectedCount = Math.round((ytdCount / elapsedDays) * daysInYear(year));
+  // SB 237's cap is per calendar year, so the count resets on Jan 1. For the first weeks a projection from a
+  // few days' pace is noise, so until day 30 the rest of the year is projected at the last 12 months' pace.
+  const pace =
+    elapsedDays >= 30
+      ? ytdCount / elapsedDays
+      : kernNewDrillRows(rows).filter((row) => {
+          const date = permitDate(row);
+          return date && date > shiftIso(endDate, -365) && date <= endDate;
+        }).length / 365;
+  const projectedCount =
+    elapsedDays >= 30 ? Math.round(pace * daysInYear(year)) : ytdCount + Math.round(pace * (daysInYear(year) - elapsedDays));
 
   return {
     year,
@@ -156,7 +166,8 @@ export function kernNewDrillQuotaStats(rows: PermitActivity[], quota = KERN_NEW_
     ytdUsedPct: quota ? Math.min((ytdCount / quota) * 100, 100) : 0,
     projectedUsedPct: quota ? Math.min((projectedCount / quota) * 100, 100) : 0,
     latestDate: latest,
-    elapsedDays
+    elapsedDays,
+    projectionBasis: elapsedDays >= 30 ? ('year-to-date pace' as const) : ('last 12 months pace' as const)
   };
 }
 
@@ -236,6 +247,10 @@ function latestPermitDate(rows: PermitActivity[]) {
     .map(permitDate)
     .filter((date): date is string => Boolean(date))
     .sort((a, b) => b.localeCompare(a))[0];
+}
+
+function shiftIso(date: string, days: number) {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
 }
 
 function daysBetween(startDate: string, endDate: string) {
