@@ -28,6 +28,12 @@ The owner reviews changes by clicking a preview, not by reading diffs. Give one 
   `cd frontend && npm run snapshot && VITE_PREVIEW=1 npx vite build --base ./ --outDir <scratch dir>`, then publish its `index.html` with the other files (skip `CNAME`, `admin/`, `social-*.png`).
 - Link the page that changed: `<artifact url>` (states page), `#/about`, `#/ca`, `#/ca/drilling`, `#/co`, `#/wy`. Republish the same file path to keep the URL across pushes.
 
+## Merging
+
+Merge PRs yourself, without asking first, for work the owner asked for directly, review-comment fixes, small site changes and routine updates. Wait until CI is green and the PR is mergeable, squash-merge it with the PR number in the title, then confirm the live site picked it up.
+
+Ask before merging only when the change does something the owner didn't ask for: deletes data, changes the email list or sending, changes the Worker's database schema or secrets, or reverses a decision the owner made.
+
 ## Backlog (admin Backlog tab)
 
 Items are defined in `worker/src/backlog.mjs`. The owner's priority, status and notes live in D1, not the repo: database `ca-permits` (id `fa528a5c-32c6-4415-9b3a-380e94f66ef1`), table `backlog_state` (id, status, priority, notes, updated_at). Read it with the Cloudflare D1 query tool.
