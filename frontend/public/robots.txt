@@ -41,6 +41,8 @@ Allow: /$
 Allow: /about/
 Allow: /ca/$
 Allow: /ca/about-methodology/
+Allow: /co/$
+Allow: /wy/$
 Allow: /llms.txt
 Allow: /social-preview.png
 
