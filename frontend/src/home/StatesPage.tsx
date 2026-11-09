@@ -137,7 +137,13 @@ export function StatesPage() {
               .
             </p>
             <p className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <span>Independent project, not affiliated with or endorsed by any state agency.</span>
+              <span>
+                Independent service by{' '}
+                <a className="text-slate-300 underline decoration-line underline-offset-2 hover:text-accent" href="https://ryweller.com" target="_blank" rel="noreferrer">
+                  Ryan Weller
+                </a>
+                , not affiliated with or endorsed by any state agency.
+              </span>
               <a
                 className="inline-flex items-center gap-1.5 border border-line px-2.5 py-1 font-semibold text-slate-300 transition hover:border-accent hover:text-accent"
                 href="mailto:ryan@ryweller.com?subject=Well%20permit%20activity"

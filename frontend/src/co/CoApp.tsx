@@ -109,7 +109,7 @@ export function CoApp() {
       error={error}
       rail={<CoFilterRail rows={rows} extraOperators={operatorNames} filters={filters} view={view} asOf={asOf} bounds={meta?.dateBounds} onChange={setFilters} onViewChange={setView} />}
       footerCount={`${filtered.length.toLocaleString()} filtered permits from ${rows.length.toLocaleString()} loaded`}
-      disclaimer="Independent project, not affiliated with or endorsed by the Colorado Energy & Carbon Management Commission. ECMC records remain the system of record."
+      disclaimer="Independent service by Ryan Weller, not affiliated with or endorsed by the Colorado Energy & Carbon Management Commission. ECMC records remain the system of record."
       contactSubject="Colorado well permit activity"
       links={[
         ['/', 'All states'],
