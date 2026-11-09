@@ -14,14 +14,14 @@ const SITE = 'https://permits.ryweller.com';
 export const ROUTES = [
   {
     path: 'ca',
-    title: 'California well permits and drilling activity from CalGEM',
+    title: 'California well permits and drilling activity from CalGEM | WellerTracker',
     description:
       'Approved California oil and gas well permits from CalGEM WellSTAR data, updated weekly: New Drill, Existing, and Abandonment permits by operator, field, and county.',
     sitemap: true
   },
   {
     path: 'ca/drilling',
-    title: 'Kern permits vs drilling activity',
+    title: 'Kern permits vs drilling activity | WellerTracker',
     description:
       'Kern County New Drill permits matched to operator-reported spud dates: spudded wells by approval month, approval-to-spud lag, weekly spuds with rig counts, undrilled inventory, and an operator scorecard.',
     image: 'social-drilling.png?v=2',
@@ -29,18 +29,18 @@ export const ROUTES = [
   },
   {
     path: 'ca/prod',
-    title: 'California oil production offset model',
+    title: 'California oil production offset model | WellerTracker',
     description: 'A screening model comparing California crude production decline with New Drill permit supply and the Kern County SB237 quota.'
   },
   {
     path: 'ca/about-methodology',
-    title: 'About / methodology · California well permit activity',
+    title: 'About / methodology · California | WellerTracker',
     description: 'Data sources, definitions, and limitations for the California well permit activity tracker built on public CalGEM and WellSTAR data.',
     sitemap: true
   },
   {
     path: 'co',
-    title: 'Colorado well permit activity (draft)',
+    title: 'Colorado well permit activity (draft) | WellerTracker',
     description:
       'Draft: approved Colorado ECMC drilling permits (Form 2) by operator, county and formation, with each permit\'s current well status, spud date and expiration.',
     // Draft page: kept out of search and the sitemap, and given no California summary.
@@ -48,7 +48,7 @@ export const ROUTES = [
   },
   {
     path: 'wy',
-    title: 'Wyoming drilling permits and spuds (draft)',
+    title: 'Wyoming drilling permits and spuds (draft) | WellerTracker',
     description:
       'Draft: Wyoming WOGCC applications for permit to drill (APDs) by operator, county, reservoir and mineral ownership, with the pending queue, spuds and rig count.',
     draft: true
@@ -67,15 +67,16 @@ export const LEGACY_REDIRECTS = [
 // /about/ is built from the states page's HTML (site-level JSON-LD and noscript).
 export const ABOUT = {
   path: 'about',
-  title: 'About · Well permit activity by state',
+  title: 'About | WellerTracker',
   description:
-    'Sources, terms and limitations for the well permit activity pages: CalGEM, ECMC and WOGCC permit and spud data and Baker Hughes rig counts, updated weekly.'
+    'Sources, terms and limitations for WellerTracker: CalGEM, ECMC and WOGCC permit and spud data and Baker Hughes rig counts, updated weekly.'
 };
 
 export const HOME = {
-  title: 'Oil and gas well permit activity by state',
+  title: 'WellerTracker – Oil and gas well activity by state',
+  heading: 'Oil and gas well activity by state',
   description:
-    'Approved oil and gas drilling permits, spuds and rig counts for California, Colorado and Wyoming from state regulator data, updated weekly.'
+    'Explore permit and drilling activity across key oil and gas states: approved permits, spuds and rig counts for California, Colorado and Wyoming, updated weekly from state records.'
 };
 
 export function routeHtml(html, route) {
@@ -153,7 +154,7 @@ export function draftHtml(html, route) {
     .replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>\s*/, '')
     .replace(
       /<noscript>[\s\S]*?<\/noscript>/,
-      `<noscript>\n      <h1>${escape(route.title)}</h1>\n      <p>${escape(route.description)} The app needs JavaScript.</p>\n    </noscript>`
+      `<noscript>\n      <h1>${escape(route.title.replace(/ \| WellerTracker$/, ''))}</h1>\n      <p>${escape(route.description)} The app needs JavaScript.</p>\n    </noscript>`
     );
 }
 
@@ -192,7 +193,8 @@ export function homeHtml(html, summary) {
       {
         '@type': 'WebSite',
         '@id': `${SITE}/#website`,
-        name: 'Well permit activity',
+        name: 'WellerTracker',
+        alternateName: ['Weller Tracker', 'permits.ryweller.com'],
         url: `${SITE}/`,
         description: HOME.description,
         inLanguage: 'en-US',
@@ -209,15 +211,38 @@ export function homeHtml(html, summary) {
     ]
   };
   return routeHtml(html, { path: '', ...HOME })
-    .replace(/(<meta property="og:site_name" content=")[^"]*(")/, '$1Well permit activity$2')
     .replace(/<!-- This is the California page[\s\S]*?-->\s*/, '')
     .replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/, `<script type="application/ld+json">\n${JSON.stringify(jsonLd, null, 2)}\n    </script>`)
     .replace(
       /<noscript>[\s\S]*?<\/noscript>/,
-      `<noscript>\n      <h1>${escape(HOME.title)}</h1>\n      <p>${escape(HOME.description)} The app needs JavaScript.</p>\n` +
+      `<noscript>\n      <h1>${escape(HOME.heading)}</h1>\n      <p>${escape(HOME.description)} The app needs JavaScript.</p>\n` +
         lines.map((line) => `      <p>${escape(line)}</p>\n`).join('') +
         `      <p>${links.map(([path, label]) => `<a href="/${path}">${label}</a>`).join(' · ')} · <a href="https://ryweller.com/">Ryan Weller</a></p>\n    </noscript>`
     );
+}
+
+// /about/: what the site covers and where each state's data comes from, as plain HTML for bots.
+export function aboutHtml(html) {
+  const states = [
+    ['ca/', 'California', 'California Geologic Energy Management Division (CalGEM): WellSTAR permits and wells, Central District Drill Tracker'],
+    ['co/', 'Colorado (draft)', 'Colorado Energy & Carbon Management Commission (ECMC): approved Form 2 permits, wells and spuds'],
+    ['wy/', 'Wyoming (draft)', 'Wyoming Oil and Gas Conservation Commission (WOGCC): applications for permit to drill (APDs) and spuds']
+  ];
+  return html.replace(
+    /<noscript>[\s\S]*?<\/noscript>/,
+    `<noscript>\n      <h1>About WellerTracker</h1>\n      <p>${ABOUT.description}</p>\n      <ul>\n` +
+      states.map(([path, name, source]) => `        <li><a href="/${path}">${name}</a>: ${source.replace(/&/g, '&amp;')}.</li>\n`).join('') +
+      `      </ul>\n      <p>Rig counts: Baker Hughes North America rig count. <a href="/ca/about-methodology/">California methodology</a> · <a href="/">All states</a> · <a href="https://ryweller.com/">Ryan Weller</a></p>\n    </noscript>`
+  );
+}
+
+// Bots that don't run JavaScript (link previews, AI fetchers, some crawlers) should still see each page's
+// heading, summary and links, so the build moves the noscript block into #root. React replaces it on load.
+export function prerender(html) {
+  return html.replace(/<noscript>([\s\S]*?)<\/noscript>\s*<div id="root"><\/div>/, (match, inner) => {
+    const content = inner.replace(/\s*(The app|The interactive page) needs JavaScript\./g, '').trim();
+    return `<div id="root">\n      <div style="max-width:960px;margin:0 auto;padding:24px 16px;font:15px/1.55 'IBM Plex Sans',system-ui,sans-serif;color:#25303b">\n      ${content}\n      </div>\n    </div>`;
+  });
 }
 
 // A page at an old California address that forwards to its new one, keeping the query and hash.
@@ -265,16 +290,16 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const write = async (path, html) => {
     const file = resolve(dist, path, 'index.html');
     await mkdir(dirname(file), { recursive: true });
-    await writeFile(file, html);
+    await writeFile(file, prerender(html));
   };
-  await writeFile(resolve(dist, 'index.html'), home);
-  await writeFile(resolve(dist, '404.html'), home.replace(/<meta name="robots" content="[^"]*" \/>/, '<meta name="robots" content="noindex" />'));
+  await writeFile(resolve(dist, 'index.html'), prerender(home));
+  await writeFile(resolve(dist, '404.html'), prerender(home).replace(/<meta name="robots" content="[^"]*" \/>/, '<meta name="robots" content="noindex" />'));
   await writeFile(resolve(dist, 'sitemap.xml'), sitemapXml(meta?.dateBounds?.maxDate));
   await writeFile(resolve(dist, 'llms.txt'), llmsTxt(await readFile(resolve(dist, 'llms.txt'), 'utf8'), digest, states));
   for (const route of ROUTES) {
     await write(route.path, route.draft ? draftHtml(routeHtml(original, route), route) : routeHtml(california, route));
   }
-  await write(ABOUT.path, routeHtml(home, ABOUT));
+  await write(ABOUT.path, aboutHtml(routeHtml(home, ABOUT)));
   for (const [from, to] of LEGACY_REDIRECTS) await write(from, redirectHtml(to));
   console.log(`route pages: /, /about/, ${ROUTES.map((route) => `/${route.path}/`).join(', ')}; redirects: ${LEGACY_REDIRECTS.map(([from]) => `/${from}/`).join(', ')}`);
 }
