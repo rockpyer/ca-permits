@@ -20,7 +20,7 @@ re-rank work. The sections below keep the longer design notes the items point to
   - The public Submitted NOI layer (Notices/0) currently exposes only `Submitted` (110 on 2026-09-25), with `SubmittedDate`, `NoticeType`, `Operator`, `Field`, and `Pool_`.
   - On-hold and returned statuses aren't public in that layer. Check WellSTAR's `ReadAllPermits` or ask CalGEM.
   - Snapshotting Notices/0 each ingest would still show time-in-queue and which submissions become approvals.
-- **Match CalGEM's dashboard counts.** Year-to-date by filed date (`NoticeDated`) gives exactly 419 New Drill, the same as the [WellSTAR dashboard](https://wellstar-dashboard.conservation.ca.gov/). This site counts by approval date and shows 427. Consider a "Filed / Approved" date toggle, or a note next to the KPI.
+- **Match CalGEM's dashboard counts.** Year-to-date by filed date (`NoticeDated`) gives exactly 419 New Drill, the same as the [WellSTAR dashboard](https://wellstar-dashboard.conservation.ca.gov/). This site counts by approval date and shows 427. Owner decision (Nov 9): keep approval date, labeled on the page; no toggle.
 
 ## Permits vs actual drilling
 
@@ -76,4 +76,4 @@ The WOGCC Data Explorer's firewall began rejecting every request after about 1,6
 
 ## UI
 
-- Label the date basis ("by approval date") next to the KPI row.
+- Done (Nov 9): the California header says counts are by approval date, and the date filter is titled "Approval date".

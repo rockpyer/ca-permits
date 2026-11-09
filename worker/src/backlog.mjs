@@ -3,7 +3,7 @@
 // notes are kept in D1 (table backlog_state) and laid over these defaults. Longer design notes stay in BACKLOG.md and
 // docs/colorado_plan.md.
 
-export const UPDATED = '2026-11-08';
+export const UPDATED = '2026-11-09';
 
 export const PRIORITIES = [
   { id: 'p1', name: 'Now', goal: 'Needed before /co comes out of draft, or to keep the weekly runs healthy.' },
@@ -159,19 +159,19 @@ export const ITEMS = [
     why: 'Signing in with a password has been a pain: no reset flow, a 15-minute lockout after typos, and one more secret to keep. Access adds two-factor-grade sign-in with no code to maintain.',
     links: [['Cloudflare Access: self-hosted applications', 'https://developers.cloudflare.com/cloudflare-one/applications/configure-apps/self-hosted-apps/'],
       ['Validate the Access JWT in a Worker', 'https://developers.cloudflare.com/cloudflare-one/identity/authorization-cookie/validating-json/']] },
-  { id: 'admin-by-state', priority: 'p2', theme: 'admin', size: 'S', src: 'Owner, Nov 8',
+  { id: 'admin-by-state', priority: 'p2', theme: 'admin', size: 'S', status: 'done', src: 'Owner, Nov 8; done Nov 9',
     title: 'Usage split by state',
-    sum: 'Show visits, visitors and time on page for California vs Colorado pages, and sign-ups by page.',
+    sum: 'Visits, visitors and time on page for California, Colorado and Wyoming pages, with sign-ups by page (Visitors tab).',
     why: 'Tells which state page is getting used before investing in WY and UT.' },
   { id: 'ui-data-dates', priority: 'p2', theme: 'ui', size: 'S', src: 'BACKLOG.md',
     title: 'Show the ingest date next to the latest permit date',
     sum: 'On both state pages, so a stalled ingest is visible.' },
-  { id: 'ca-date-basis', priority: 'p2', theme: 'ca', size: 'S', src: 'BACKLOG.md',
+  { id: 'ca-date-basis', priority: 'p2', theme: 'ca', size: 'S', status: 'done', src: 'BACKLOG.md; done Nov 9',
     title: 'Say which date California counts use',
-    sum: 'A "Filed / Approved" toggle or a "by approval date" label; explains the gap with CalGEM\'s dashboard (419 vs 427 New Drill).' },
-  { id: 'ca-parent-filter', priority: 'p2', theme: 'ca', size: 'S', src: 'BACKLOG.md',
+    sum: 'Owner chose approval date, no toggle. The header says counts are by approval date and why CalGEM\'s dashboard differs; the date filter is titled "Approval date".' },
+  { id: 'ca-parent-filter', priority: 'p2', theme: 'ca', size: 'S', status: 'done', src: 'PR #12',
     title: 'Parent rollup in the California operator filter',
-    sum: 'CRC appears under several names; offer the parent in the filter, not only in Operator Analysis.' },
+    sum: 'Already shipped: the filter rail\'s Parent / Operator toggle (default Parent) lists California Resources Corp., and selecting it matches all eight CRC operators of record.' },
 
   /* ---------- Later ---------- */
   { id: 'wy-blm-apd', priority: 'p3', theme: 'wy', size: 'M', src: 'Wyoming build, Nov 8',

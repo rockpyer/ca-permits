@@ -210,6 +210,22 @@ test('visits are recorded without addresses, and the owner network is left out',
   assert.equal(env.DB.db.prepare('SELECT count(*) n FROM visits').get().n, 1);
 });
 
+test('usage splits by state page, with sign-ups by the page the form was on', async () => {
+  const { env } = await setup(), visitor = client(env, '2.2.2.2'), admin = client(env, '9.9.9.9');
+  const beacon = (id, path) => visitor('POST', '/api/visit', JSON.stringify({ id, vid: 'visitor0001', path, seconds: 90 }), { 'content-type': 'text/plain', origin: 'https://permits.ryweller.com' });
+  for (const [id, path] of [['pageload0001', '/'], ['pageload0002', '/wy'], ['pageload0003', '/co'], ['pageload0004', '/drilling'], ['pageload0005', '/wyx']]) {
+    assert.equal((await beacon(id, path)).status, 204);
+  }
+  await signup(visitor, 'pat@operator.com', { source: '/drilling' });
+  await signup(visitor, 'lee@operator.com', { source: '/wy' });
+
+  await admin('POST', '/api/login', { username: 'Neptune', password: PW });
+  const s = (await admin('GET', '/api/admin/stats?days=7')).j;
+  const sites = Object.fromEntries(s.sites.map((x) => [x.site, [x.visits, x.signups, x.confirmed]]));
+  assert.deepEqual(sites, { California: [3, 1, 0], Colorado: [1, 0, 0], Wyoming: [1, 1, 0] });
+  assert.deepEqual(s.signupPages.map((x) => [x.site, x.path, x.requested]).sort(), [['California', '/drilling', 1], ['Wyoming', '/wy', 1]]);
+});
+
 test('admin can unsubscribe, export and erase, but never activate someone', async () => {
   const { env, state } = await setup(), c = client(env), admin = client(env, '9.9.9.9');
   await signup(c, 'pat@operator.com', { name: '=HYPERLINK("x")' });
