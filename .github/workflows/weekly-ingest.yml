@@ -37,7 +37,10 @@ jobs:
       # The data commit is pushed with GITHUB_TOKEN, which does not start a push
       # deploy; deploy.yml redeploys from this workflow's success instead. The
       # weekly commit also counts as repository activity for scheduled workflows.
+      # Also after a failed ingest: the run record (with its error) reaches /admin. The job
+      # still fails, so deploy.yml does not redeploy.
       - name: Commit data store
+        if: ${{ !cancelled() }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"

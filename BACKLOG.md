@@ -64,7 +64,7 @@ Goal: show how much approved permitting turns into rigs, spuds, and production, 
 
 ## Wyoming data fetch
 
-The WOGCC Data Explorer's firewall began rejecting every request after about 1,600 APD detail pages over two hours (2026-11-07). The weekly ingest now runs about 40 report and map requests plus up to 50 detail pages for new approvals, and stops at the first rejection. Ideas for getting more without heavier fetching, cheapest first:
+The WOGCC Data Explorer's firewall began rejecting every request after about 1,600 APD detail pages over two hours (2026-11-07). The weekly ingest now runs about 40 report and map requests plus up to 50 detail pages for new approvals, and stops at the first rejection. Since 2026-11-09 the weekly WOGCC run reads only keys that are new or whose status code changed (see below), with up to 15 detail pages and a full refresh every 28 days. Each run records its request count, bytes, and new/changed rows, shown on the admin **Ingest** tab; the plan is `data/ingest_plan.json`. Ideas for getting more without heavier fetching, cheapest first:
 
 - **Federal vs fee from a map layer, not detail pages.** Intersect each APD's surface and bottom-hole location with BLM's federal mineral estate (subsurface management) layer. That covers the 6,560 pending APDs with no detail page, with zero WOGCC requests. Find the layer on [BLM Navigator](https://navigator.blm.gov/); confirm it separates split estate from full federal.
 - **Federal lease and BLM permit status from BLM.** Lease numbers are on [MLRS](https://mlrs.blm.gov/). BLM APD status would show which federal wells are cleared to spud, the gap noted in `docs/wyoming_plan.md`.

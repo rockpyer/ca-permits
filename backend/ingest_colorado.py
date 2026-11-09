@@ -26,7 +26,8 @@ from urllib.parse import urljoin
 import requests
 import shapefile
 
-from store import fail_if_count_collapsed, merge_rows, read_jsonl, record_run, write_jsonl
+import fetchlog
+from store import fail_if_count_collapsed, merge_rows, read_jsonl, record_failure, record_run, row_changes, write_jsonl
 
 APPROVED_URL = "https://ecmc.state.co.us/permits/?t=1"
 WELLS_SHP_URL = "https://ecmc.state.co.us/documents/data/downloads/gis/WELLS_SHP.ZIP"
@@ -370,14 +371,14 @@ def download(session: requests.Session, url: str) -> bytes:
 
 
 def run(today: date | None = None) -> dict[str, Any]:
-    session = requests.Session()
-    session.headers["User-Agent"] = USER_AGENT
+    session = fetchlog.session(USER_AGENT)
 
     approved = parse_approved_table(fetch_approved_page(session))
     fail_if_count_collapsed("ECMC approved Form 2 list", len(approved), MIN_APPROVED_ROWS)
     incoming = [row for row in approved if (row["approved_date"] or "") >= HISTORY_START]
 
-    stored = merge_rows(read_jsonl(PERMITS_FILE), incoming, "source_key")
+    permit_changes = row_changes()
+    stored = merge_rows(read_jsonl(PERMITS_FILE), incoming, "source_key", permit_changes)
     wanted = {row["api_8"] for row in stored if row.get("api_8")}
 
     well_records = list(read_zipped_dbf(download(session, WELLS_SHP_URL)))
@@ -388,7 +389,8 @@ def run(today: date | None = None) -> dict[str, Any]:
 
     checked = (today or date.today()).isoformat()
     names = operator_names(approved)
-    spuds = merge_rows(read_jsonl(SPUDS_FILE), spud_rows(well_records, HISTORY_START, checked, names), "api_8")
+    spud_changes = row_changes()
+    spuds = merge_rows(read_jsonl(SPUDS_FILE), spud_rows(well_records, HISTORY_START, checked, names), "api_8", spud_changes)
     write_jsonl(SPUDS_FILE, spuds, key="api_8")
     # The undrilled layer is a current-state list, so it is replaced each run.
     undrilled = undrilled_rows(permit_records, names)
@@ -412,16 +414,27 @@ def run(today: date | None = None) -> dict[str, Any]:
         "undrilled": sum(1 for row in stored if row["undrilled_permit"]),
         "statewide_spuds": len(spuds),
         "statewide_undrilled": len(undrilled),
+        "spuds_new": spud_changes["new"],
+        "spuds_changed": spud_changes["changed"],
     }
     record_run(
         "ecmc_approved_form2",
         source_count=len(approved),
         upsert_count=len(incoming),
+        rows=permit_changes,
         details=counts,
         runs_file=RUNS_FILE,
     )
     return counts
 
 
+def main() -> None:
+    try:
+        print(run(), file=sys.stderr)
+    except Exception as error:
+        record_failure("ecmc_approved_form2", error, runs_file=RUNS_FILE)
+        raise
+
+
 if __name__ == "__main__":
-    print(run(), file=sys.stderr)
+    main()

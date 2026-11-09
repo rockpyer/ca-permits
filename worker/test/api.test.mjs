@@ -41,6 +41,10 @@ function network(state) {
   globalThis.fetch = async (url, init = {}) => {
     url = String(url);
     if (url.startsWith('https://cloudflare-dns.com/')) return Response.json({ Status: 0, Answer: [{ type: 15, data: '10 mx.example.net.' }] });
+    if (url.startsWith('https://raw.githubusercontent.com/rockpyer/ca-permits/main/')) {
+      if (state.raw && url in state.raw) return new Response(state.raw[url], { status: state.raw[url] == null ? 404 : 200 });
+      return new Response(fs.readFileSync(new URL(`../../${url.split('/main/')[1]}`, import.meta.url), 'utf8'));
+    }
     if (url.endsWith('/data/digest.json')) return Response.json(state.digest);
     if (url.endsWith('/data/digest-map.png')) { state.mapFetches = (state.mapFetches || 0) + 1; return new Response(PNG, { headers: { 'content-type': 'image/png' } }); }
     if (url === 'https://api.resend.com/emails/batch') {
@@ -354,4 +358,31 @@ test('sessions last 30 days and renew when used in their last week', async () =>
   assert.match(s.headers.get('set-cookie') || '', /Max-Age=2592000/);
   const left = Date.parse(env.DB.db.prepare('SELECT expires_at FROM sessions').get().expires_at) - Date.now();
   assert.ok(left > 29 * 86400e3);
+});
+
+test('ingest tab shows the plan, the next mode and weekly totals from the repository', async () => {
+  const { env, state } = await setup(), c = client(env);
+  const base = 'https://raw.githubusercontent.com/rockpyer/ca-permits/main/data/';
+  const wy = [
+    { source: 'wogcc_data_explorer', status: 'failed', mode: 'delta', source_count: 0, fetch: { requests: 3, bytes: 900, errors: 1, seconds: 4 },
+      details: { blocked: true }, error: 'Blocked: firewall', finished_at: '2026-10-19T12:40:00+00:00' },
+    { source: 'wogcc_data_explorer', status: 'success', mode: 'delta', source_count: 2400, rows: { new: 12, changed: 40, unchanged: 2348 },
+      fetch: { requests: 14, bytes: 5e6, errors: 0, seconds: 60 }, details: { spuds_new: 6 }, finished_at: '2026-10-19T12:30:00+00:00' },
+    { source: 'wogcc_data_explorer', status: 'success', source_count: 13629, details: {}, finished_at: '2026-09-28T12:30:00+00:00' }
+  ];
+  state.raw = { [`${base}wy/etl_runs.jsonl`]: wy.map((r) => JSON.stringify(r)).join('\n') + '\n', [`${base}co/etl_runs.jsonl`]: null };
+  await c('POST', '/api/login', { username: 'Neptune', password: PW });
+  const r = await c('GET', '/api/admin/ingest');
+  assert.equal(r.status, 200);
+  assert.equal(r.j.week_start, '2026-10-19');
+  const [ca, co, w] = r.j.sources;
+  assert.equal(ca.next_mode, 'full');
+  assert.match(co.error, /HTTP 404/);
+  // Last full run Sep 28; full every 28 days, so the Oct 26 run is full.
+  assert.equal(w.next_run, '2026-10-26T12:13:00.000Z');
+  assert.equal(w.next_mode, 'full');
+  assert.equal(w.next_full, '2026-10-26T12:13:00.000Z');
+  assert.deepEqual(w.weeks[0], { week: '2026-10-19', runs: 2, failed: 1, blocked: true, requests: 17, bytes: 5000900, new: 12, changed: 40, spuds_new: 6 });
+  assert.equal(w.runs[0].notes[0], 'Blocked: firewall');
+  assert.equal(w.weeks[3].requests, null); // runs before request counting
 });

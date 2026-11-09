@@ -1,7 +1,8 @@
-// Admin API behind the Neptune sign-in: visitor analytics, the subscriber list, digest preview and sending, and the
-// audit log. Every change and every export is written to audit_log.
+// Admin API behind the Neptune sign-in: visitor analytics, the subscriber list, digest preview and sending, the
+// backlog, ingest status, and the audit log. Every change and every export is written to audit_log.
 import { ITEMS, PRIORITIES, STATUSES as BSTATUSES, THEMES, UPDATED } from './backlog.mjs';
 import { ensureMap, loadDigest, renderDigest, runWeekly } from './digest.mjs';
+import { ingestStatus } from './ingest.mjs';
 import { sendMail } from './mail.mjs';
 import { checkEmailShape } from './subscribe.mjs';
 import { markOwner } from './visits.mjs';
@@ -184,6 +185,9 @@ export async function handleAdmin(req, env, user, path) {
   const s = /^\/api\/admin\/subscribers(?:\/([^/]+))?$/.exec(path); if (s) return subscribers(req, env, user, s[1], false);
   const d = /^\/api\/admin\/digest\/(preview|test|send|history)$/.exec(path); if (d) return digest(req, env, user, d[1]);
   if (path === '/api/admin/audit' && req.method === 'GET') return auditLog(req, env);
+  if (path === '/api/admin/ingest' && req.method === 'GET') {
+    try { return json(await ingestStatus(env)); } catch (e) { return json({ error: `Could not read ingest records: ${e.message}` }, 502); }
+  }
   const bl = /^\/api\/admin\/backlog(?:\/([^/]+))?$/.exec(path); if (bl) return backlog(req, env, user, bl[1] && decodeURIComponent(bl[1]));
   return json({ error: 'Not found' }, 404);
 }
