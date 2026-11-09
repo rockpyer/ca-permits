@@ -4,6 +4,7 @@ import { ITEMS, PRIORITIES, STATUSES as BSTATUSES, THEMES, UPDATED } from './bac
 import { ensureMap, loadDigest, renderDigest, runWeekly } from './digest.mjs';
 import { ingestStatus } from './ingest.mjs';
 import { sendMail } from './mail.mjs';
+import { LISTS, mailFrom } from './lists.mjs';
 import { checkEmailShape } from './subscribe.mjs';
 import { markOwner } from './visits.mjs';
 import { DAY, audit, iso, json } from './util.mjs';
@@ -11,10 +12,13 @@ import { DAY, audit, iso, json } from './util.mjs';
 async function body(req) { try { return await req.json(); } catch { return {}; } }
 
 /* ---------- Visitors ---------- */
-// Which state page a path belongs to: /co and /wy are their states; everything else is the California app (it lives
-// at the root for now: /, /drilling, /prod, /about-methodology).
+// Which state page a path belongs to: /ca, /co and /wy are their states, and / and /about are the states page.
+// California lived at the root (/, /drilling, /prod, /about-methodology) until the states page took / on
+// SITE_MOVED_AT, so older root visits (and any other path) still count as California.
 const STATE_PREFIXES = [['co', 'Colorado'], ['wy', 'Wyoming']];
-const stateOf = (col) => `CASE ${STATE_PREFIXES.map(([p, name]) => `WHEN ${col} = '/${p}' OR ${col} LIKE '/${p}/%' THEN '${name}'`).join(' ')} ELSE 'California' END`;
+const SITE_MOVED_AT = '2026-11-09';
+const stateOf = (col, at = null) => `CASE ${STATE_PREFIXES.map(([p, name]) => `WHEN ${col} = '/${p}' OR ${col} LIKE '/${p}/%' THEN '${name}'`).join(' ')}
+  WHEN ${col} = '/about' OR ${col} LIKE '/about/%'${at ? ` OR (${col} = '/' AND ${at} >= '${SITE_MOVED_AT}')` : ''} THEN 'States page' ELSE 'California' END`;
 
 async function stats(req, env) {
   const p = new URL(req.url).searchParams, DB = env.DB;
@@ -28,7 +32,7 @@ async function stats(req, env) {
     q(`SELECT count(*) visits, count(DISTINCT vid) visitors, coalesce(sum(seconds), 0) seconds, coalesce(sum(mobile), 0) mobile,
        count(DISTINCT CASE WHEN nth > 1 THEN vid END) returners, coalesce(sum(seconds > 60), 0) engaged FROM v`),
     q(`SELECT substr(started_at, 1, 10) day, count(*) visits, count(DISTINCT vid) visitors FROM v GROUP BY day ORDER BY day`),
-    q(`SELECT ${stateOf('path')} site, count(*) visits,
+    q(`SELECT ${stateOf('path', 'started_at')} site, count(*) visits,
        count(DISTINCT vid) visitors, coalesce(sum(seconds), 0) seconds, coalesce(sum(seconds > 60), 0) engaged FROM v GROUP BY 1 ORDER BY visits DESC`),
     q(`SELECT path, count(*) visits, count(DISTINCT vid) visitors, sum(seconds) seconds FROM v GROUP BY path ORDER BY visits DESC LIMIT 30`),
     q(`SELECT coalesce(referrer, '(direct)') referrer, count(*) visits, count(DISTINCT vid) visitors FROM v GROUP BY 1 ORDER BY visits DESC LIMIT 30`),
@@ -62,7 +66,7 @@ async function stats(req, env) {
 }
 
 /* ---------- Subscribers ---------- */
-const COLS = 'id, email, name, interests, status, created_at, consent_at, consent_version, consent_source, country, region_code, confirmed_at, unsubscribed_at, last_sent_at, sends, notes';
+const COLS = 'id, list, email, name, interests, status, created_at, consent_at, consent_version, consent_source, country, region_code, confirmed_at, unsubscribed_at, last_sent_at, sends, notes';
 const STATUSES = new Set(['pending', 'active', 'unsubscribed']);
 // Quotes where needed, and defuses cells a spreadsheet would run as a formula.
 function csvCell(v) {
@@ -74,12 +78,14 @@ function csvCell(v) {
 async function subscribers(req, env, user, id, csv) {
   const DB = env.DB;
   if (req.method === 'GET' && !id) {
-    const status = new URL(req.url).searchParams.get('status');
-    const where = STATUSES.has(status) ? 'WHERE status = ?1' : '';
-    const stmt = DB.prepare(`SELECT ${COLS} FROM subscribers ${where} ORDER BY created_at DESC LIMIT 10000`);
-    const rows = (await (where ? stmt.bind(status) : stmt).all()).results;
+    const q = new URL(req.url).searchParams, status = q.get('status'), list = q.get('list');
+    const conds = [], args = [];
+    if (STATUSES.has(status)) { args.push(status); conds.push(`status = ?${args.length}`); }
+    if (LISTS[list]) { args.push(list); conds.push(`list = ?${args.length}`); }
+    const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+    const rows = (await DB.prepare(`SELECT ${COLS} FROM subscribers ${where} ORDER BY created_at DESC LIMIT 10000`).bind(...args).all()).results;
     if (!csv) return json({ subscribers: rows.map((r) => ({ ...r, interests: JSON.parse(r.interests || '[]') })) });
-    await audit(env, req, user, 'export_csv', null, { status: status || 'all', rows: rows.length });
+    await audit(env, req, user, 'export_csv', null, { status: status || 'all', list: LISTS[list] ? list : 'all', rows: rows.length });
     const head = COLS.split(', ');
     const text = [head.join(','), ...rows.map((r) => head.map((k) => csvCell(r[k])).join(','))].join('\r\n');
     return new Response(text, { headers: { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': `attachment; filename="subscribers-${iso().slice(0, 10)}.csv"`, 'cache-control': 'no-store' } });
@@ -111,28 +117,33 @@ async function subscribers(req, env, user, id, csv) {
 }
 
 /* ---------- Digest ---------- */
+// Each action takes the state list (?list= on GET, { list } on POST); California when absent.
 async function digest(req, env, user, action) {
+  const listParam = new URL(req.url).searchParams.get('list');
+  const b = req.method === 'POST' ? await body(req) : {};
+  const list = LISTS[b.list] ? b.list : LISTS[listParam] ? listParam : 'ca';
+  const map = async (d) => (list === 'ca' ? ensureMap(env, d) : null);
   if (action === 'preview' && req.method === 'GET') {
-    const d = await loadDigest(env);
-    const m = renderDigest(d, env, `${env.API_URL}/unsubscribe?s=preview`, await ensureMap(env, d));
+    const d = await loadDigest(env, fetch, list);
+    const m = renderDigest(d, env, `${env.API_URL}/unsubscribe?s=preview`, await map(d), list);
     return new Response(m.html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store',
       'content-security-policy': "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: 'self'" } });
   }
   if (action === 'test' && req.method === 'POST') {
-    const e = checkEmailShape((await body(req)).to);
+    const e = checkEmailShape(b.to);
     if (e.error) return json({ error: e.error }, 422);
-    const d = await loadDigest(env);
-    const m = renderDigest(d, env, `${env.API_URL}/unsubscribe?s=test`, await ensureMap(env, d));
-    const [r] = await sendMail(env, [{ to: e.email, ...m, subject: `[Test] ${m.subject}` }]);
-    await audit(env, req, user, 'digest_test', null, { ok: r.ok, error: r.error });
+    const d = await loadDigest(env, fetch, list);
+    const m = renderDigest(d, env, `${env.API_URL}/unsubscribe?s=test`, await map(d), list);
+    const [r] = await sendMail(env, [{ to: e.email, from: mailFrom(env, list), ...m, subject: `[Test] ${m.subject}` }]);
+    await audit(env, req, user, 'digest_test', null, { list, ok: r.ok, error: r.error });
     return r.ok ? json({ ok: true, dryRun: !env.RESEND_API_KEY }) : json({ error: r.error }, 502);
   }
   if (action === 'send' && req.method === 'POST') {
-    const b = await body(req);
-    return json(await runWeekly(env, { actor: user, req, force: b.force === true }));
+    return json(await runWeekly(env, { list, actor: user, req, force: b.force === true }));
   }
   if (action === 'history' && req.method === 'GET') {
-    return json({ digests: (await env.DB.prepare('SELECT * FROM digests ORDER BY week DESC LIMIT 60').all()).results, mail: env.RESEND_API_KEY ? 'live' : 'dry-run' });
+    return json({ digests: (await env.DB.prepare('SELECT * FROM digests ORDER BY week DESC, list LIMIT 120').all()).results, mail: env.RESEND_API_KEY ? 'live' : 'dry-run',
+      lists: Object.values(LISTS).map((L) => ({ id: L.id, state: L.state })) });
   }
   return json({ error: 'Not found' }, 404);
 }

@@ -20,6 +20,8 @@ import {
 import { loadSb237DrillTrackerStats, SB237_DRILL_TRACKER_URL, SB237_PAGE_URL, sb237StatsFromTracker, type Sb237DrillTrackerStats } from './lib/sb237';
 import { operatorColorMap } from './lib/operatorColors';
 import { CRC_PARENT_MEMBERS, CRC_PARENT_NAME, operatorAnalysisRows, rowOperatorDisplayName, type OperatorView } from './lib/operators';
+import { caHref, routePath, siteHref } from './lib/routes';
+import { SiteNav } from './components/SiteNav';
 import { countByValue, shiftDate } from './lib/summary';
 import { ACCENT, BRAND, CHART, CRC_MEMBER_SHADES, FUNCTIONAL_TYPE_COLORS, FIELD_COLORS, NOTICE_TYPE_COLORS, OPERATOR_SLOTS, SOURCE_TYPE_COLORS, SURFACE, WORK_COLORS } from './lib/palette';
 import type { DrillTracker, EtlRun, FieldBoundary, Filters, PermitActivity, RigCount } from './lib/types';
@@ -157,7 +159,7 @@ export function App() {
 
   return (
     <Shell>
-      <div className={`min-h-screen lg:grid lg:h-screen lg:min-h-0 ${filtersCollapsed ? 'lg:grid-cols-[56px_1fr]' : 'lg:grid-cols-[276px_1fr]'}`}>
+      <div className={`min-h-screen lg:grid lg:h-[calc(100vh-2.5rem)] lg:min-h-0 ${filtersCollapsed ? 'lg:grid-cols-[56px_1fr]' : 'lg:grid-cols-[276px_1fr]'}`}>
         <FilterRail
           rows={rows}
           filters={filters}
@@ -264,15 +266,15 @@ export function App() {
   );
 }
 
+// California's view within its app ('/', '/drilling', '/prod', '/about-methodology'), from /ca/… or #/ca/….
 function normalizedPath() {
-  // `#/drilling`-style links serve hosts that can't route custom paths (e.g. private previews).
-  if (window.location.hash.startsWith('#/')) return window.location.hash.slice(1).replace(/\/$/, '') || '/';
-  const pathname = window.location.pathname.replace(/\/$/, '') || '/';
-  return pathname === '/ca-permits' ? '/' : pathname;
+  return routePath().replace(/^\/ca(?=\/|$)/, '') || '/';
 }
 
 function navigateTo(path: string, setPath: (path: string) => void) {
-  window.history.pushState({}, '', path);
+  const href = caHref(path);
+  if (href.startsWith('#')) window.history.pushState({}, '', `${window.location.pathname}${href}`);
+  else window.history.pushState({}, '', href);
   setPath(path);
   window.scrollTo({ top: 0 });
 }
@@ -438,8 +440,9 @@ function persistFiltersToUrl(filters: Filters, dateBounds: { minDate: string; ma
   if (filters.endDate && filters.endDate !== defaults.endDate) params.set('to', filters.endDate);
 
   const query = params.toString();
-  const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}`;
-  if (nextUrl !== `${window.location.pathname}${window.location.search}`) {
+  // Keep the hash: preview builds route by it (#/ca).
+  const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`;
+  if (nextUrl !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
     window.history.replaceState({}, '', nextUrl);
   }
 }
@@ -505,6 +508,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <a className="skip-link" href="#activity-content">
         Skip to activity explorer
       </a>
+      <SiteNav current="ca" />
       {children}
       {import.meta.env.VITE_PREVIEW === '1' && <PreviewNav />}
     </div>
@@ -517,9 +521,10 @@ function PreviewNav() {
     <nav className="fixed bottom-3 left-3 z-[60] flex items-center gap-2 border border-amber/60 bg-ink/95 px-3 py-1.5 text-xs" aria-label="Preview navigation">
       <span className="font-semibold uppercase tracking-wide text-amber">Preview</span>
       {[
-        ['#/', 'Main'],
-        ['#/drilling', 'Drilling'],
-        ['#/prod', 'Production'],
+        ['#/', 'States'],
+        ['#/ca', 'California'],
+        ['#/ca/drilling', 'Drilling'],
+        ['#/ca/prod', 'Production'],
         ['#/co', 'Colorado'],
         ['#/wy', 'Wyoming']
       ].map(([href, label]) => (
@@ -537,7 +542,7 @@ function AboutMethodology({ onNavigateHome, onNavigate }: { onNavigateHome: () =
       <div className="mx-auto max-w-4xl">
         <a
           className="mb-8 inline-flex text-sm font-semibold uppercase tracking-wide text-slate-500 transition hover:text-accent"
-          href="/"
+          href={caHref('/')}
           onClick={(event) => {
             event.preventDefault();
             onNavigateHome();
@@ -640,10 +645,6 @@ function AboutMethodology({ onNavigateHome, onNavigate }: { onNavigateHome: () =
             completion, and casing details are not in the public layers, so records link to WellSTAR. Well locations can lag
             new permits.
           </MethodBlock>
-          <MethodBlock title="Use and credit">
-            Public data, provided as is. This is an independent project, not affiliated with or endorsed by CalGEM. Check
-            official CalGEM records before relying on any figure.
-          </MethodBlock>
           <MethodBlock title="Contact">
             Questions, corrections, or a permit that looks wrong:{' '}
             <a className={LINK_CLASS} href={CONTACT_MAILTO}>
@@ -651,6 +652,7 @@ function AboutMethodology({ onNavigateHome, onNavigate }: { onNavigateHome: () =
             </a>
             .
           </MethodBlock>
+          <TermsOfUse />
         </div>
 
         <section className="mt-8 border border-line bg-panel/50 p-4 text-sm leading-6 text-slate-300" aria-label="Built by Ryan Weller">
@@ -698,11 +700,84 @@ function AboutMethodology({ onNavigateHome, onNavigate }: { onNavigateHome: () =
   );
 }
 
+const TERMS_UPDATED = 'November 9, 2026';
+
+function TermsOfUse() {
+  return (
+    <section id="terms" className="scroll-mt-6 border-t border-line pt-4 md:col-span-2" aria-labelledby="terms-heading">
+      <h2 id="terms-heading" className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+        Terms of use
+      </h2>
+      <p className="text-xs text-slate-500">Last updated {TERMS_UPDATED}</p>
+      <div className="mt-3 space-y-4">
+        <p>By using this site you agree to these terms. If you do not agree, do not use the site.</p>
+        <TermsItem title="Permitted use">
+          You may view, filter, and export permit data for your own research, analysis, reporting, and internal business use.
+          When you publish figures or charts from this site, credit &ldquo;California well permit activity,
+          permits.ryweller.com.&rdquo; Search engines may index and link to these pages as allowed in robots.txt.
+        </TermsItem>
+        <TermsItem title="Prohibited use">
+          <p>Unless you have prior written consent, you may not:</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-400">
+            <li>Use bots, scrapers, crawlers, or other automated tools to extract data, pages, or code from the site or its API.</li>
+            <li>Resell, sublicense, or redistribute the site&apos;s data compilations, charts, or exports, or include them in a paid product or service.</li>
+            <li>Copy, mirror, or frame the site, or use it to build a substantially similar service.</li>
+            <li>Reverse engineer, decompile, or copy any part of the site&apos;s source code, data pipeline, or API.</li>
+            <li>Circumvent rate limits, access controls, or other technical protections.</li>
+            <li>Interfere with or overload the service, or probe it for vulnerabilities.</li>
+            <li>Use the site for any unlawful purpose or in violation of others&apos; rights.</li>
+          </ul>
+        </TermsItem>
+        <TermsItem title="Public records">
+          The underlying permit records are public records published by CalGEM. These terms do not limit your use of records
+          you obtain directly from CalGEM through the sources listed above.
+        </TermsItem>
+        <TermsItem title="Intellectual property">
+          The site&apos;s design, source code, text, charts, groupings, and data compilations are &copy;{' '}
+          {TERMS_UPDATED.slice(-4)} Ryan Weller and protected by copyright and other laws. All rights not expressly granted
+          here are reserved.
+        </TermsItem>
+        <TermsItem title="As is and as available">
+          The site and its data are provided &ldquo;as is&rdquo; and &ldquo;as available,&rdquo; without warranties of any
+          kind, express or implied, including accuracy, completeness, timeliness, fitness for a particular purpose, or
+          uninterrupted availability. Figures may contain errors or lag official records. Nothing here is legal,
+          regulatory, engineering, or investment advice. Check official CalGEM records before relying on any figure.
+        </TermsItem>
+        <TermsItem title="Limitation of liability">
+          To the fullest extent permitted by law, Ryan Weller is not liable for any direct, indirect, incidental, or
+          consequential damages arising from your use of, or inability to use, the site or its data.
+        </TermsItem>
+        <TermsItem title="Independence">
+          This is an independent project, not affiliated with or endorsed by CalGEM or the State of California.
+        </TermsItem>
+        <TermsItem title="Changes and enforcement">
+          These terms may change at any time; the date above shows the latest revision, and continued use means you accept
+          the current terms. Access may be limited or blocked for anyone who violates them. To request consent for a use not
+          permitted here, email{' '}
+          <a className={LINK_CLASS} href={CONTACT_MAILTO}>
+            ryan@ryweller.com
+          </a>
+          .
+        </TermsItem>
+      </div>
+    </section>
+  );
+}
+
+function TermsItem({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{title}</h3>
+      <div>{children}</div>
+    </div>
+  );
+}
+
 function ViewLink({ href, title, onNavigate, children }: { href: string; title: string; onNavigate: (path: string) => void; children: React.ReactNode }) {
   return (
     <a
       className="block border border-line bg-panel/40 p-3 transition hover:border-accent/60"
-      href={href}
+      href={caHref(href)}
       onClick={(event) => {
         event.preventDefault();
         onNavigate(href);
@@ -949,7 +1024,7 @@ function SiteFooter({
             <a
               key={href}
               className="text-slate-500 transition hover:text-accent"
-              href={href}
+              href={caHref(href)}
               onClick={(event) => {
                 event.preventDefault();
                 onNavigate(href);
@@ -958,6 +1033,9 @@ function SiteFooter({
               {label}
             </a>
           ))}
+          <a className="text-slate-500 transition hover:text-accent" href={siteHref('/')}>
+            All states
+          </a>
           <a
             className="inline-flex items-center gap-1.5 border border-line px-2.5 py-1 font-semibold text-slate-300 transition hover:border-accent hover:text-accent"
             href={CONTACT_MAILTO}
@@ -968,11 +1046,11 @@ function SiteFooter({
         </nav>
       </div>
       <p>
-        Independent project, not affiliated with or endorsed by CalGEM. Built by{' '}
+        Independent service by{' '}
         <a className="text-slate-300 underline decoration-line underline-offset-2 hover:text-accent" href="https://ryweller.com" target="_blank" rel="noreferrer">
           Ryan Weller
         </a>
-        .
+        , not affiliated with or endorsed by CalGEM.
       </p>
     </footer>
   );

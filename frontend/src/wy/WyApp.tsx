@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { MultiSelect } from '../components/MultiSelect';
+import { NewsletterSignup } from '../components/NewsletterSignup';
 import { downloadCsv, longDate, monthLabel, shortDate } from '../state/format';
 import { countBy, withNames } from '../state/stats';
 import {
@@ -84,7 +85,7 @@ export function WyApp() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    document.title = 'Wyoming drilling permits and spuds (draft)';
+    document.title = 'Wyoming drilling permits and spuds (draft) | WellerTracker';
     loadWyData()
       .then((data) => {
         setApds(data.apds);
@@ -126,16 +127,18 @@ export function WyApp() {
       error={error}
       rail={<WyFilterRail apds={apds} extraOperators={extraOperators} filters={filters} view={view} bounds={meta?.dateBounds} onChange={setFilters} onViewChange={setView} />}
       footerCount={`${approved.length.toLocaleString()} approved APDs and ${pending.length.toLocaleString()} pending under the filters, from ${apds.length.toLocaleString()} loaded`}
-      disclaimer="Independent project, not affiliated with or endorsed by the Wyoming Oil and Gas Conservation Commission. WOGCC records remain the system of record."
+      disclaimer="Independent service by Ryan Weller, not affiliated with or endorsed by the Wyoming Oil and Gas Conservation Commission. WOGCC records remain the system of record."
       contactSubject="Wyoming drilling permit activity"
       links={[
-        ['/', 'California'],
+        ['/', 'All states'],
+        ['/ca', 'California'],
         ['/co', 'Colorado']
       ]}
       drawer={selected && <WyDrawer row={selected} onClose={() => setSelected(null)} />}
     >
       <SummaryTiles
         label="Permit and drilling summary"
+        period={{ start: filters.startDate, end: filters.endDate }}
         tiles={[
           [
             'New-well approvals',
@@ -145,9 +148,9 @@ export function WyApp() {
           [
             'Waiting on approval',
             queue.count.toLocaleString(),
-            queue.medianAgeDays === null ? 'Current queue' : `Median age ${queue.medianAgeDays} days; ${pct(queue.renewalShare)} renewals`
+            queue.medianAgeDays === null ? `As of ${shortDate(asOf)}` : `As of ${shortDate(asOf)}; median age ${queue.medianAgeDays} days, ${pct(queue.renewalShare)} renewals`
           ],
-          ['Spuds', filteredSpuds.length.toLocaleString(), 'Statewide, operator-reported'],
+          ['Spuds', filteredSpuds.length.toLocaleString(), 'Statewide, operator-reported, in the date range'],
           latestRig(rigWeeks),
           [
             'Federal minerals',
@@ -157,7 +160,7 @@ export function WyApp() {
           [
             'Median days to approve',
             summary.medianReceivedToApproved === null ? '–' : String(summary.medianReceivedToApproved),
-            summary.medianApprovalToSpud === null ? 'New-well APDs' : `Approval to spud: ${summary.medianApprovalToSpud} days (${summary.spuddedNew} spudded)`
+            summary.medianApprovalToSpud === null ? 'New-well APDs approved in the date range' : `Received to approved, new wells. Approval to spud: ${summary.medianApprovalToSpud} days (${summary.spuddedNew} spudded)`
           ]
         ]}
       />
@@ -380,6 +383,7 @@ function WyFilterRail({
         onChange={(stages) => set({ stages })}
         colorFor={(value) => STAGE_LABEL_COLORS[value]}
       />
+      <NewsletterSignup list="wy" />
     </FilterRail>
   );
 }
@@ -387,7 +391,7 @@ function WyFilterRail({
 function latestRig(rigWeeks: WyRigWeek[] | null): [string, string, string] {
   const rigs = rigWeeks?.filter((week) => typeof week.wyoming === 'number') ?? [];
   const latest = rigs[rigs.length - 1];
-  return ['Wyoming rigs', latest ? String(latest.wyoming) : '–', latest ? `Baker Hughes, week of ${shortDate(latest.date)}` : 'Rig count unavailable'];
+  return ['Wyoming rigs', latest ? String(latest.wyoming) : '–', latest ? `As of week of ${shortDate(latest.date)} (Baker Hughes)` : 'Rig count unavailable'];
 }
 
 function pct(value: number | null) {

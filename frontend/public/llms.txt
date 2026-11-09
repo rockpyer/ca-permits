@@ -1,9 +1,10 @@
-# California well permit activity
+# WellerTracker: oil and gas well activity by state
 
-> A free web app that tracks approved California oil and gas well permits from public CalGEM WellSTAR data, updated
-> weekly. Built by Ryan Weller ([ryweller.com](https://ryweller.com)).
+> A free site that tracks approved oil and gas drilling permits, spuds and rig counts for California, Colorado and
+> Wyoming from each state regulator's public data, updated weekly. Built by Ryan Weller ([ryweller.com](https://ryweller.com)).
+> California is the full permit explorer; Colorado and Wyoming are drafts.
 
-## What it shows
+## What the California page shows
 
 - Approved well permits by operator, parent company, field, county, and CalGEM district.
 - Work activity: New Drill, Existing (work on existing wells), and Abandonment. Functional well type: producer, thermal producer, injector, observation, and other.
@@ -16,10 +17,17 @@
 
 {{latest}}
 
+By state, latest full week:
+
+{{states}}
+
 ## Pages
 
-- [California well permit activity](https://permits.ryweller.com/): the permit explorer
-- [About / methodology](https://permits.ryweller.com/about-methodology/): data sources, definitions, and limitations
+- [Well permit activity by state](https://permits.ryweller.com/): one card per state with the latest week's numbers
+- [About](https://permits.ryweller.com/about/): sources and terms for every state
+- [California well permit activity](https://permits.ryweller.com/ca/): the permit explorer
+- [About / methodology](https://permits.ryweller.com/ca/about-methodology/): data sources, definitions, and limitations
+- Colorado (https://permits.ryweller.com/co/) and Wyoming (https://permits.ryweller.com/wy/) pages are drafts.
 
 ## Data sources
 
@@ -37,4 +45,4 @@ Counts are approved permits, not wells drilled. CalGEM is the authoritative sour
 
 ## License
 
-CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/). Cite "California well permit activity, permits.ryweller.com" when quoting these numbers.
+All rights reserved (https://github.com/rockpyer/ca-permits/blob/main/LICENSE.md). Search engines and AI answer services may index and cite these pages with a link. Copying the code, design or datasets, scraping, and model training are not permitted without permission. Cite "California well permit activity, permits.ryweller.com" when quoting these numbers.

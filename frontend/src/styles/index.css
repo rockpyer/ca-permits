@@ -209,3 +209,34 @@ code {
 .maplibregl-ctrl-attrib a {
   color: #5c6975;
 }
+
+/* States page: hovering or focusing a state row brightens its map dots and pulses the latest week's. */
+.state-row .map-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: fill-opacity 200ms ease;
+}
+.state-row:hover .map-dot,
+.state-row:focus-visible .map-dot {
+  fill-opacity: 0.9;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .state-row:hover .map-dot,
+  .state-row:focus-visible .map-dot {
+    animation: map-dot-pulse 900ms ease-out 1;
+  }
+  .state-row:hover .map-dot-latest,
+  .state-row:focus-visible .map-dot-latest {
+    animation: map-dot-pulse-strong 1100ms ease-out 2;
+  }
+}
+@keyframes map-dot-pulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.6); }
+  100% { transform: scale(1); }
+}
+@keyframes map-dot-pulse-strong {
+  0% { transform: scale(1); }
+  35% { transform: scale(2.2); }
+  100% { transform: scale(1); }
+}

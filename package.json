@@ -1,7 +1,7 @@
 {
   "name": "california-well-permit-tracker",
   "private": true,
-  "license": "CC-BY-SA-4.0",
+  "license": "UNLICENSED",
   "scripts": {
     "dev": "npm --prefix frontend run dev",
     "build": "npm --prefix frontend run build",

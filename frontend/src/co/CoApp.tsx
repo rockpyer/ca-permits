@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from 're
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { CompactChartTooltip } from '../components/CompactChartTooltip';
 import { MultiSelect } from '../components/MultiSelect';
+import { NewsletterSignup } from '../components/NewsletterSignup';
 import { CHART, WORK_COLORS } from '../lib/palette';
 import { downloadCsv, longDate, shortDate } from '../state/format';
 import { daysBetween, withNames } from '../state/stats';
@@ -69,7 +70,7 @@ export function CoApp() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    document.title = 'Colorado well permits and drilling (draft)';
+    document.title = 'Colorado well permits and drilling (draft) | WellerTracker';
     loadCoData()
       .then(({ permits, spuds: loadedSpuds, undrilled: loadedUndrilled, rigWeeks: loadedRigs, meta: loaded }) => {
         setRows(permits);
@@ -108,15 +109,16 @@ export function CoApp() {
       error={error}
       rail={<CoFilterRail rows={rows} extraOperators={operatorNames} filters={filters} view={view} asOf={asOf} bounds={meta?.dateBounds} onChange={setFilters} onViewChange={setView} />}
       footerCount={`${filtered.length.toLocaleString()} filtered permits from ${rows.length.toLocaleString()} loaded`}
-      disclaimer="Independent project, not affiliated with or endorsed by the Colorado Energy & Carbon Management Commission. ECMC records remain the system of record."
+      disclaimer="Independent service by Ryan Weller, not affiliated with or endorsed by the Colorado Energy & Carbon Management Commission. ECMC records remain the system of record."
       contactSubject="Colorado well permit activity"
       links={[
-        ['/', 'California'],
+        ['/', 'All states'],
+        ['/ca', 'California'],
         ['/wy', 'Wyoming']
       ]}
       drawer={selected && <CoDrawer row={selected} asOf={asOf} onClose={() => setSelected(null)} />}
     >
-      <PipelineStrip summary={summary} spuds={filteredSpuds} permitApis={permitApis} undrilled={filteredUndrilled} asOf={asOf} historyStart={historyStart} rigWeeks={rigWeeks} />
+      <PipelineStrip period={{ start: filters.startDate, end: filters.endDate }} summary={summary} spuds={filteredSpuds} permitApis={permitApis} undrilled={filteredUndrilled} asOf={asOf} historyStart={historyStart} rigWeeks={rigWeeks} />
       <ActivityPanel
         title={(label) => `${label} approved permits, spuds, and Colorado rig count`}
         subtitle={(period) =>
@@ -274,11 +276,13 @@ function CoFilterRail({
         onChange={(lifecycles) => set({ lifecycles })}
         colorFor={(value) => LABEL_COLORS[value]}
       />
+      <NewsletterSignup list="co" />
     </FilterRail>
   );
 }
 
 function PipelineStrip({
+  period,
   summary,
   spuds,
   permitApis,
@@ -287,6 +291,7 @@ function PipelineStrip({
   historyStart,
   rigWeeks
 }: {
+  period: { start: string; end: string };
   summary: ReturnType<typeof summarize>;
   spuds: CoSpud[];
   permitApis: Set<string | null>;
@@ -303,12 +308,13 @@ function PipelineStrip({
   return (
     <SummaryTiles
       label="Permit and drilling summary"
+      period={period}
       tiles={[
         ['Approved permits', summary.total.toLocaleString(), `${summary.newWells} New Well, ${summary.recompletes} Recomplete`],
-        ['Spuds', spuds.length.toLocaleString(), `${matched} on permits approved since ${since}`],
-        ['Colorado rigs', latestRig ? String(latestRig.colorado) : '–', latestRig ? `Baker Hughes, week of ${shortDate(latestRig.date)}` : 'Rig count unavailable'],
-        ['Undrilled inventory', undrilled.length.toLocaleString(), pastExpiration ? `All approval dates; ${pastExpiration} past expiration` : 'All approval dates'],
-        ['Expiring within 90 days', expiringWithin(undrilled, asOf, 90).toLocaleString(), 'Undrilled permits'],
+        ['Spuds', spuds.length.toLocaleString(), `Statewide in the date range; ${matched} on permits approved since ${since}`],
+        ['Colorado rigs', latestRig ? String(latestRig.colorado) : '–', latestRig ? `As of week of ${shortDate(latestRig.date)} (Baker Hughes)` : 'Rig count unavailable'],
+        ['Undrilled inventory', undrilled.length.toLocaleString(), pastExpiration ? `As of ${shortDate(asOf)}, any approval date; ${pastExpiration} past expiration` : `As of ${shortDate(asOf)}, any approval date`],
+        ['Expiring within 90 days', expiringWithin(undrilled, asOf, 90).toLocaleString(), `Undrilled permits, as of ${shortDate(asOf)}`],
         ['Median days to spud', summary.medianDaysToSpud === null ? '–' : String(summary.medianDaysToSpud), `Permits approved since ${since}`]
       ]}
     />
