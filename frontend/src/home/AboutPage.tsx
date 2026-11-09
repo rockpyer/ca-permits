@@ -1,5 +1,4 @@
-import { useEffect } from 'react';
-import { Mail } from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { SiteNav } from '../components/SiteNav';
 import { caHref, siteHref } from '../lib/routes';
 import { longDate } from '../state/format';
@@ -34,7 +33,7 @@ const TERMS: Array<[string, string]> = [
 export function AboutPage() {
   const { summaries } = useStatesSummary();
   useEffect(() => {
-    document.title = 'About · Well permit activity by state';
+    document.title = 'About WellerTracker · Well permit activity by state';
   }, []);
 
   return (
@@ -44,7 +43,7 @@ export function AboutPage() {
         <header className="border-b border-line pb-6">
           <h1 className="product-title">
             <span>About</span>
-            <span> well permit activity by state</span>
+            <span> WellerTracker</span>
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">
             An independent view of oil and gas drilling permits, spuds and rigs, built from each state regulator&apos;s public data and
@@ -132,27 +131,139 @@ export function AboutPage() {
           </p>
         </section>
 
-        <section className="mt-8 border-t border-line pt-6" aria-labelledby="about-author">
-          <h2 id="about-author" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Author and contact
+        <section className="mt-8 border-t border-line pt-6" aria-labelledby="about-contact">
+          <h2 id="about-contact" className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Contact
           </h2>
-          <p className="mt-3 text-sm leading-6 text-slate-400">
-            Built by{' '}
-            <a className={LINK} href="https://ryweller.com" target="_blank" rel="noreferrer">
-              Ryan Weller
-            </a>
-            . Not affiliated with or endorsed by CalGEM, ECMC, WOGCC or Baker Hughes. For corrections, questions or custom oil and gas
-            data work:
-          </p>
-          <a
-            className="mt-3 inline-flex items-center gap-1.5 border border-line bg-panel px-3 py-1.5 text-sm font-semibold text-slate-300 transition hover:border-accent hover:text-accent"
-            href="mailto:ryan@ryweller.com?subject=Well%20permit%20activity"
-          >
-            <Mail size={14} aria-hidden="true" />
-            ryan@ryweller.com
-          </a>
+          <div className="mt-4 grid grid-cols-1 gap-x-12 gap-y-8 lg:grid-cols-[1fr_minmax(0,1.4fr)]">
+            <div>
+              <p className="max-w-sm text-sm leading-6 text-slate-400">
+                Corrections, questions or custom oil and gas data work. Not affiliated with or endorsed by CalGEM, ECMC, WOGCC or Baker
+                Hughes.
+              </p>
+              <a className="group mt-6 inline-flex items-center gap-4 text-slate-200" href={LINKEDIN_URL} target="_blank" rel="noreferrer">
+                <span className="relative block h-14 w-14 shrink-0 overflow-hidden rounded-full border border-line bg-panel">
+                  <span className="absolute inset-0 flex items-center justify-center text-lg italic text-slate-500" aria-hidden="true">
+                    RW
+                  </span>
+                  <img
+                    src={PROFILE_PHOTO}
+                    alt="Ryan Weller"
+                    className="relative h-full w-full object-cover"
+                    onError={(e) => e.currentTarget.remove()}
+                  />
+                </span>
+                <span>
+                  <span className="block text-base leading-tight">Ryan Weller</span>
+                  <span className="mt-1 block font-mono text-[0.6875rem] uppercase tracking-[0.12em] text-slate-500 transition group-hover:text-accent">
+                    Connect on LinkedIn ↗
+                  </span>
+                </span>
+              </a>
+            </div>
+            <ContactForm />
+          </div>
         </section>
       </main>
     </div>
+  );
+}
+
+// Same Web3Forms inbox as the ryweller.com/services form. The key is public by design; the destination address stays on
+// Web3Forms' side and never appears in this page.
+const WEB3FORMS_ACCESS_KEY = '276a5493-ba1a-4185-b9d9-f0095d3eed46';
+const LINKEDIN_URL = 'https://www.linkedin.com/in/ryweller/';
+const PROFILE_PHOTO = 'https://ryweller.com/images/weller-headshot1.jpeg';
+
+const FIELD = 'flex flex-col gap-2';
+const FIELD_LABEL = 'font-mono text-[0.6875rem] uppercase tracking-[0.14em] text-slate-500';
+const INPUT =
+  'w-full border border-line bg-panel px-3 py-2.5 text-sm text-slate-200 transition focus:border-accent focus:outline-none';
+
+function ContactForm() {
+  const loadedAt = useRef(Date.now());
+  const [status, setStatus] = useState('');
+  const [sending, setSending] = useState(false);
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    // Bots fill the hidden checkbox or submit instantly; people take a few seconds.
+    if (data.get('botcheck') || Date.now() - loadedAt.current < 3000) {
+      setStatus('Thanks. Your message has been sent.');
+      form.reset();
+      return;
+    }
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+    data.append('access_key', WEB3FORMS_ACCESS_KEY);
+    data.delete('botcheck');
+    setSending(true);
+    setStatus('Sending…');
+    try {
+      const res = await fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        body: data
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setStatus('Thanks. Your message has been sent.');
+        form.reset();
+      } else {
+        setStatus('Something went wrong. Please try again, or reach out on LinkedIn.');
+      }
+    } catch {
+      setStatus('Couldn’t send right now. Please try again, or reach out on LinkedIn.');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} noValidate aria-label="Contact form">
+      <input type="hidden" name="subject" value="New inquiry from permits.ryweller.com" />
+      <input type="hidden" name="from_name" value="permits.ryweller.com" />
+      <div className="absolute -left-[10000px] h-px w-px overflow-hidden" aria-hidden="true">
+        <label>
+          Leave this empty <input type="checkbox" name="botcheck" tabIndex={-1} autoComplete="off" />
+        </label>
+      </div>
+      <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2">
+        <label className={FIELD}>
+          <span className={FIELD_LABEL}>Name</span>
+          <input className={INPUT} type="text" name="name" required autoComplete="name" maxLength={120} />
+        </label>
+        <label className={FIELD}>
+          <span className={FIELD_LABEL}>Email</span>
+          <input className={INPUT} type="email" name="email" required autoComplete="email" maxLength={200} />
+        </label>
+        <label className={`${FIELD} sm:col-span-2`}>
+          <span className={FIELD_LABEL}>
+            Company <em className="not-italic text-slate-600">(optional)</em>
+          </span>
+          <input className={INPUT} type="text" name="company" autoComplete="organization" maxLength={160} />
+        </label>
+        <label className={`${FIELD} sm:col-span-2`}>
+          <span className={FIELD_LABEL}>Message</span>
+          <textarea className={`${INPUT} min-h-32 resize-y`} name="message" rows={5} required maxLength={5000} />
+        </label>
+      </div>
+      <div className="mt-6 flex flex-wrap items-center gap-5">
+        <button
+          type="submit"
+          disabled={sending}
+          className="bg-accent px-5 py-3 font-mono text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-ink transition hover:brightness-110 disabled:opacity-55"
+        >
+          Send message
+        </button>
+        <p className="text-sm text-slate-400" role="status" aria-live="polite">
+          {status}
+        </p>
+      </div>
+    </form>
   );
 }
