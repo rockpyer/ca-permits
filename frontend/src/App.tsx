@@ -465,7 +465,7 @@ function resolveFunctionalTypeParams(values: string[]) {
     const normalized = value.toLowerCase().replace(/[^a-z]/g, '');
     if (['producer', 'oilandgas', 'drygas'].includes(normalized)) resolved.add('producer');
     if (['thermalproducer', 'cyclicsteam'].includes(normalized)) resolved.add('thermal_producer');
-    if (['injector', 'steamflood', 'waterflood', 'waterdisposal', 'gasdisposal'].includes(normalized)) resolved.add('injector');
+    if (['injector', 'injection', 'steamflood', 'waterflood', 'waterdisposal', 'gasdisposal'].includes(normalized)) resolved.add('injector');
     if (normalized === 'observation') resolved.add('observation');
     if (['other', 'gasstorage', 'watersource', 'dryhole', 'multipurpose', 'unknown'].includes(normalized)) {
       resolved.add('other');
@@ -584,9 +584,9 @@ function AboutMethodology({ onNavigateHome, onNavigate }: { onNavigateHome: () =
               rows={[
                 ['Producer', 'Oil & Gas, Dry Gas'],
                 ['Thermal Producer', 'Cyclic Steam'],
-                ['Injector', 'Steamflood, Waterflood, Water Disposal, Gas Disposal'],
+                ['Injector', 'Injection, Steamflood, Waterflood, Water Disposal, Gas Disposal'],
                 ['Observation', 'Observation'],
-                ['Other', 'Gas Storage, Multi-Purpose, Water Source, Injection, Dry Hole, and all other types']
+                ['Other', 'Gas Storage, Multi-Purpose, Water Source, Dry Hole, and all other types']
               ]}
             />
             <p className="mt-3">
