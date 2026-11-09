@@ -1,3 +1,6 @@
+{"source":"fields","status":"success","mode":"full","source_count":516,"upsert_count":516,"fetch":{"requests":2,"bytes":580978,"errors":0,"seconds":0.5,"by_host":{"gis.conservation.ca.gov":{"requests":2,"bytes":580978,"errors":0}},"statuses":{"200":2}},"details":{},"finished_at":"2026-11-09T21:26:36.455126+00:00"}
+{"source":"wells","status":"success","mode":"full","source_count":242617,"upsert_count":11364,"rows":{"new":136,"changed":10870,"unchanged":358},"fetch":{"requests":123,"bytes":163368562,"errors":0,"seconds":48.7,"by_host":{"gis.conservation.ca.gov":{"requests":123,"bytes":163368562,"errors":0}},"statuses":{"200":123}},"details":{"deduped_count":242617,"stored_count":11365},"finished_at":"2026-11-09T21:26:35.917788+00:00"}
+{"source":"permits","status":"success","mode":"full","source_count":8522,"upsert_count":8522,"rows":{"new":141,"changed":8311,"unchanged":70},"fetch":{"requests":6,"bytes":5313381,"errors":0,"seconds":1.9,"by_host":{"gis.conservation.ca.gov":{"requests":6,"bytes":5313381,"errors":0}},"statuses":{"200":6}},"details":{"deduped_count":8522,"stored_count":11698},"finished_at":"2026-11-09T21:25:47.180465+00:00"}
 {"source":"fields","status":"success","source_count":516,"upsert_count":516,"details":{},"finished_at":"2026-11-02T20:46:51.143383+00:00"}
 {"source":"wells","status":"success","source_count":242598,"upsert_count":11228,"details":{"deduped_count":242598,"stored_count":11229},"finished_at":"2026-11-02T20:46:50.195660+00:00"}
 {"source":"permits","status":"success","source_count":8508,"upsert_count":8508,"details":{"deduped_count":8508,"stored_count":11557},"finished_at":"2026-11-02T20:45:28.229550+00:00"}
@@ -55,6 +58,3 @@
 {"source":"fields","status":"success","source_count":516,"upsert_count":516,"details":{},"finished_at":"2026-05-18T12:32:44.62643+00:00"}
 {"source":"permits","status":"success","source_count":9581,"upsert_count":9581,"details":{"deduped_count":9581},"finished_at":"2026-05-18T12:32:42.965495+00:00"}
 {"source":"wells","status":"success","source_count":242450,"upsert_count":242450,"details":{"deduped_count":242450},"finished_at":"2026-05-18T12:32:29.054222+00:00"}
-{"source":"fields","status":"success","source_count":516,"upsert_count":516,"details":{},"finished_at":"2026-05-15T08:08:46.800913+00:00"}
-{"source":"permits","status":"success","source_count":9558,"upsert_count":9558,"details":{"deduped_count":9558},"finished_at":"2026-05-15T08:08:44.4851+00:00"}
-{"source":"wells","status":"success","source_count":242450,"upsert_count":242450,"details":{"deduped_count":242450},"finished_at":"2026-05-15T08:08:32.215662+00:00"}
