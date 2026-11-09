@@ -16,6 +16,11 @@ Writes, under data/wy/:
   waiting on approval. Merged by PKey, never deleted.
 - details.jsonl: APD detail page fields by API (fetched once per API).
 - spuds.jsonl: every Wyoming well spudded since HISTORY_START. Merged by API.
+- wells.jsonl: the Standard Well rows for stored APIs, merged by API, so a run that
+  re-fetches only changed wells can still join every APD to its well.
+- source_codes.jsonl: each APD and well key with the status code the WFS gave it last run.
+  Weekly runs request report rows only for keys that are new or whose code changed; a full
+  refresh runs every FULL_REFRESH_DAYS.
 - etl_runs.jsonl.
 """
 
@@ -43,6 +48,11 @@ APDS_FILE = "wy/apds.jsonl"
 DETAILS_FILE = "wy/details.jsonl"
 SPUDS_FILE = "wy/spuds.jsonl"
 RUNS_FILE = "wy/etl_runs.jsonl"
+WELLS_FILE = "wy/wells.jsonl"
+CODES_FILE = "wy/source_codes.jsonl"
+# Report rows are re-fetched for every key at least this often, to pick up date or name
+# corrections that do not change a key's WFS status code. WY_FULL=1 forces one.
+FULL_REFRESH_DAYS = 28
 
 HISTORY_START = "2025-01-01"
 # APD keys rise with receipt. 333000 was received around mid-2023, early enough to catch
@@ -382,6 +392,46 @@ def point(feature: dict[str, Any]) -> tuple[float | None, float | None]:
     return None, None
 
 
+# ---------------------------------------------------------------------------- change tracking
+
+
+def read_codes() -> tuple[dict[str, str], dict[str, str], str | None]:
+    """APD codes, well codes and the date of the last full refresh from CODES_FILE."""
+    apd: dict[str, str] = {}
+    well: dict[str, str] = {}
+    last_full = None
+    for row in read_jsonl(CODES_FILE):
+        kind, _, key = row["key"].partition(":")
+        if kind == "apd":
+            apd[key] = row["code"]
+        elif kind == "well":
+            well[key] = row["code"]
+        elif kind == "meta" and key == "last_full":
+            last_full = row["code"]
+    return apd, well, last_full
+
+
+def write_codes(apd: dict[str, str], well: dict[str, str], last_full: str | None) -> None:
+    rows = [{"key": f"apd:{key}", "code": code} for key, code in apd.items()]
+    rows += [{"key": f"well:{key}", "code": code} for key, code in well.items()]
+    if last_full:
+        rows.append({"key": "meta:last_full", "code": last_full})
+    write_jsonl(CODES_FILE, rows, key="key")
+
+
+def full_refresh_due(last_full: str | None, today: str, force: bool = False) -> bool:
+    if force or not last_full:
+        return True
+    return (date.fromisoformat(today) - date.fromisoformat(last_full)).days >= FULL_REFRESH_DAYS
+
+
+def changed_keys(current: dict[str, str], previous: dict[str, str], full: bool) -> list[str]:
+    """Keys to request from a report: all on a full refresh, else new keys and keys whose
+    WFS status code changed since the last run."""
+    keys = current if full else {key for key, code in current.items() if previous.get(key) != code}
+    return sorted(keys, key=int)
+
+
 # ---------------------------------------------------------------------------- run
 
 
@@ -439,16 +489,24 @@ def run() -> None:
     client = session()
     checked = date.today().isoformat()
 
-    # 1. APD keys and surface locations.
+    previous_apd, previous_well, last_full = read_codes()
+    full = full_refresh_due(last_full, checked, force=os.environ.get("WY_FULL") == "1")
+
+    # 1. APD keys, status codes and surface locations (one WFS request per layer).
     locations: dict[str, tuple[float | None, float | None]] = {}
+    apd_codes: dict[str, str] = {}
     for layer in ("APDVertical", "APDNonVertical"):
-        for feature in wfs_features(client, layer, ["PKey", "the_geom"], f"PKey>={MIN_APD_PKEY}"):
-            locations[str(feature["properties"]["PKey"])] = point(feature)
+        for feature in wfs_features(client, layer, ["PKey", "GISCode", "the_geom"], f"PKey>={MIN_APD_PKEY}"):
+            key = str(feature["properties"]["PKey"])
+            locations[key] = point(feature)
+            apd_codes[key] = feature["properties"].get("GISCode") or ""
     fail_if_count_collapsed("WFS APD keys", len(locations), MIN_APD_KEYS)
 
-    # 2. APD report.
-    raw_apds = report(client, "StandardAPD.xml", sorted(locations, key=int), APD_COLUMNS)
-    fail_if_count_collapsed("Standard APD report", len(raw_apds), MIN_APD_KEYS)
+    # 2. APD report, for new and changed keys only (all keys on a full refresh).
+    apd_keys = changed_keys(apd_codes, previous_apd, full)
+    raw_apds = report(client, "StandardAPD.xml", apd_keys, APD_COLUMNS) if apd_keys else []
+    if full:
+        fail_if_count_collapsed("Standard APD report", len(raw_apds), MIN_APD_KEYS)
     incoming = []
     for raw in raw_apds:
         record = apd_record(raw, checked)
@@ -458,27 +516,29 @@ def run() -> None:
     apds = merge_rows(read_jsonl(APDS_FILE), kept, "source_key")
     # An APD no longer returned by the source keeps its last values.
 
-    # 3. Wells: WFS key by API, then the well report for every stored API plus wells
-    #    marked spudded (catches spuds on APDs from before the history window).
+    # 3. Wells: WFS key and status code by API, then the well report for wells on stored APDs
+    #    plus wells marked spudded (catches spuds on APDs from before the history window),
+    #    again only where new or changed.
     well_features = wfs_features(client, "WELL", ["PKey", "WellId", "Status"])
     fail_if_count_collapsed("WFS wells", len(well_features), MIN_WELL_FEATURES)
+    stored_wells = {row["api"]: row for row in read_jsonl(WELLS_FILE)}
     # Every APD the report returned (back to MIN_APD_PKEY), not only the kept ones: a well
     # spudded since HISTORY_START can sit on an APD approved before it.
     apis = (
         {row["api"] for row in incoming if row.get("api")}
         | {row["api"] for row in apds if row.get("api")}
         | {row["api"] for row in read_jsonl(SPUDS_FILE)}
+        | set(stored_wells)
     )
-    well_keys = sorted(
-        {
-            str(feature["properties"]["PKey"])
-            for feature in well_features
-            if normalize_wy_api(feature["properties"].get("WellId")) in apis or feature["properties"].get("Status") == "SP"
-        },
-        key=int,
-    )
-    wells = [well_record(raw, checked) for raw in report(client, "StandardWell.xml", well_keys, WELL_COLUMNS_NEEDED)]
-    wells_by_api = {well["api"]: well for well in wells if well["api"]}
+    well_codes = {
+        str(feature["properties"]["PKey"]): feature["properties"].get("Status") or ""
+        for feature in well_features
+        if normalize_wy_api(feature["properties"].get("WellId")) in apis or feature["properties"].get("Status") == "SP"
+    }
+    well_keys = changed_keys(well_codes, previous_well, full)
+    wells = [well_record(raw, checked) for raw in report(client, "StandardWell.xml", well_keys, WELL_COLUMNS_NEEDED)] if well_keys else []
+    stored_wells.update({well["api"]: well for well in wells if well["api"]})
+    wells_by_api = stored_wells
 
     for row in apds:
         well = wells_by_api.get(row.get("api"))
@@ -511,7 +571,7 @@ def run() -> None:
             "longitude": well["longitude"],
             "checked_date": checked,
         }
-        for well in wells
+        for well in wells_by_api.values()
         if well["api"] and well["spud_date"] and HISTORY_START <= well["spud_date"] <= checked
     ]
     spuds = merge_rows(read_jsonl(SPUDS_FILE), spuds, "api")
@@ -519,12 +579,18 @@ def run() -> None:
     write_jsonl(APDS_FILE, apds, key="source_key")
     write_jsonl(DETAILS_FILE, list(details.values()), key="api")
     write_jsonl(SPUDS_FILE, spuds, key="api")
+    write_jsonl(WELLS_FILE, list(wells_by_api.values()), key="api")
+    # Codes are saved only after every write, so a failed run re-requests what it missed.
+    write_codes(apd_codes, well_codes, checked if full else last_full)
     record_run(
         "wogcc_data_explorer",
         source_count=len(raw_apds),
         upsert_count=len(kept),
         details={
             "history_start": HISTORY_START,
+            "full_refresh": full,
+            "apd_keys_requested": len(apd_keys),
+            "well_keys_requested": len(well_keys),
             "apds_stored": len(apds),
             "wells_checked": len(wells),
             "spuds_stored": len(spuds),
@@ -537,7 +603,8 @@ def run() -> None:
         runs_file=RUNS_FILE,
     )
     print(
-        f"wy ingest: {len(kept)} APDs kept of {len(raw_apds)}, {len(apds)} stored; {len(wells)} wells; "
+        f"wy ingest ({'full' if full else 'changes only'}): {len(apd_keys)} APD keys and {len(well_keys)} well keys requested; "
+        f"{len(kept)} APDs kept of {len(raw_apds)}, {len(apds)} stored; {len(wells)} wells refreshed; "
         f"{len(spuds)} spuds; details fetched {fetched}, failed {failed}, still missing {max(len(queue) - fetched, 0)}"
     )
 
