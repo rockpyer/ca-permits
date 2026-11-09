@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { ArrowRight, Mail } from 'lucide-react';
 import { NewsletterSignup } from '../components/NewsletterSignup';
 import { SiteNav } from '../components/SiteNav';
+import { Wordmark } from '../components/Wordmark';
+import { StateRotator } from './StateRotator';
 import { siteHref } from '../lib/routes';
 import { longDate, shortDate } from '../state/format';
 import { OUTLINES, projector } from './outlines';
@@ -92,11 +94,15 @@ export function StatesPage() {
         <header className="pb-5 sm:pb-7">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="font-condensed text-lg font-bold leading-none tracking-tight text-slate-50 md:hidden">
-                Weller<span className="text-steel">Tracker</span>
+              <p className="md:hidden">
+                <Wordmark />
               </p>
-              <h1 className="mt-1 font-condensed text-[1.75rem] font-bold leading-[1.02] tracking-tight text-slate-50 sm:text-5xl">
-                Oil and gas well activity <span className="text-steel">by state</span>
+              <h1
+                className="mt-2 font-condensed text-[1.75rem] font-bold leading-[1.1] tracking-tight text-slate-50 sm:text-5xl"
+                aria-label="Oil and gas well activity for California, Colorado and Wyoming"
+              >
+                <span aria-hidden="true">Oil and gas well activity </span>
+                <StateRotator names={STATES.map((state) => state.name)} />
               </h1>
             </div>
             <a
@@ -114,6 +120,15 @@ export function StatesPage() {
               Sign up for weekly emails
             </a>{' '}
             and stay on top of current activity.
+          </p>
+          <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+            <span className="inline-flex items-center gap-1.5">
+              <Dot color={STEEL} opacity={0.6} /> Permits this year
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Dot color={ACCENT} /> Latest week
+            </span>
+            <span>{anyWeek ? `Updated weekly · latest full week ${weekLabel(anyWeek)}` : 'Updated weekly'}</span>
           </p>
         </header>
 
@@ -221,6 +236,14 @@ function StateRow({ state, summary, loaded }: { state: (typeof STATES)[number]; 
         {summary?.series && <WeeklyBars series={summary.series} label={`${state.measure} by week, last ${summary.series.length} weeks`} measure={state.measure} />}
       </div>
     </a>
+  );
+}
+
+function Dot({ color, opacity = 1 }: { color: string; opacity?: number }) {
+  return (
+    <svg width="8" height="8" aria-hidden="true">
+      <circle cx="4" cy="4" r="3.5" fill={color} fillOpacity={opacity} />
+    </svg>
   );
 }
 
