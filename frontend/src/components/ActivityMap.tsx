@@ -10,10 +10,18 @@ import {
   workActivityColor,
   workActivityGroup,
   workActivityLabel,
-  type FunctionalTypeGroup,
-  type WorkActivityGroup
+  type FunctionalTypeGroup
 } from '../lib/grouping';
-import { SURFACE, WORK_COLORS } from '../lib/palette';
+import { BRAND, SURFACE } from '../lib/palette';
+
+// Field outlines stay neutral so green keeps meaning New Drill.
+const FIELD_COLOR = '#5c6975';
+const SELECTED = ['==', ['get', 'selected'], true] as maplibregl.ExpressionSpecification;
+// Below this zoom permits draw as plain colored dots; glyphs are too small to read.
+const GLYPH_MIN_ZOOM = 9.5;
+const PERMIT_RIM = 'rgba(23, 32, 41, 0.6)';
+// Higher draws on top: New Drill over Abandonment over Existing.
+const DRAW_ORDER: Record<string, number> = { new_drills: 3, abandonment: 2, existing: 1 };
 import type { FieldBoundary, PermitActivity } from '../lib/types';
 import { rowOperatorDisplayName } from '../lib/operators';
 
@@ -39,8 +47,8 @@ const MAP_STYLE = {
       id: 'osm',
       type: 'raster',
       source: 'osm',
-      // Slightly calm the OSM raster so it sits in the dark UI while staying legible.
-      paint: { 'raster-saturation': -0.15, 'raster-brightness-max': 0.95 }
+      // Grayscale and lift the OSM raster to a pale base so only permits carry color.
+      paint: { 'raster-saturation': -1, 'raster-brightness-min': 0.22, 'raster-contrast': -0.08 }
     }
   ]
 } as maplibregl.StyleSpecification;
@@ -105,16 +113,16 @@ export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
       setFieldLayerVisibility(map, showFieldsRef.current);
       addPermitLayers(map, geojsonRef.current);
       fitToFeatures(map, geojsonRef.current, hasFitBoundsRef);
-      map.on('click', 'permit-symbols', (event) => {
+      map.on('click', 'permit-symbol-backplates', (event) => {
         const feature = event.features?.[0];
         const key = String(feature?.properties?.source_key || '');
         const row = rowsRef.current.find((item) => item.source_key === key);
         if (row) onSelectRef.current(row);
       });
-      map.on('mouseenter', 'permit-symbols', () => {
+      map.on('mouseenter', 'permit-symbol-backplates', () => {
         map.getCanvas().style.cursor = 'pointer';
       });
-      map.on('mousemove', 'permit-symbols', (event) => {
+      map.on('mousemove', 'permit-symbol-backplates', (event) => {
         const feature = event.features?.[0];
         const key = String(feature?.properties?.source_key || '');
         const row = rowsRef.current.find((item) => item.source_key === key);
@@ -130,7 +138,7 @@ export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
         }
         hoverPopupRef.current.setLngLat(coordinates).setHTML(renderTooltip(row)).addTo(map);
       });
-      map.on('mouseleave', 'permit-symbols', () => {
+      map.on('mouseleave', 'permit-symbol-backplates', () => {
         map.getCanvas().style.cursor = '';
         hoverPopupRef.current?.remove();
       });
@@ -169,7 +177,7 @@ export function ActivityMap({ rows, fields, selected, onSelect }: Props) {
   }, [selected]);
 
   return (
-    <div className="relative h-[340px] min-h-[300px] max-w-[1360px] overflow-hidden border border-line bg-panel sm:h-[400px] xl:h-[460px]">
+    <div className="relative h-[340px] min-h-[300px] overflow-hidden border border-line bg-panel sm:h-[430px] xl:h-[460px]">
       <div ref={containerRef} className="absolute inset-0" />
       <div className="absolute left-3 top-3 z-30 flex flex-wrap gap-2 border border-line bg-ink/90 p-2 text-xs text-slate-300">
         <label className="map-control">
@@ -203,8 +211,8 @@ function addFieldLayers(
     type: 'fill',
     source: 'fields',
     paint: {
-      'fill-color': WORK_COLORS.new_drills,
-      'fill-opacity': 0.12
+      'fill-color': FIELD_COLOR,
+      'fill-opacity': 0.1
     }
   });
   map.addLayer({
@@ -212,8 +220,8 @@ function addFieldLayers(
     type: 'line',
     source: 'fields',
     paint: {
-      'line-color': WORK_COLORS.new_drills,
-      'line-opacity': 0.65,
+      'line-color': FIELD_COLOR,
+      'line-opacity': 0.6,
       'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.7, 9, 1.4, 12, 2]
     }
   });
@@ -235,9 +243,9 @@ function addPermitLayers(map: maplibregl.Map, data: GeoJSON.FeatureCollection<Ge
       filter: ['==', ['get', 'selected'], true],
       paint: {
         'circle-radius': 14,
-        'circle-color': '#f8fafc',
-        'circle-opacity': 0.82,
-        'circle-stroke-color': SURFACE.ink,
+        'circle-color': SURFACE.panel,
+        'circle-opacity': 0.9,
+        'circle-stroke-color': BRAND.ink,
         'circle-stroke-width': 2
       }
     });
@@ -248,13 +256,21 @@ function addPermitLayers(map: maplibregl.Map, data: GeoJSON.FeatureCollection<Ge
       id: 'permit-symbol-backplates',
       type: 'circle',
       source: 'permits',
+      layout: { 'circle-sort-key': ['get', 'drawOrder'] },
+      // Solid disc in the work-activity color. Zoomed out it is a plain dot; the white
+      // functional-type glyph fades in once discs are large enough to read it.
+      // A thin dark rim (not white) keeps overlapping discs from fusing into one blob.
       paint: {
-        'circle-radius': ['case', ['==', ['get', 'selected'], true], 16, 10],
-        'circle-color': SURFACE.ink,
-        'circle-opacity': ['case', ['==', ['get', 'selected'], true], 0.86, 0.62],
-        'circle-stroke-color': ['case', ['==', ['get', 'selected'], true], '#f1f5f3', '#b7c0bc'],
-        'circle-stroke-opacity': ['case', ['==', ['get', 'selected'], true], 1, 0.7],
-        'circle-stroke-width': ['case', ['==', ['get', 'selected'], true], 2.5, 1]
+        'circle-radius': [
+          'interpolate', ['linear'], ['zoom'],
+          5, ['case', SELECTED, 9, 3.5],
+          8, ['case', SELECTED, 11, 5],
+          GLYPH_MIN_ZOOM, ['case', SELECTED, 13, 7.5],
+          12, ['case', SELECTED, 16, 11]
+        ],
+        'circle-color': ['get', 'color'],
+        'circle-stroke-color': ['case', SELECTED, BRAND.ink, PERMIT_RIM],
+        'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 5, ['case', SELECTED, 2.5, 0.6], 10, ['case', SELECTED, 2.5, 1]]
       }
     });
   }
@@ -266,9 +282,21 @@ function addPermitLayers(map: maplibregl.Map, data: GeoJSON.FeatureCollection<Ge
       source: 'permits',
       layout: {
         'icon-image': ['get', 'icon'],
-        'icon-size': ['case', ['==', ['get', 'selected'], true], 0.72, 0.55],
-        'icon-allow-overlap': true,
-        'icon-ignore-placement': true
+        'icon-size': [
+          'interpolate', ['linear'], ['zoom'],
+          5, ['case', SELECTED, 0.5, 0.2],
+          GLYPH_MIN_ZOOM, ['case', SELECTED, 0.6, 0.38],
+          12, ['case', SELECTED, 0.72, 0.54]
+        ],
+        // Every disc draws, but a glyph only where it has room, so dense pads stay
+        // separate colored discs instead of a pile of white glyphs.
+        'icon-allow-overlap': false,
+        'icon-padding': 1,
+        // Without overlap, lower keys place first; the selected permit always places.
+        'symbol-sort-key': ['case', SELECTED, -10, ['-', 0, ['get', 'drawOrder']]]
+      },
+      paint: {
+        'icon-opacity': ['interpolate', ['linear'], ['zoom'], GLYPH_MIN_ZOOM - 0.5, ['case', SELECTED, 1, 0], GLYPH_MIN_ZOOM, 1]
       }
     });
   }
@@ -309,7 +337,7 @@ function MapLegend({ symbols, activities }: { symbols: typeof FUNCTIONAL_TYPE_GR
           ))}
         </div>
       </div>
-      <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500 sm:mb-1 sm:text-[10px]">Shape = Functional Type</div>
+      <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500 sm:mb-1 sm:text-[10px]">Shape = Functional Type (zoomed in)</div>
       <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 sm:gap-x-3 sm:gap-y-1">
         {symbols.map((item) => (
           <span key={item.key} className="inline-flex items-center gap-1.5">
@@ -348,7 +376,8 @@ function buildPermitGeojson(rows: PermitActivity[], selected: PermitActivity | n
             workActivity: workActivityLabel(workActivity),
             noticeType: noticeType(row),
             color,
-            icon: iconId(functionalType, workActivity),
+            drawOrder: DRAW_ORDER[workActivity] ?? 0,
+            icon: iconId(functionalType),
             selected: selected?.source_key === row.source_key,
             operator_name: row.operator_name,
             field_name: row.field_name,
@@ -377,15 +406,13 @@ function activeWorkActivityDefinitions(rows: PermitActivity[]) {
 
 async function loadPermitSymbolImages(map: maplibregl.Map) {
   await Promise.all(
-    FUNCTIONAL_TYPE_GROUPS.flatMap((symbol) =>
-      WORK_ACTIVITY_GROUPS.map(async (activity) => {
-        const id = iconId(symbol.key, activity.key);
-        if (map.hasImage(id)) return;
-        const svg = await fetch(`${import.meta.env.BASE_URL}map-symbols/${symbol.symbol}`).then((response) => response.text());
-        const imageData = await svgToImageData(svg.replace(/currentColor/g, activity.color));
-        map.addImage(id, imageData, { pixelRatio: 2 });
-      })
-    )
+    FUNCTIONAL_TYPE_GROUPS.map(async (symbol) => {
+      const id = iconId(symbol.key);
+      if (map.hasImage(id)) return;
+      const svg = await fetch(`${import.meta.env.BASE_URL}map-symbols/${symbol.symbol}`).then((response) => response.text());
+      const imageData = await svgToImageData(svg.replace(/currentColor/g, SURFACE.panel));
+      map.addImage(id, imageData, { pixelRatio: 2 });
+    })
   );
 }
 
@@ -417,8 +444,8 @@ function svgToImageData(svg: string) {
   });
 }
 
-function iconId(symbol: FunctionalTypeGroup, activity: WorkActivityGroup) {
-  return `${symbol}-${activity}`;
+function iconId(symbol: FunctionalTypeGroup) {
+  return `${symbol}-glyph`;
 }
 
 function renderTooltip(row: PermitActivity) {

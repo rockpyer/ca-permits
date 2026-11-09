@@ -25,7 +25,7 @@ export function DetailDrawer({ row, onClose }: Props) {
     <aside className="fixed bottom-0 right-0 top-0 z-[80] flex w-full max-w-md flex-col border-l border-line bg-ink shadow-2xl">
       <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line p-4">
         <div>
-          <h2 className="text-lg font-semibold text-white">{rowOperatorDisplayName(row)}</h2>
+          <h2 className="text-lg font-semibold text-slate-50">{rowOperatorDisplayName(row)}</h2>
           {row.operator_name && rowOperatorDisplayName(row) !== row.operator_name && (
             <p className="text-xs text-slate-500">Source operator: {row.operator_name}</p>
           )}

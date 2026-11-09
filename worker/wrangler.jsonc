@@ -1,0 +1,51 @@
+// Cloudflare Worker for permits.ryweller.com's email list, visit analytics and admin page. The site itself stays on
+// GitHub Pages. Deployed by Workers Builds from this folder (root directory: worker) on every push to main.
+{
+  "name": "ca-permits-api",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-09-01",
+  // public/admin.html is served at /admin. Everything else runs the Worker.
+  "assets": { "directory": "./public", "binding": "ASSETS", "html_handling": "drop-trailing-slash" },
+  // Subscribers, digests, visits and the audit log. Schema: migrations/ (apply each file once). D1 Time Travel keeps
+  // 30 days of point-in-time restore.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "ca-permits", "database_id": "fa528a5c-32c6-4415-9b3a-380e94f66ef1" }
+  ],
+  // Hourly at :23, 15:23-23:23 UTC on Mondays and Tuesdays (Cloudflare counts 1 as Sunday, so names, not numbers).
+  // The weekly ingest is scheduled for 11:17 UTC Monday but GitHub often starts it hours late; the first run after
+  // fresh data reaches the site sends the email, later runs find nothing left to send (src/digest.mjs, runWeekly).
+  "triggers": { "crons": ["23 15-23 * * MON,TUE"] },
+  // Secrets, set in the dashboard (Settings > Variables and Secrets), never committed:
+  //   ADMIN_PW        PBKDF2 hash of the admin password: node scripts/hash-password.mjs 'password'
+  //   SIGNING_KEY     random string (openssl rand -base64 32); keys the email/address HMACs and unsubscribe links.
+  //                   Changing it breaks every unsubscribe link already sent.
+  //   RESEND_API_KEY  sending key from resend.com. Without it, emails are logged instead of sent (dry run).
+  "vars": {
+    "ADMIN_USER": "Neptune",
+    "SITE_URL": "https://permits.ryweller.com",
+    "API_URL": "https://permits-api.ryweller.com",
+    "ALLOWED_ORIGINS": "https://permits.ryweller.com,http://localhost:5173,http://localhost:5174",
+    "MAIL_FROM": "California Permits <updates@ryweller.com>",
+    "MAIL_REPLY_TO": "ryan@ryweller.com",
+    // CAN-SPAM requires a valid postal address (a PO box or registered mailbox is fine) in every commercial email.
+    "POSTAL_ADDRESS": "PO BOX 1431\nNederland, CO 80466"
+  },
+  // Branch builds run `wrangler preview`, which needs this block (Previews don't inherit production settings). No D1
+  // binding and no secrets on purpose: a Preview must not read or write the production subscriber list or send mail,
+  // so its database routes fail. Bind a separate staging D1 here to exercise them. Cron triggers never run on Previews.
+  "previews": {
+    "vars": {
+      "ADMIN_USER": "Neptune",
+      "SITE_URL": "https://permits.ryweller.com",
+      "API_URL": "https://permits-api.ryweller.com",
+      "ALLOWED_ORIGINS": "https://permits.ryweller.com,http://localhost:5173,http://localhost:5174",
+      "MAIL_FROM": "California Permits <updates@ryweller.com>",
+      "MAIL_REPLY_TO": "",
+      "POSTAL_ADDRESS": ""
+    }
+  },
+  "observability": { "enabled": true },
+  // Preview links on workers.dev for those branches (off by default when a custom domain is set).
+  "preview_urls": true,
+  "routes": [{ "pattern": "permits-api.ryweller.com", "custom_domain": true }]
+}

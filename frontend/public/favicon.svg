@@ -1,6 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="California Well Permit Tracker">
-  <rect width="64" height="64" rx="12" fill="#07110f"/>
-  <path d="M18 46h28" fill="none" stroke="#3dd39f" stroke-width="4" stroke-linecap="round"/>
-  <path d="M32 10c-7.2 0-13 5.8-13 13 0 9.6 13 25 13 25s13-15.4 13-25c0-7.2-5.8-13-13-13Z" fill="none" stroke="#3dd39f" stroke-width="4" stroke-linejoin="round"/>
-  <circle cx="32" cy="23" r="5" fill="#7db8ff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+<!-- California well permit activity mark: a bar chart of permit counts, the bar tops tilted like the beds in the Weller Logs mark. -->
+<style>.t{fill:#FFFFFF}.s{fill:#9AA6B2}.a{fill:#B4541E}.i{fill:#172029}
+@media (prefers-color-scheme:dark){.t{fill:#172029}.s{fill:#6F7C88}.a{fill:#E07A3E}.i{fill:#E4E9EE}}</style>
+<rect class="t" width="32" height="32" rx="7"/>
+<path d="M4 16L11 15V27H4Z" class="s"/>
+<path d="M12.5 11L19.5 9V27H12.5Z" class="a"/>
+<path d="M21 6L28 4.5V27H21Z" class="i"/>
 </svg>

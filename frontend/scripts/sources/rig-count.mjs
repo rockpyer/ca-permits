@@ -41,7 +41,7 @@ export function pickReportLink(html, pageUrl = PAGE_URL) {
   );
 }
 
-// Weekly California and Kern County oil and gas rig totals. "Miscellaneous" rigs
+// Weekly California, Kern County, Colorado and Wyoming oil and gas rig totals. "Miscellaneous" rigs
 // (mostly geothermal in Lake/Sonoma counties) are excluded.
 export function parseRigCount(buffer) {
   const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
@@ -65,14 +65,20 @@ export function parseRigCount(buffer) {
 
     const weeks = new Map();
     for (const row of grid.slice(headerIndex + 1)) {
-      if (!/^california$/i.test(String(row[stateCol] ?? '').trim())) continue;
+      const state = String(row[stateCol] ?? '').trim();
+      const isCalifornia = /^california$/i.test(state);
+      const isColorado = /^colorado$/i.test(state);
+      const isWyoming = /^wyoming$/i.test(state);
+      if (!isCalifornia && !isColorado && !isWyoming) continue;
       if (drillForCol >= 0 && /misc/i.test(String(row[drillForCol] ?? ''))) continue;
       const date = isoDate(row[dateCol]);
       if (!date) continue;
       const value = Number(row[valueCol]) || 0;
-      const week = weeks.get(date) || { date, california: 0, kern: 0 };
-      week.california += value;
-      if (countyCol >= 0 && /^kern/i.test(String(row[countyCol] ?? '').trim())) week.kern += value;
+      const week = weeks.get(date) || { date, california: 0, kern: 0, colorado: 0, wyoming: 0 };
+      if (isColorado) week.colorado += value;
+      if (isWyoming) week.wyoming += value;
+      if (isCalifornia) week.california += value;
+      if (isCalifornia && countyCol >= 0 && /^kern/i.test(String(row[countyCol] ?? '').trim())) week.kern += value;
       weeks.set(date, week);
     }
     if (weeks.size) return { sheet: sheetName, weeks: Array.from(weeks.values()).sort((a, b) => a.date.localeCompare(b.date)) };

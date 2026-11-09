@@ -6,12 +6,15 @@ import {
   FUNCTIONAL_TYPE_GROUPS,
   WORK_ACTIVITY_GROUPS,
   functionalTypeLabel,
-  workActivityColor,
+  workActivityTextColor,
   workActivityLabel,
   type WorkActivityGroup,
   type FunctionalTypeGroup
 } from '../lib/grouping';
+import { hasOperatorColor } from '../lib/operatorColors';
+import type { OperatorView } from '../lib/operators';
 import type { Filters, PermitActivity } from '../lib/types';
+import { NewsletterSignup } from './NewsletterSignup';
 
 type Props = {
   rows: PermitActivity[];
@@ -21,15 +24,28 @@ type Props = {
   onCollapsedChange: (collapsed: boolean) => void;
   onChange: (filters: Filters) => void;
   operatorColor?: (operator: string) => string;
+  operatorView: OperatorView;
+  onOperatorViewChange: (view: OperatorView) => void;
   /** Active query shown in the collapsed mobile bar. */
   summary?: string;
 };
 
-export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedChange, onChange, operatorColor, summary }: Props) {
-  const facet = (key: FacetKey, label: string, colorFor?: (value: string) => string) => (
+export function FilterRail({
+  rows,
+  filters,
+  dateBounds,
+  collapsed,
+  onCollapsedChange,
+  onChange,
+  operatorColor,
+  operatorView,
+  onOperatorViewChange,
+  summary
+}: Props) {
+  const facet = (key: FacetKey, label: string, colorFor?: (value: string) => string | undefined) => (
     <MultiSelect
       label={label}
-      options={facetOptions(rows, filters, key)}
+      options={facetOptions(rows, filters, key, operatorView)}
       selected={filters[key]}
       colorFor={colorFor}
       onChange={(values) => onChange({ ...filters, [key]: values })}
@@ -45,7 +61,7 @@ export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedCh
       <div className={`flex items-center justify-between gap-2 ${collapsed ? 'lg:mb-2' : 'mb-2'}`}>
         {!collapsed && (
           <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-white">Filters</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-50">Filters</h2>
             <p className="text-xs text-slate-500">Development scope by default</p>
           </div>
         )}
@@ -56,7 +72,7 @@ export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedCh
             onClick={() => onCollapsedChange(false)}
             aria-label="Expand filters"
           >
-            <h2 className="shrink-0 text-xs font-semibold uppercase tracking-wide text-white">Filters</h2>
+            <h2 className="shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-50">Filters</h2>
             <span className="truncate text-xs text-slate-400">{summary}</span>
           </button>
         )}
@@ -86,7 +102,7 @@ export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedCh
             options={WORK_ACTIVITY_GROUPS.map((item) => item.key)}
             selected={filters.workActivities}
             labelFor={(value) => workActivityLabel(value as WorkActivityGroup)}
-            colorFor={(value) => workActivityColor(value as WorkActivityGroup)}
+            colorFor={(value) => workActivityTextColor(value as WorkActivityGroup)}
             onToggle={(value) => onChange({ ...filters, workActivities: toggleListValue(filters.workActivities, value) })}
           />
         </FilterSection>
@@ -103,14 +119,15 @@ export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedCh
         </FilterSection>
 
         <FilterSection title="Well And Geography" defaultOpen>
-          {facet('operators', 'Operator', operatorColor)}
+          <OperatorViewToggle value={operatorView} onChange={onOperatorViewChange} />
+          {facet('operators', 'Operator', operatorColor && ((value) => (hasOperatorColor(operatorColor, value) ? operatorColor(value) : undefined)))}
           {facet('fields', 'Field')}
           {facet('counties', 'County')}
           {facet('districts', 'District')}
         </FilterSection>
 
         <FilterSection
-          title="Date Range"
+          title="Approval date"
           defaultOpen
           actions={<DateRangeChips filters={filters} dateBounds={dateBounds} onChange={onChange} />}
         >
@@ -143,6 +160,8 @@ export function FilterRail({ rows, filters, dateBounds, collapsed, onCollapsedCh
             onChange={(value) => onChange({ ...filters, directional: value as Filters['directional'] })}
           />
         </FilterSection>
+
+        <NewsletterSignup />
       </div>}
     </aside>
   );
@@ -228,7 +247,7 @@ function DateRangeChips({
       {[30, 60, 90].map((days) => (
         <button
           key={days}
-          className="border border-line bg-ink px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 hover:border-accent hover:text-white"
+          className="border border-line bg-ink px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 hover:border-accent hover:text-slate-50"
           type="button"
           onClick={() => setQuickRange(days)}
         >
@@ -236,7 +255,7 @@ function DateRangeChips({
         </button>
       ))}
       <button
-        className="border border-line bg-ink px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 hover:border-accent hover:text-white"
+        className="border border-line bg-ink px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 hover:border-accent hover:text-slate-50"
         type="button"
         onClick={() => setQuickRange('all')}
       >
@@ -316,5 +335,28 @@ function InlineInput({
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
+  );
+}
+
+function OperatorViewToggle({ value, onChange }: { value: OperatorView; onChange: (view: OperatorView) => void }) {
+  const options: Array<[OperatorView, string]> = [
+    ['parent', 'Parent company'],
+    ['operator', 'Operator']
+  ];
+  return (
+    <div className="grid grid-cols-2 border border-line text-xs" role="group" aria-label="Operator grouping">
+      {options.map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          aria-pressed={value === key}
+          title={key === 'parent' ? 'Roll operator entities up to their parent company, e.g. Aera, Berry and THUMS into California Resources Corp.' : 'CalGEM operator names as filed'}
+          className={`px-2 py-1.5 font-semibold transition ${value === key ? 'bg-slate-50 text-panel' : 'bg-panel text-slate-500 hover:text-slate-200'}`}
+          onClick={() => onChange(key)}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   );
 }

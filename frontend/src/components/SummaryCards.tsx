@@ -18,12 +18,12 @@ import {
   weeklyGroupedTrend,
   workActivityCounts
 } from '../lib/summary';
-import { workActivityGroup } from '../lib/grouping';
+import { workActivityColor, workActivityGroup, type WorkActivityGroup } from '../lib/grouping';
 import { rowOperatorDisplayName } from '../lib/operators';
 import { kernNewDrillQuotaStats } from '../lib/production';
 import { SB237_PAGE_URL, type Sb237DrillTrackerStats } from '../lib/sb237';
 import type { ReactNode } from 'react';
-import { ACCENT, CHART, WORK_COLORS } from '../lib/palette';
+import { ACCENT, BRAND, CHART, WORK_COLORS } from '../lib/palette';
 import type { PermitActivity } from '../lib/types';
 
 type Props = {
@@ -66,7 +66,7 @@ export function ActivitySummaryStrip({
             key={group.key}
             label={group.label}
             value={counts[group.key]}
-            color={group.color}
+            color={group.textColor}
             delta={fourWeekDelta(rows.filter((row) => workActivityGroup(row) === group.key)).delta}
           />
         ))}
@@ -84,16 +84,18 @@ export function PermitMomentumPanel({ rows, workActivities }: Props & { workActi
   const groups = activeWorkGroups(workActivities);
 
   return (
-    <section className="flex h-[210px] flex-col border border-line bg-panel/50 p-2.5 sm:h-[250px] sm:p-3" aria-label="Permit momentum">
+    <section className="flex h-[210px] flex-col border border-line bg-panel/50 p-2.5 sm:h-[250px] sm:p-3" aria-label="Weekly approved permits by work activity">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 sm:mb-2">
         <div>
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-300 sm:text-sm">Permit Momentum</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-300 sm:text-sm">Weekly Approved Permits by Work Activity</h2>
           <p className="hidden text-xs text-slate-500 sm:block">Weekly work activity over the filtered period.</p>
         </div>
         <div className="flex flex-wrap gap-3 text-xs text-slate-400">
           {groups.map((group) => (
             <span key={group.key} className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5" style={{ backgroundColor: group.color }} />
+              <svg width="12" height="12" viewBox="-6 -6 12 12" aria-hidden="true">
+                <WorkActivityMarker workActivity={group.key} color={group.color} size={4} />
+              </svg>
               {group.label}
             </span>
           ))}
@@ -119,9 +121,9 @@ export function PermitMomentumPanel({ rows, workActivities }: Props & { workActi
               dataKey={group.key}
               name={group.label}
               stroke={group.color}
-              strokeWidth={1.75}
-              dot={false}
-              activeDot={{ r: 4, strokeWidth: 0 }}
+              strokeWidth={2.5}
+              dot={<WorkActivityDot workActivity={group.key} />}
+              activeDot={{ r: 5, strokeWidth: 0 }}
             />
           ))}
         </LineChart>
@@ -209,10 +211,10 @@ export function NewDrillQuotaGauge({
           <div className="min-w-0">
             <QuotaHeading />
           <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs xl:mt-1 xl:flex-col xl:items-start xl:gap-x-0">
-            <span className="text-accent">
+            <span className="text-drill">
               <strong>{quota.ytdCount.toLocaleString()}</strong> permitted
             </span>
-            <span className="text-danger">
+            <span className="text-slate-100">
               <strong>{quota.projectedCount.toLocaleString()}</strong> projected
             </span>
             <span className="text-steel">
@@ -262,13 +264,13 @@ export function NewDrillQuotaGauge({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Permitted</div>
-              <div className="text-lg font-semibold text-accent">{quota.ytdCount.toLocaleString()}</div>
+              <div className="text-lg font-semibold text-drill">{quota.ytdCount.toLocaleString()}</div>
               <div className="text-[11px] text-slate-500">{quota.ytdRemaining.toLocaleString()} left YTD</div>
             </div>
             <div>
               <div className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Left</div>
               <div className="text-lg font-semibold text-steel">{quota.projectedRemaining.toLocaleString()}</div>
-              <div className="truncate text-[11px] text-danger">{quota.projectedCount.toLocaleString()} projected</div>
+              <div className="truncate text-[11px] text-slate-400">{quota.projectedCount.toLocaleString()} projected</div>
             </div>
             {sb237Stats && (
               <div>
@@ -284,7 +286,7 @@ export function NewDrillQuotaGauge({
   );
 }
 
-function FuelGauge({
+export function FuelGauge({
   usedPct,
   projectedPct,
   spuddedPct,
@@ -330,12 +332,12 @@ function FuelGauge({
           strokeLinecap="round"
           strokeDasharray={`${dash} ${circumference}`}
         />
-        <line x1={marker.x1} y1={marker.y1} x2={marker.x2} y2={marker.y2} stroke={ACCENT.coral} strokeWidth="4" strokeLinecap="round" />
+        <line x1={marker.x1} y1={marker.y1} x2={marker.x2} y2={marker.y2} stroke={BRAND.ink} strokeWidth="4" strokeLinecap="round" />
         {spudMarker && (
           <line x1={spudMarker.x1} y1={spudMarker.y1} x2={spudMarker.x2} y2={spudMarker.y2} stroke={ACCENT.gold} strokeWidth="4" strokeLinecap="round" />
         )}
-        <line x1="60" y1="60" x2={needleX(pct, 30)} y2={needleY(pct, 30)} stroke={ACCENT.neutral} strokeWidth="3" strokeLinecap="round" />
-        <circle cx="60" cy="60" r="4" fill={ACCENT.neutral} />
+        <line x1="60" y1="60" x2={needleX(pct, 30)} y2={needleY(pct, 30)} stroke={BRAND.muted} strokeWidth="3" strokeLinecap="round" />
+        <circle cx="60" cy="60" r="4" fill={BRAND.muted} />
       </svg>
   );
 }
@@ -396,6 +398,25 @@ function needleY(percent: number, radius = 30) {
   return 60 - Math.sin(angle) * radius;
 }
 
+// Marker shape repeats the color cue so the lines stay apart without color vision:
+// circle = New Drill, square = Existing, triangle = Abandonment.
+function WorkActivityMarker({ workActivity, color, size }: { workActivity: WorkActivityGroup; color: string; size: number }) {
+  if (workActivity === 'existing') return <rect x={-size} y={-size} width={size * 2} height={size * 2} fill={color} />;
+  if (workActivity === 'abandonment') {
+    return <path d={`M0 ${-size * 1.2} L${size * 1.1} ${size * 0.8} L${-size * 1.1} ${size * 0.8} Z`} fill={color} />;
+  }
+  return <circle r={size} fill={color} />;
+}
+
+function WorkActivityDot({ cx, cy, workActivity }: { cx?: number; cy?: number; workActivity: WorkActivityGroup }) {
+  if (cx === undefined || cy === undefined) return null;
+  return (
+    <g transform={`translate(${cx} ${cy})`}>
+      <WorkActivityMarker workActivity={workActivity} color={workActivityColor(workActivity)} size={2.6} />
+    </g>
+  );
+}
+
 function Stat({ label, value, color, delta, className = '' }: { label: string; value: number; color?: string; delta?: number; className?: string }) {
   return (
     <div className={`min-w-0 ${className}`}>
@@ -440,7 +461,5 @@ function formatDelta(delta: number) {
 }
 
 function deltaClass(delta: number) {
-  if (delta > 0) return 'text-[10px] font-semibold text-accent';
-  if (delta < 0) return 'text-[10px] font-semibold text-danger';
-  return 'text-[10px] font-semibold text-slate-500';
+  return delta === 0 ? 'text-[10px] font-semibold text-slate-500' : 'text-[10px] font-semibold text-slate-300';
 }

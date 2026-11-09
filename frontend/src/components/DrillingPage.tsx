@@ -22,9 +22,10 @@ import {
 import { FUNCTIONAL_TYPE_GROUPS, functionalTypeGroup, functionalTypeLabel } from '../lib/grouping';
 import type { OperatorColor } from '../lib/operatorColors';
 import { operatorDisplayName, rowOperatorDisplayName } from '../lib/operators';
-import { CHART, SURFACE, WORK_COLORS } from '../lib/palette';
+import { AGE_COLORS, CHART, SURFACE, WORK_COLORS } from '../lib/palette';
 import { SB237_DRILL_TRACKER_URL as DRILL_TRACKER_URL } from '../lib/sb237';
 import type { DrillTracker, DrillTrackerRow, PermitActivity, RigCount } from '../lib/types';
+import { caHref } from '../lib/routes';
 
 type Props = {
   rows: PermitActivity[];
@@ -39,8 +40,6 @@ type Props = {
 
 const SPUDDED = WORK_COLORS.new_drills;
 const WAITING = CHART.other;
-// Ordinal ramp for permit age: older inventory reads brighter.
-const AGE_COLORS = ['#184f95', '#256abf', '#5598e7', '#9ec5f4'];
 const RIG_COLOR = '#e8e2d0';
 const OTHER = 'Other';
 
@@ -159,7 +158,7 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
       <div className="mx-auto max-w-[1560px]">
         <a
           className="mb-5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 transition hover:text-accent"
-          href="/"
+          href={caHref('/')}
           onClick={(event) => {
             event.preventDefault();
             onNavigateHome();
@@ -186,7 +185,7 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
             Loading
           </div>
         )}
-        {error && <div className="mt-4 border border-danger bg-danger/10 p-4 text-sm text-red-200">{error}</div>}
+        {error && <div className="mt-4 border border-danger bg-danger/10 p-4 text-sm text-danger">{error}</div>}
         {!loading && !error && !drillTracker && (
           <div className="mt-4 border border-line bg-panel/50 p-4 text-sm text-slate-400">
             The Drill Tracker is not in this build&apos;s data snapshot, so drilling views are unavailable.
@@ -476,7 +475,7 @@ function Toggle<T extends string>({ value, options, onChange }: { value: T; opti
           key={key}
           type="button"
           aria-pressed={value === key}
-          className={`whitespace-nowrap px-2.5 py-1 ${value === key ? 'bg-panel text-white' : 'text-slate-500 hover:text-slate-200'}`}
+          className={`whitespace-nowrap px-2.5 py-1 ${value === key ? 'bg-panel text-slate-50' : 'text-slate-500 hover:text-slate-200'}`}
           onClick={() => onChange(key)}
         >
           {label}

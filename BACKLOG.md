@@ -1,27 +1,12 @@
 # Backlog
 
-Working list of ideas. ROADMAP.md holds the committed product direction; items move there once scoped.
+Design notes behind the backlog. ROADMAP.md holds the committed product direction.
 
-## To do
+## Working list
 
-- [ ] **Confirm the Baker Hughes rig count in production.** After a deploy, check `data/meta.json` → `sources.rigCount`. If it fails, the error lists the candidate links found on the page.
-- [ ] **Link `/drilling` from the main page** once the drilling data is ready to feature.
-- [ ] **Map tiles.** `tile.openstreetmap.org` isn't meant for production traffic ([tile policy](https://operations.osmfoundation.org/policies/tiles/)). Move to [OpenFreeMap](https://openfreemap.org/) (no key) or a free MapTiler plan.
-- [ ] **Say which date the counts use.** Add a "Filed / Approved" toggle or a "by approval date" label. It explains the gap with CalGEM's dashboard (419 vs 427 New Drill).
-- [ ] **Operator name variants.** CRC appears under several names. Offer the parent rollup in the operator filter, not just in Operator Analysis.
-- [ ] **Unmatched tracker spuds.** List the tracker spuds that don't match a current-year approved permit, so matching can be checked.
-- [ ] **Show the ingest date alongside the latest permit date**, so a stalled ingest is visible on the page.
-- [ ] **Mobile, second pass.** The KPI rows are tall on phones; consider a denser two-column layout and a collapsible drilling filter panel.
-- [ ] **Session links in two old commit messages on `main`** (from #4 and #5). Removing them needs a force-push, so it waits on the owner's approval.
-
-### Done
-- [x] README updated for the static snapshot, sources, previews, and workflows.
-- [x] Real pages for `/drilling`, `/prod`, `/about-methodology` (HTTP 200) with their own social cards.
-- [x] Map, `/drilling`, and `/prod` load on demand; the main bundle is about half its previous size.
-- [x] `keep-undead` workflow re-enables scheduled workflows.
-- [x] Keyboard navigation in the multi-select filters.
-- [x] Phone width: no horizontal scroll; drilling notes move below the charts.
-- [x] Pool names from the CalGEM wells CSV.
+The ranked to-do list moved to the admin page's **Backlog** tab (`permits-api.ryweller.com/admin` → Backlog), grouped by
+theme and priority, with status and notes saved per item. Items live in `worker/src/backlog.mjs`; edit that file to add or
+re-rank work. The sections below keep the longer design notes the items point to.
 
 ## Data
 
@@ -36,7 +21,7 @@ Working list of ideas. ROADMAP.md holds the committed product direction; items m
   - The public Submitted NOI layer (Notices/0) currently exposes only `Submitted` (110 on 2026-09-25), with `SubmittedDate`, `NoticeType`, `Operator`, `Field`, and `Pool_`.
   - On-hold and returned statuses aren't public in that layer. Check WellSTAR's `ReadAllPermits` or ask CalGEM.
   - Snapshotting Notices/0 each ingest would still show time-in-queue and which submissions become approvals.
-- **Match CalGEM's dashboard counts.** Year-to-date by filed date (`NoticeDated`) gives exactly 419 New Drill, the same as the [WellSTAR dashboard](https://wellstar-dashboard.conservation.ca.gov/). This site counts by approval date and shows 427. Consider a "Filed / Approved" date toggle, or a note next to the KPI.
+- **Match CalGEM's dashboard counts.** Year-to-date by filed date (`NoticeDated`) gives exactly 419 New Drill, the same as the [WellSTAR dashboard](https://wellstar-dashboard.conservation.ca.gov/). This site counts by approval date and shows 427. Owner decision (Nov 9): keep approval date, labeled on the page; no toggle.
 
 ## Permits vs actual drilling
 
@@ -78,6 +63,37 @@ Goal: show how much approved permitting turns into rigs, spuds, and production, 
 4. Add the monthly production CSV for first production (view 5), which lags about 2 months.
 5. Pursue statewide spud and completion dates through CalGEM (WellSTAR events).
 
+## Wyoming data fetch
+
+The WOGCC Data Explorer's firewall began rejecting every request after about 1,600 APD detail pages over two hours (2026-11-07). The weekly ingest now runs about 40 report and map requests plus up to 50 detail pages for new approvals, and stops at the first rejection. Since 2026-11-09 the weekly WOGCC run reads only keys that are new or whose status code changed (see below), with up to 15 detail pages and a full refresh every 28 days. Each run records its request count, bytes, and new/changed rows, shown on the admin **Ingest** tab; the plan is `data/ingest_plan.json`. Ideas for getting more without heavier fetching, cheapest first:
+
+- [x] **Federal vs fee without detail pages** (Nov 9): the Standard APD report takes a `MineralOwnership` filter, so about 25 requests on the monthly full refresh cover the pending queue. The BLM layer idea below is no longer needed for this.
+- ~~**Federal vs fee from a map layer, not detail pages.**~~ Intersect each APD's surface and bottom-hole location with BLM's federal mineral estate (subsurface management) layer. That covers the 6,560 pending APDs with no detail page, with zero WOGCC requests. Find the layer on [BLM Navigator](https://navigator.blm.gov/); confirm it separates split estate from full federal.
+- **Federal lease and BLM permit status from BLM.** Lease numbers are on [MLRS](https://mlrs.blm.gov/). BLM APD status would show which federal wells are cleared to spud, the gap noted in `docs/wyoming_plan.md`.
+- **Ask WOGCC for a bulk extract.** An APD list with mineral ownership, or permission for a slow one-time backfill. The Data Explorer's CSV export and the statewide well header download suggest they are open to bulk use.
+- **Lighter well lookup.** The weekly run pulls the full WFS `WELL` layer (about 24 MB, 121,000 wells) to match APIs. Query only the stored APIs (`cql_filter` `WellId IN (...)` in batches) or new well keys instead.
+- [x] **Fetch only what changed** (Nov 9). Weekly runs request report rows only for keys whose WFS status code changed or that are new; a full refresh runs every 28 days.
+- **Shared polite fetch client for all states.** One requests session with a contact User-Agent, per-host rate limit with jitter, backoff on 429/503 and firewall pages, and a per-run request count. Record request counts in `etl_runs.jsonl` and show them, with any `details_stopped` reason, on `/admin`.
+- **Alert on a block.** If a run records a firewall rejection, skip detail pages the next week and flag it on `/admin` instead of retrying.
+
+## Operator profiles
+
+Regulator operator names are legal entities, often private-equity-backed subsidiaries whose brand and owner differ from the name on the permit. Checked 2026-11-09:
+
+- **TEP ROCKY MOUNTAIN LLC** (ECMC #96850) is Terra Energy Partners' Piceance operator. Flywheel Energy (Oklahoma City) took over the asset in 2025 ([Hart Energy](https://www.hartenergy.com/exclusives/flywheel-energy-acquires-terras-colorado-piceance-gas-assets-213535/)); the ECMC record now lists a second, Oklahoma City address.
+- **Logos Operating, LLC** operates for LOGOS Energy (Farmington, NM; [logosenergyllc.com](http://www.logosenergyllc.com)), San Juan Basin Mancos. Sixth Street reportedly agreed to buy it for about $1B in June 2026 ([Hart Energy](https://www.hartenergy.com/energy-market-transactions/acquisitions-and-divestitures/he-logos-sixth-street-san-juan/)).
+
+| Source | Free | Use |
+|---|---|---|
+| State regulator operator record | Yes | Operator number, addresses, financial assurance, contacts. Colorado deep-links: `https://ecmc.state.co.us/cogisdb/NameAddressSearch/NameAddrSearch2?co={operator_number}&fn=&ln=&recct=10`. CalGEM WellSTAR and the WOGCC Data Explorer render in the browser, with no stable per-operator URL found. |
+| Company website | Yes | Best description of what the company does; needs a hand lookup because names differ. |
+| Trade press (Hart Energy, local papers) | Partly | Ownership changes and deals. |
+| Secretary of State, [OpenCorporates](https://opencorporates.com/) | Yes | Formation date and registered agent; often only a Delaware parent. |
+| [SEC EDGAR full-text search](https://efts.sec.gov/LATEST/search-index?q=) | Yes | Form D filings sometimes name sponsors and officers. |
+| Shale Experts, shalexp, DrillingEdge | Paid or ad-supported | Repackaged state data; not linked. |
+
+Plan: regulator link for every operator, a dated hand-kept profile for the top 30 to 50 per state, and labeled news and OpenCorporates searches for the rest. Re-check profiles when the admin page shows a new operator address or a parent change.
+
 ## UI
 
-- Label the date basis ("by approval date") next to the KPI row.
+- Done (Nov 9): the California header says counts are by approval date, and the date filter is titled "Approval date".

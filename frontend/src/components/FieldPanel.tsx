@@ -12,7 +12,7 @@ export function FieldPanel({ rows }: { rows: PermitActivity[] }) {
     <section className="border border-line bg-panel p-4">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-white">{field || 'Field Focus'}</h2>
+          <h2 className="text-lg font-semibold text-slate-50">{field || 'Field Focus'}</h2>
           <p className="text-sm text-slate-400">Field page preview using the most active filtered field.</p>
         </div>
         <div className="text-right text-2xl font-semibold text-accent">{fieldRows.length}</div>

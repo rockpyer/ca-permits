@@ -22,9 +22,10 @@ import {
   recentAnnualizedAbandonment,
   recentAnnualizedExistingWork
 } from '../lib/production';
-import { ACCENT, CHART, SERIES, WORK_COLORS } from '../lib/palette';
+import { ACCENT, CHART, WORK_COLORS } from '../lib/palette';
 import type { Sb237DrillTrackerStats } from '../lib/sb237';
 import type { PermitActivity } from '../lib/types';
+import { caHref } from '../lib/routes';
 
 type ProductionPageProps = {
   rows: PermitActivity[];
@@ -61,7 +62,7 @@ export function ProductionPage({ rows, loading, error, sb237Stats, onNavigateHom
       <div className="mx-auto max-w-[1560px]">
         <a
           className="mb-5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 transition hover:text-accent"
-          href="/"
+          href={caHref('/')}
           onClick={(event) => {
             event.preventDefault();
             onNavigateHome();
@@ -100,7 +101,7 @@ export function ProductionPage({ rows, loading, error, sb237Stats, onNavigateHom
         </header>
 
         {loading && <div className="mt-6 border border-line bg-panel/50 p-4 text-sm text-slate-400">Loading permit supply...</div>}
-        {error && <div className="mt-6 border border-danger bg-danger/10 p-4 text-sm text-red-200">{error}</div>}
+        {error && <div className="mt-6 border border-danger bg-danger/10 p-4 text-sm text-danger">{error}</div>}
 
         <section className="mt-5 grid gap-3 border-y border-line py-3 text-sm md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_300px]" aria-label="Production model context">
           <ModelStat label="2025 oil rate" value={`${formatNumber(stats.latest.oilKbopd)} kbopd`} />
@@ -218,7 +219,7 @@ export function ProductionPage({ rows, loading, error, sb237Stats, onNavigateHom
                   />
                   <Bar yAxisId="permits" dataKey="kernNewDrillPermitsToDate" name="Kern New Drill to date" fill={WORK_COLORS.existing} opacity={0.55} />
                   <Bar yAxisId="permits" dataKey="projectedNewDrillPermits" name="2026 projected Kern New Drill Permits" fill={ACCENT.gold} opacity={0.75} />
-                  <Bar yAxisId="permits" dataKey="projectedExistingWork" name="Existing work at current rate" fill={SERIES[0]} opacity={0.5} />
+                  <Bar yAxisId="permits" dataKey="projectedExistingWork" name="Existing work at current rate" fill={WORK_COLORS.existing} opacity={0.5} />
                 </ComposedChart>
               </ResponsiveContainer>
             </ChartPanel>
@@ -250,7 +251,7 @@ export function ProductionPage({ rows, loading, error, sb237Stats, onNavigateHom
                 value={netBopdPerPermit}
                 onChange={(event) => setNetBopdPerPermit(Number(event.target.value))}
               />
-              <div className="w-24 text-right text-lg font-semibold text-white">{netBopdPerPermit} bopd</div>
+              <div className="w-24 text-right text-lg font-semibold text-slate-50">{netBopdPerPermit} bopd</div>
             </div>
             <p className="mt-2 text-xs leading-5 text-slate-500">
               Typical new California oil wells can vary widely; use roughly 5-40 bopd for conservative scenarios and higher values only
@@ -271,7 +272,7 @@ export function ProductionPage({ rows, loading, error, sb237Stats, onNavigateHom
                 value={projectedNewDrillPermits || quota.projectedCount}
                 onChange={(event) => setProjectedNewDrillPermits(Number(event.target.value))}
               />
-              <div className="w-28 text-right text-lg font-semibold text-white">
+              <div className="w-28 text-right text-lg font-semibold text-slate-50">
                 {formatNumber(projectedNewDrillPermits || quota.projectedCount)}
               </div>
             </div>
@@ -345,14 +346,14 @@ function ModelStat({ label, value, subvalue }: { label: string; value: string; s
   return (
     <div>
       <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-1 text-lg font-semibold text-white">{value}</div>
+      <div className="mt-1 text-lg font-semibold text-slate-50">{value}</div>
       {subvalue && <div className="text-xs text-slate-500">{subvalue}</div>}
     </div>
   );
 }
 
 function OffsetMetric({ label, value, suffix, tone = 'neutral' }: { label: string; value: number; suffix: string; tone?: 'neutral' | 'positive' | 'negative' }) {
-  const color = tone === 'positive' ? 'text-accent' : tone === 'negative' ? 'text-danger' : 'text-white';
+  const color = tone === 'positive' ? 'text-accent' : tone === 'negative' ? 'text-danger' : 'text-slate-50';
 
   return (
     <div className="border border-line bg-ink/45 p-3">

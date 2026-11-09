@@ -1,0 +1,75 @@
+# WellerTracker: oil and gas well activity by state
+
+> A free site that tracks approved oil and gas drilling permits, spuds and rig counts for California, Colorado and
+> Wyoming from each state regulator's public data, updated weekly. Built by Ryan Weller ([ryweller.com](https://ryweller.com)).
+> California is the full permit explorer; Colorado and Wyoming are drafts.
+
+## What the California page shows
+
+- Approved well permits by operator, parent company, field, county, and CalGEM district.
+- Work activity: New Drill, Existing (work on existing wells), and Abandonment. Functional well type: producer, thermal producer, injector, observation, and other.
+- Weekly approved permits by work activity, and a since-last-week summary.
+- Kern County New Drill permits vs. the SB 237 annual cap, with operator-reported spuds from the CalGEM Central District Drill Tracker.
+- A map of permits over CalGEM field boundaries, and permit records with CSV export and links to each well's WellSTAR detail page.
+- Filters are stored in the URL, so a filtered view can be shared as a link.
+
+## What the Colorado page shows (draft)
+
+- Approved ECMC drilling permits (Form 2) by operator, parent company, county and formation, weekly and monthly.
+- Each permit's current well status, spud date and expiration, statewide spuds, and the undrilled permit inventory.
+- Days from approval to spud, and weekly Baker Hughes rig counts for Colorado.
+
+## What the Wyoming page shows (draft)
+
+- WOGCC applications for permit to drill (APDs) by operator, county, reservoir and mineral ownership (federal, state, fee).
+- Approvals, the pending queue, renewals shown apart from new-well APDs, and spuds.
+- Weekly Baker Hughes rig counts for Wyoming.
+
+## Latest weekly numbers
+
+{{latest}}
+
+By state, latest full week:
+
+{{states}}
+
+## Pages
+
+- [Well permit activity by state](https://permits.ryweller.com/): one card per state with the latest week's numbers
+- [About](https://permits.ryweller.com/about/): sources and terms for every state
+- [California well permit activity](https://permits.ryweller.com/ca/): the permit explorer
+- [About / methodology](https://permits.ryweller.com/ca/about-methodology/): California data sources, definitions, and limitations
+- [Colorado well permit activity (draft)](https://permits.ryweller.com/co/): ECMC permits, well status, spuds and rig counts
+- [Wyoming drilling permits and spuds (draft)](https://permits.ryweller.com/wy/): WOGCC APDs, the pending queue, spuds and rig counts
+
+## Data sources
+
+California (CalGEM):
+
+- [WellSTAR Notices](https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Notices/MapServer/1): permits
+- [WellSTAR Wells](https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Wells/MapServer/0): well location, type, and status
+- [CalGEM field boundaries](https://gis.conservation.ca.gov/server/rest/services/CalGEM/Admin_Bounds/MapServer/0)
+- [CalGEM Central District Drill Tracker](https://www.conservation.ca.gov/calgem/Documents/Permits/Central%20District%20Drill%20Tracker.xlsx): Kern spud dates
+
+Colorado (ECMC):
+
+- [Approved Permits to Drill (Form 2)](https://ecmc.state.co.us/permits/?t=1)
+- [ECMC GIS downloads](https://ecmc.state.co.us/data2.html#/downloads): wells layer (status, spud date) and undrilled permit layer (expiration)
+
+Wyoming (WOGCC):
+
+- [WOGCC Data Explorer](https://dataexplorer.wogcc.wyo.gov/): APD and well reports, spud dates
+
+All states:
+
+- [Baker Hughes rig count](https://rigcount.bakerhughes.com/na-rig-count): weekly rigs by state, and Kern County
+
+Counts are approved permits, not wells drilled. Each state regulator is the authoritative source for any single permit.
+
+## Contact
+
+- [Ryan Weller](https://ryweller.com/services/#contact): feedback and custom oil and gas data work
+
+## License
+
+All rights reserved (https://github.com/rockpyer/ca-permits/blob/main/LICENSE.md). Search engines and AI answer services may index and cite these pages with a link. Copying the code, design or datasets, scraping, and model training are not permitted without permission. Cite "California well permit activity, permits.ryweller.com" when quoting these numbers.

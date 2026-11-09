@@ -1,24 +1,30 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, Loader2 } from 'lucide-react';
+import { CalendarDays, Loader2, Mail } from 'lucide-react';
 import { DetailDrawer } from './components/DetailDrawer';
 import { FilterRail } from './components/FilterRail';
 import { PermitTable } from './components/PermitTable';
-import { RankingPanels } from './components/RankingPanels';
-import { ActivityNotes, ActivitySummaryStrip, FunctionalTypeMix, PermitMomentumPanel } from './components/SummaryCards';
+import { CategoryStackPanel, RankingPanels } from './components/RankingPanels';
+import { ActivityNotes, ActivitySummaryStrip, FuelGauge, FunctionalTypeMix, PermitMomentumPanel } from './components/SummaryCards';
 import { loadAppData } from './lib/data';
 import { applyFilters, dateRangeForRows, defaultFilters } from './lib/filters';
 import {
+  DEFAULT_WORK_ACTIVITY_GROUPS,
   FUNCTIONAL_TYPE_GROUPS,
   WORK_ACTIVITY_GROUPS,
   functionalTypeLabel,
+  workActivityGroup,
   workActivityLabel,
   type FunctionalTypeGroup,
   type WorkActivityGroup
 } from './lib/grouping';
-import { loadSb237DrillTrackerStats, SB237_DRILL_TRACKER_URL, sb237StatsFromTracker, type Sb237DrillTrackerStats } from './lib/sb237';
+import { loadSb237DrillTrackerStats, SB237_DRILL_TRACKER_URL, SB237_PAGE_URL, sb237StatsFromTracker, type Sb237DrillTrackerStats } from './lib/sb237';
 import { operatorColorMap } from './lib/operatorColors';
-import { rowOperatorDisplayName } from './lib/operators';
+import { CRC_PARENT_MEMBERS, CRC_PARENT_NAME, operatorAnalysisRows, rowOperatorDisplayName, type OperatorView } from './lib/operators';
+import { caHref, routePath, siteHref } from './lib/routes';
+import { lastTwelveMonths, permitDate } from './lib/permitDates';
+import { SiteNav } from './components/SiteNav';
 import { countByValue, shiftDate } from './lib/summary';
+import { ACCENT, BRAND, CHART, CRC_MEMBER_SHADES, FUNCTIONAL_TYPE_COLORS, FIELD_COLORS, NOTICE_TYPE_COLORS, OPERATOR_SLOTS, SOURCE_TYPE_COLORS, SURFACE, WORK_COLORS } from './lib/palette';
 import type { DrillTracker, EtlRun, FieldBoundary, Filters, PermitActivity, RigCount } from './lib/types';
 
 // The map library and secondary pages load on demand so first paint doesn't wait on them.
@@ -43,6 +49,7 @@ export function App() {
   );
   const [dateBounds, setDateBounds] = useState<{ minDate: string; maxDate: string }>({ minDate: '', maxDate: '' });
   const [path, setPath] = useState(() => normalizedPath());
+  const [operatorView, setOperatorView] = useState<OperatorView>('parent');
 
   useEffect(() => {
     const handlePopState = () => {
@@ -99,12 +106,14 @@ export function App() {
   }, [dateBounds, filters, path]);
 
   const filteredRows = useMemo(() => applyFilters(rows, filters), [rows, filters]);
-  // Operator colors are ranked on the current year's unfiltered permits so filters never repaint them.
-  const colorRows = useMemo(() => {
-    const year = (dateBounds.maxDate || new Date().toISOString()).slice(0, 4);
-    return rows.filter((row) => (row.notice_date_determination || row.notice_dated || '').startsWith(year));
-  }, [rows, dateBounds.maxDate]);
+  // Spare operator colors are ranked on the last 12 months of New Drill and Existing permits (the
+  // default view), ignoring filters so a filter never repaints an operator.
+  const colorRows = useMemo(
+    () => lastTwelveMonths(rows, permitDate).filter((row) => DEFAULT_WORK_ACTIVITY_GROUPS.includes(workActivityGroup(row))),
+    [rows]
+  );
   const operatorColor = useMemo(() => operatorColorMap(colorRows), [colorRows]);
+  const analysisRows = useMemo(() => operatorAnalysisRows(filteredRows, operatorView), [filteredRows, operatorView]);
   const lastRun = etlRuns[0];
   const weeklyUpdateDate = dateBounds.maxDate || lastRun?.finished_at?.slice(0, 10) || '';
 
@@ -147,7 +156,7 @@ export function App() {
 
   return (
     <Shell>
-      <div className={`min-h-screen lg:grid lg:h-screen lg:min-h-0 ${filtersCollapsed ? 'lg:grid-cols-[56px_1fr]' : 'lg:grid-cols-[276px_1fr]'}`}>
+      <div className={`min-h-screen lg:grid lg:h-[calc(100vh-2.5rem)] lg:min-h-0 ${filtersCollapsed ? 'lg:grid-cols-[56px_1fr]' : 'lg:grid-cols-[276px_1fr]'}`}>
         <FilterRail
           rows={rows}
           filters={filters}
@@ -156,6 +165,8 @@ export function App() {
           onCollapsedChange={setFiltersCollapsed}
           onChange={setFilters}
           operatorColor={operatorColor}
+          operatorView={operatorView}
+          onOperatorViewChange={setOperatorView}
           summary={activeQuerySummary(filters, dateBounds)}
         />
         <main id="activity-content" className="min-h-0 bg-ink lg:overflow-y-auto" aria-label="California permit activity explorer">
@@ -167,7 +178,7 @@ export function App() {
                   <span> well permit activity</span>
                 </h1>
                 <p className="mt-1 max-w-3xl text-sm leading-5 text-slate-400 sm:mt-2 sm:text-base sm:leading-6">
-                  Approved CalGEM permit activity and analysis.
+                  Approved CalGEM permits, counted by approval date. CalGEM&apos;s dashboard counts by filed date, so its totals can differ by a few permits.
                 </p>
               </div>
               <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 border-l-0 border-line text-xs text-slate-400 sm:text-sm xl:block xl:min-w-[260px] xl:border-l xl:pl-5">
@@ -202,7 +213,7 @@ export function App() {
             </div>
           )}
 
-          {error && <div className="m-4 border border-danger bg-danger/10 p-4 text-sm text-red-200">{error}</div>}
+          {error && <div className="m-4 border border-danger bg-danger/10 p-4 text-sm text-danger">{error}</div>}
 
           {!loading && !error && (
             <div className="space-y-2.5 p-3 sm:space-y-3 sm:p-4">
@@ -221,48 +232,28 @@ export function App() {
                 <ActiveQuery filters={filters} dateBounds={dateBounds} />
               </div>
               <PermitMomentumPanel rows={filteredRows} workActivities={filters.workActivities} />
-              <section className="xl:grid xl:grid-cols-[64px_minmax(0,1360px)] xl:gap-3" aria-label="Permit activity map">
-                <div
-                  className="hidden border border-line/50 bg-panel/15 xl:block"
-                  aria-hidden="true"
-                  title="Scroll area"
-                />
-                <Suspense fallback={<div className="h-[340px] border border-line bg-panel sm:h-[400px] xl:h-[460px]" aria-label="Loading map" />}>
+              <section className="grid grid-cols-1 gap-3 xl:grid-cols-2" aria-label="Permit activity map and well types">
+                <Suspense fallback={<div className="h-[340px] border border-line bg-panel sm:h-[430px] xl:h-[460px]" aria-label="Loading map" />}>
                   <ActivityMap rows={filteredRows} fields={fields} selected={selected} onSelect={setSelected} />
                 </Suspense>
+                <CategoryStackPanel rows={analysisRows} primaryLabel={operatorView === 'parent' ? 'Parent Company' : 'Operator'} operatorColor={operatorColor} />
               </section>
               <section className="grid grid-cols-1 gap-4 md:grid-cols-2" aria-label="Activity notes and functional type mix">
                 <ActivityNotes rows={filteredRows} />
                 <FunctionalTypeMix rows={filteredRows} />
               </section>
               <section aria-label="Operator and field trend analysis">
-                <RankingPanels rows={filteredRows} colorRows={colorRows} />
+                <RankingPanels rows={filteredRows} operatorColor={operatorColor} operatorView={operatorView} />
               </section>
               <section aria-label="Permit records">
                 <PermitTable rows={filteredRows} selected={selected} onSelect={setSelected} />
               </section>
-              <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-xs text-slate-500">
-                <span>{filteredRows.length.toLocaleString()} filtered permits from {rows.length.toLocaleString()} loaded rows</span>
-                <nav className="flex flex-wrap gap-4" aria-label="More pages">
-                  {[
-                    ['/drilling', 'Drilling'],
-                    ['/prod', 'Production'],
-                    ['/about-methodology', 'About / Methodology']
-                  ].map(([href, label]) => (
-                    <a
-                      key={href}
-                      className="text-slate-500 transition hover:text-accent"
-                      href={href}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        navigateTo(href, setPath);
-                      }}
-                    >
-                      {label}
-                    </a>
-                  ))}
-                </nav>
-              </footer>
+              {/* /drilling and /prod still route; their links are hidden for now. */}
+              <SiteFooter
+                status={`${filteredRows.length.toLocaleString()} filtered permits from ${rows.length.toLocaleString()} loaded rows`}
+                links={[['/about-methodology', 'About / Methodology']]}
+                onNavigate={(href) => navigateTo(href, setPath)}
+              />
             </div>
           )}
         </main>
@@ -272,15 +263,15 @@ export function App() {
   );
 }
 
+// California's view within its app ('/', '/drilling', '/prod', '/about-methodology'), from /ca/… or #/ca/….
 function normalizedPath() {
-  // `#/drilling`-style links serve hosts that can't route custom paths (e.g. private previews).
-  if (window.location.hash.startsWith('#/')) return window.location.hash.slice(1).replace(/\/$/, '') || '/';
-  const pathname = window.location.pathname.replace(/\/$/, '') || '/';
-  return pathname === '/ca-permits' ? '/' : pathname;
+  return routePath().replace(/^\/ca(?=\/|$)/, '') || '/';
 }
 
 function navigateTo(path: string, setPath: (path: string) => void) {
-  window.history.pushState({}, '', path);
+  const href = caHref(path);
+  if (href.startsWith('#')) window.history.pushState({}, '', `${window.location.pathname}${href}`);
+  else window.history.pushState({}, '', href);
   setPath(path);
   window.scrollTo({ top: 0 });
 }
@@ -329,6 +320,11 @@ function ActiveQuery({ filters, dateBounds }: { filters: Filters; dateBounds: Da
 
 type DateBounds = { minDate: string; maxDate: string };
 
+function yearStart(end: string, minDate: string) {
+  const start = `${end.slice(0, 4)}-01-01`;
+  return minDate && start < minDate ? minDate : start;
+}
+
 function quickViewPresets(rows: PermitActivity[], dateBounds: DateBounds): Array<{ label: string; filters: Filters; desktopOnly?: boolean }> {
   const base = defaultFilters(dateBounds);
   const daysBack = (days: number) => {
@@ -339,9 +335,11 @@ function quickViewPresets(rows: PermitActivity[], dateBounds: DateBounds): Array
 
   // `desktopOnly` presets are hidden on phones to keep the first screen short.
   return [
-    { label: 'Year to date', filters: base },
+    { label: 'Last 12 months', filters: base },
+    { label: 'Year to date', filters: { ...base, startDate: yearStart(base.endDate, dateBounds.minDate) } },
     { label: 'Last 30 days', filters: { ...base, startDate: daysBack(30) } },
     { label: 'Kern New Drill', filters: { ...base, workActivities: ['new_drills'], counties: ['Kern'] } },
+    { label: CRC_PARENT_NAME, filters: { ...base, operators: [CRC_PARENT_NAME] }, desktopOnly: true },
     ...(topOperator ? [{ label: topOperator, filters: { ...base, operators: [topOperator] }, desktopOnly: true }] : []),
     { label: 'Injectors', filters: { ...base, functionalTypes: ['injector'] }, desktopOnly: true },
     { label: 'Abandonment, 90 days', filters: { ...base, workActivities: ['abandonment'], startDate: daysBack(90) }, desktopOnly: true }
@@ -445,8 +443,9 @@ function persistFiltersToUrl(filters: Filters, dateBounds: { minDate: string; ma
   if (filters.endDate && filters.endDate !== defaults.endDate) params.set('to', filters.endDate);
 
   const query = params.toString();
-  const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}`;
-  if (nextUrl !== `${window.location.pathname}${window.location.search}`) {
+  // Keep the hash: preview builds route by it (#/ca).
+  const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`;
+  if (nextUrl !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
     window.history.replaceState({}, '', nextUrl);
   }
 }
@@ -469,7 +468,7 @@ function resolveFunctionalTypeParams(values: string[]) {
     const normalized = value.toLowerCase().replace(/[^a-z]/g, '');
     if (['producer', 'oilandgas', 'drygas'].includes(normalized)) resolved.add('producer');
     if (['thermalproducer', 'cyclicsteam'].includes(normalized)) resolved.add('thermal_producer');
-    if (['injector', 'steamflood', 'waterflood', 'waterdisposal', 'gasdisposal'].includes(normalized)) resolved.add('injector');
+    if (['injector', 'injection', 'steamflood', 'waterflood', 'waterdisposal', 'gasdisposal'].includes(normalized)) resolved.add('injector');
     if (normalized === 'observation') resolved.add('observation');
     if (['other', 'gasstorage', 'watersource', 'dryhole', 'multipurpose', 'unknown'].includes(normalized)) {
       resolved.add('other');
@@ -512,6 +511,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <a className="skip-link" href="#activity-content">
         Skip to activity explorer
       </a>
+      <SiteNav current="ca" />
       {children}
       {import.meta.env.VITE_PREVIEW === '1' && <PreviewNav />}
     </div>
@@ -524,9 +524,12 @@ function PreviewNav() {
     <nav className="fixed bottom-3 left-3 z-[60] flex items-center gap-2 border border-amber/60 bg-ink/95 px-3 py-1.5 text-xs" aria-label="Preview navigation">
       <span className="font-semibold uppercase tracking-wide text-amber">Preview</span>
       {[
-        ['#/', 'Main'],
-        ['#/drilling', 'Drilling'],
-        ['#/prod', 'Production']
+        ['#/', 'States'],
+        ['#/ca', 'California'],
+        ['#/ca/drilling', 'Drilling'],
+        ['#/ca/prod', 'Production'],
+        ['#/co', 'Colorado'],
+        ['#/wy', 'Wyoming']
       ].map(([href, label]) => (
         <a key={href} className="text-slate-300 hover:text-accent" href={href}>
           {label}
@@ -542,7 +545,7 @@ function AboutMethodology({ onNavigateHome, onNavigate }: { onNavigateHome: () =
       <div className="mx-auto max-w-4xl">
         <a
           className="mb-8 inline-flex text-sm font-semibold uppercase tracking-wide text-slate-500 transition hover:text-accent"
-          href="/"
+          href={caHref('/')}
           onClick={(event) => {
             event.preventDefault();
             onNavigateHome();
@@ -563,39 +566,122 @@ function AboutMethodology({ onNavigateHome, onNavigate }: { onNavigateHome: () =
         </header>
 
         <div className="mt-8 grid gap-6 text-sm leading-6 text-slate-300 md:grid-cols-2">
-          <MethodBlock title="What is counted">
-            Approved WellSTAR notices of intention (new drill, rework, sidetrack, deepen, abandonment), grouped by operator,
-            field, county, district, work type, and well type. Counts use the <strong>approval date</strong>. CalGEM&apos;s
-            dashboard counts by filed date, so its year-to-date totals can differ by a few permits.
+          <MethodBlock title="What is counted" wide>
+            <p>
+              Approved WellSTAR notices of intention only. Counts and date filters use the <strong>approval date</strong>, or
+              the filed date when no approval date is recorded. CalGEM&apos;s dashboard counts by filed date, so its
+              year-to-date totals can differ by a few permits.
+            </p>
+            <p className="mt-3">Raw CalGEM notice types are grouped into three work activities:</p>
+            <MappingTable
+              headers={['Work activity', 'CalGEM notice types', 'Shown by default']}
+              rows={[
+                ['New Drill', 'New Drill', 'Yes'],
+                ['Existing', 'Rework, Sidetrack, Deepen', 'Yes'],
+                ['Abandonment', 'Abandon, Re-Abandon', 'No (turn on in filters)']
+              ]}
+            />
+            <p className="mt-3">CalGEM well types are grouped into functional types for the map symbols and type mix:</p>
+            <MappingTable
+              headers={['Functional type', 'CalGEM well types']}
+              rows={[
+                ['Producer', 'Oil & Gas, Dry Gas'],
+                ['Thermal Producer', 'Cyclic Steam'],
+                ['Injector', 'Injection, Steamflood, Waterflood, Water Disposal, Gas Disposal'],
+                ['Observation', 'Observation'],
+                ['Other', 'Gas Storage, Multi-Purpose, Water Source, Dry Hole, and all other types']
+              ]}
+            />
+            <p className="mt-3">
+              Other changes from the raw records: API numbers are standardized to 10 digits to build WellSTAR and WellFinder
+              links, and pool names are joined from CalGEM&apos;s wells file by API number. Permit records and CSV exports keep
+              the original CalGEM notice type, well type, and operator.
+            </p>
+          </MethodBlock>
+          <MethodBlock title="Operator grouping">
+            <p>
+              Charts default to a <strong>parent-company</strong> view; the Operator toggle in the filters switches to the
+              CalGEM operator of record. These operators roll up to {CRC_PARENT_NAME}:
+            </p>
+            <ul className="mt-2 list-disc pl-5 text-slate-400">
+              {CRC_PARENT_MEMBERS.map((name) => (
+                <li key={name}>{name}</li>
+              ))}
+            </ul>
+            <p className="mt-2">All other operators appear as CalGEM records them.</p>
           </MethodBlock>
           <MethodBlock title="Data sources">
-            WellSTAR notices and wells, and CalGEM field boundaries (ArcGIS services); pool names from CalGEM&apos;s annual
-            wells file; Kern spud dates from CalGEM&apos;s Drill Tracker; rig counts from Baker Hughes.
             <SourceLinks />
           </MethodBlock>
-          <MethodBlock title="Update cadence">
-            A GitHub Actions ingest runs every Monday and stores records in Supabase. Each run rebuilds a static data snapshot
-            that this site serves, so the header date is the latest weekly update.
+          <MethodBlock title="Chart colors" wide>
+            <ChartColors />
           </MethodBlock>
-          <MethodBlock title="Kern New Drill quota">
-            SB 237 caps Kern County New Drill permits at 2,000 a year. The meter shows year-to-date approvals, a straight-line
-            projection to year-end, what is left, and operator-reported spuds from the Drill Tracker.
+          <MethodBlock title="Kern New Drill quota" wide>
+            <div className="grid gap-4 sm:grid-cols-[150px_1fr] sm:items-start">
+              <figure className="border border-line bg-panel/40 p-3">
+                <FuelGauge usedPct={45} projectedPct={80} spuddedPct={25} />
+                <figcaption className="mt-1 text-[11px] text-slate-500">Example reading, not current values</figcaption>
+              </figure>
+              <div>
+                <p>
+                  <a className={LINK_CLASS} href={SB237_PAGE_URL} target="_blank" rel="noreferrer">
+                    SB 237
+                  </a>{' '}
+                  caps Kern County New Drill permits at 2,000 a year. The gauge at the top of the permits page reads left to right from 0
+                  to 2,000:
+                </p>
+                <ul className="mt-2 space-y-1 text-slate-400">
+                  <GaugeKey color={WORK_COLORS.new_drills}>Filled arc and needle: New Drill permits approved this year</GaugeKey>
+                  <GaugeKey color={BRAND.ink}>Dark tick: straight-line projection to December 31</GaugeKey>
+                  <GaugeKey color={ACCENT.gold}>Gold tick: wells spudded, from CalGEM&apos;s Drill Tracker (operator reported)</GaugeKey>
+                  <GaugeKey color={ACCENT.steel}>Blue outline: permits left under the cap</GaugeKey>
+                </ul>
+                <p className="mt-2">Only New Drill notices count toward the cap. Hover or tap the gauge for the projection basis.</p>
+              </div>
+            </div>
+          </MethodBlock>
+          <MethodBlock title="Update cadence">
+            Data ingestion runs every Monday. The date in the page header is the latest weekly update.
           </MethodBlock>
           <MethodBlock title="Limitations">
             A permit is permission, not proof of drilling: many are never spudded or are spudded months later. Depth,
-            completion, and casing details are not in the public layers, so records link to WellSTAR. Operator names vary and
-            are normalized; well joins can lag new permits.
+            completion, and casing details are not in the public layers, so records link to WellSTAR. Well locations can lag
+            new permits.
           </MethodBlock>
-          <MethodBlock title="Use and credit">
-            Public data, provided as is for exploration and analysis. Check official CalGEM records before relying on any figure.
-            Built by{' '}
-            <a className="text-slate-200 underline decoration-line underline-offset-2 hover:text-accent" href="https://ryweller.com" target="_blank" rel="noreferrer">
-              Ryan Weller
+          <MethodBlock title="Contact">
+            Questions, corrections, or a permit that looks wrong:{' '}
+            <a className={LINK_CLASS} href={CONTACT_MAILTO}>
+              ryan@ryweller.com
             </a>
             .
           </MethodBlock>
+          <TermsOfUse />
         </div>
 
+        <section className="mt-8 border border-line bg-panel/50 p-4 text-sm leading-6 text-slate-300" aria-label="Built by Ryan Weller">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Built by Ryan Weller</h2>
+          <p className="mt-2 max-w-3xl">
+            Oil and gas geologist and data scientist. I take on custom permit and drilling activity analysis, well and
+            development planning, and energy data tools like this one.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm font-semibold">
+            <a className={LINK_CLASS} href="https://ryweller.com/services/" target="_blank" rel="noreferrer">
+              Services
+            </a>
+            <a className={LINK_CLASS} href="https://ryweller.com/#projects" target="_blank" rel="noreferrer">
+              Other projects
+            </a>
+            <a className={LINK_CLASS} href="https://www.linkedin.com/in/ryweller/" target="_blank" rel="noreferrer">
+              LinkedIn
+            </a>
+            <a className={LINK_CLASS} href={CONTACT_MAILTO}>
+              ryan@ryweller.com
+            </a>
+          </div>
+        </section>
+
+        {/* Drilling and Production views are hidden outside preview builds for now. */}
+        {import.meta.env.VITE_PREVIEW === '1' && (
         <section className="mt-8 border-t border-line pt-6" aria-label="More views">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">More views (in development)</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -607,8 +693,86 @@ function AboutMethodology({ onNavigateHome, onNavigate }: { onNavigateHome: () =
             </ViewLink>
           </div>
         </section>
+        )}
+
+        <div className="mt-10">
+          <SiteFooter links={[['/', 'Permits review']]} onNavigate={onNavigate} />
+        </div>
       </div>
     </main>
+  );
+}
+
+const TERMS_UPDATED = 'November 9, 2026';
+
+function TermsOfUse() {
+  return (
+    <section id="terms" className="scroll-mt-6 border-t border-line pt-4 md:col-span-2" aria-labelledby="terms-heading">
+      <h2 id="terms-heading" className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+        Terms of use
+      </h2>
+      <p className="text-xs text-slate-500">Last updated {TERMS_UPDATED}</p>
+      <div className="mt-3 space-y-4">
+        <p>By using this site you agree to these terms. If you do not agree, do not use the site.</p>
+        <TermsItem title="Permitted use">
+          You may view, filter, and export permit data for your own research, analysis, reporting, and internal business use.
+          When you publish figures or charts from this site, credit &ldquo;California well permit activity,
+          permits.ryweller.com.&rdquo; Search engines may index and link to these pages as allowed in robots.txt.
+        </TermsItem>
+        <TermsItem title="Prohibited use">
+          <p>Unless you have prior written consent, you may not:</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-400">
+            <li>Use bots, scrapers, crawlers, or other automated tools to extract data, pages, or code from the site or its API.</li>
+            <li>Resell, sublicense, or redistribute the site&apos;s data compilations, charts, or exports, or include them in a paid product or service.</li>
+            <li>Copy, mirror, or frame the site, or use it to build a substantially similar service.</li>
+            <li>Reverse engineer, decompile, or copy any part of the site&apos;s source code, data pipeline, or API.</li>
+            <li>Circumvent rate limits, access controls, or other technical protections.</li>
+            <li>Interfere with or overload the service, or probe it for vulnerabilities.</li>
+            <li>Use the site for any unlawful purpose or in violation of others&apos; rights.</li>
+          </ul>
+        </TermsItem>
+        <TermsItem title="Public records">
+          The underlying permit records are public records published by CalGEM. These terms do not limit your use of records
+          you obtain directly from CalGEM through the sources listed above.
+        </TermsItem>
+        <TermsItem title="Intellectual property">
+          The site&apos;s design, source code, text, charts, groupings, and data compilations are &copy;{' '}
+          {TERMS_UPDATED.slice(-4)} Ryan Weller and protected by copyright and other laws. All rights not expressly granted
+          here are reserved.
+        </TermsItem>
+        <TermsItem title="As is and as available">
+          The site and its data are provided &ldquo;as is&rdquo; and &ldquo;as available,&rdquo; without warranties of any
+          kind, express or implied, including accuracy, completeness, timeliness, fitness for a particular purpose, or
+          uninterrupted availability. Figures may contain errors or lag official records. Nothing here is legal,
+          regulatory, engineering, or investment advice. Check official CalGEM records before relying on any figure.
+        </TermsItem>
+        <TermsItem title="Limitation of liability">
+          To the fullest extent permitted by law, Ryan Weller is not liable for any direct, indirect, incidental, or
+          consequential damages arising from your use of, or inability to use, the site or its data.
+        </TermsItem>
+        <TermsItem title="Independence">
+          This is an independent project, not affiliated with or endorsed by CalGEM or the State of California.
+        </TermsItem>
+        <TermsItem title="Changes and enforcement">
+          These terms may change at any time; the date above shows the latest revision, and continued use means you accept
+          the current terms. Access may be limited or blocked for anyone who violates them. To request consent for a use not
+          permitted here, email{' '}
+          <a className={LINK_CLASS} href={CONTACT_MAILTO}>
+            ryan@ryweller.com
+          </a>
+          .
+        </TermsItem>
+      </div>
+    </section>
+  );
+}
+
+function TermsItem({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{title}</h3>
+      <div>{children}</div>
+    </div>
   );
 }
 
@@ -616,7 +780,7 @@ function ViewLink({ href, title, onNavigate, children }: { href: string; title: 
   return (
     <a
       className="block border border-line bg-panel/40 p-3 transition hover:border-accent/60"
-      href={href}
+      href={caHref(href)}
       onClick={(event) => {
         event.preventDefault();
         onNavigate(href);
@@ -628,31 +792,269 @@ function ViewLink({ href, title, onNavigate, children }: { href: string; title: 
   );
 }
 
-function MethodBlock({ title, children }: { title: string; children: React.ReactNode }) {
+const LINK_CLASS = 'text-accent underline decoration-accent/40 underline-offset-2 transition hover:decoration-accent';
+const CONTACT_MAILTO = 'mailto:ryan@ryweller.com?subject=California%20well%20permit%20activity';
+
+type Swatch = [label: string, color: string];
+
+// Each row: a group swatch, then its members as shades of the same hue.
+const COLOR_FAMILIES: Array<{ title: string; rows: Array<{ group: Swatch; members?: Swatch[] }> }> = [
+  {
+    title: 'Work activity',
+    rows: [
+      { group: ['New Drill', WORK_COLORS.new_drills] },
+      { group: ['Existing', WORK_COLORS.existing], members: ['Rework', 'Sidetrack', 'Deepen'].map((name) => [name, NOTICE_TYPE_COLORS[name]] as Swatch) },
+      { group: ['Abandonment', WORK_COLORS.abandonment], members: ['Abandon', 'Re-Abandon'].map((name) => [name, NOTICE_TYPE_COLORS[name]] as Swatch) }
+    ]
+  },
+  {
+    title: 'Functional type',
+    rows: [
+      { group: ['Producer', FUNCTIONAL_TYPE_COLORS.producer], members: ['Oil & Gas', 'Dry Gas'].map((name) => [name, SOURCE_TYPE_COLORS[name]] as Swatch) },
+      { group: ['Thermal Producer', FUNCTIONAL_TYPE_COLORS.thermal_producer] },
+      {
+        group: ['Injector', FUNCTIONAL_TYPE_COLORS.injector],
+        members: ['Steamflood', 'Waterflood', 'Water Disposal', 'Gas Disposal'].map((name) => [name, SOURCE_TYPE_COLORS[name]] as Swatch)
+      },
+      { group: ['Observation', FUNCTIONAL_TYPE_COLORS.observation] },
+      { group: ['Other', FUNCTIONAL_TYPE_COLORS.other] }
+    ]
+  },
+  {
+    title: 'Parent company',
+    rows: [
+      {
+        group: [CRC_PARENT_NAME, OPERATOR_SLOTS.crc],
+        members: [
+          ['Aera Energy', CRC_MEMBER_SHADES.aera],
+          ['CRC Production', CRC_MEMBER_SHADES.production],
+          ['CRC Elk Hills', CRC_MEMBER_SHADES.elkHills],
+          ['Berry, THUMS, Tidelands, others', CRC_MEMBER_SHADES.other]
+        ]
+      },
+      { group: ['Chevron U.S.A. Inc.', OPERATOR_SLOTS.chevron] },
+      { group: ['Sentinel Peak Resources', OPERATOR_SLOTS.sentinel] },
+      { group: ['Largest other parent company', OPERATOR_SLOTS.spares[0]] },
+      { group: ['Second-largest other parent company', OPERATOR_SLOTS.spares[1]] },
+      { group: ['All other operators', CHART.other] }
+    ]
+  }
+];
+
+// Illustrative counts for one field, by operator of record and by parent company.
+const COLOR_EXAMPLE: Array<{ label: string; segments: Array<[string, number, string]> }> = [
+  {
+    label: 'Operator of record',
+    segments: [
+      ['Aera Energy', 40, CRC_MEMBER_SHADES.aera],
+      ['CRC Production', 25, CRC_MEMBER_SHADES.production],
+      ['CRC Elk Hills', 15, CRC_MEMBER_SHADES.elkHills],
+      ['Chevron', 30, OPERATOR_SLOTS.chevron],
+      ['Sentinel Peak', 10, OPERATOR_SLOTS.sentinel]
+    ]
+  },
+  {
+    label: 'Parent company',
+    segments: [
+      [CRC_PARENT_NAME, 80, OPERATOR_SLOTS.crc],
+      ['Chevron', 30, OPERATOR_SLOTS.chevron],
+      ['Sentinel Peak', 10, OPERATOR_SLOTS.sentinel]
+    ]
+  }
+];
+
+function ChartColors() {
+  const total = Math.max(...COLOR_EXAMPLE.map((bar) => bar.segments.reduce((sum, [, count]) => sum + count, 0)));
   return (
-    <section className="border-t border-line pt-4">
+    <>
+      <p>
+        Colors mean the same thing on every page. Each group has one hue, and its members are shades of that hue, so an
+        operator of record reads as part of its parent company and a CalGEM well type reads as part of its functional
+        type. Gray is always Other. Where the industry has a convention, the colors follow it: injectors are water blue,
+        gas is red, steam is orange, and oil is black. California Resources blue and Chevron red come from their logos.
+        Operator colors are fixed for California Resources, Chevron and Sentinel Peak; the next two largest parent
+        companies by New Drill and Existing permits in the last 12 months take amber and purple. Fields, counties and districts
+        have no fixed color; each chart gives its largest six a distinct color in a fixed order, and the rest are
+        Other.
+      </p>
+      <div className="mt-3 grid gap-4 sm:grid-cols-3">
+        {COLOR_FAMILIES.map((family) => (
+          <div key={family.title}>
+            <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{family.title}</h3>
+            <ul className="space-y-1.5 text-xs">
+              {family.rows.map(({ group, members }) => (
+                <li key={group[0]}>
+                  <span className="flex items-center gap-1.5 text-slate-200">
+                    <ColorChip color={group[1]} />
+                    {group[0]}
+                  </span>
+                  {members && (
+                    <span className="ml-4 mt-0.5 flex flex-wrap gap-x-2.5 gap-y-0.5 text-slate-400">
+                      {members.map(([label, color]) => (
+                        <span key={color} className="inline-flex items-center gap-1">
+                          <ColorChip color={color} small />
+                          {label}
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      <figure className="mt-4 border border-line bg-panel/40 p-3">
+        <div className="space-y-2">
+          {COLOR_EXAMPLE.map((bar) => (
+            <div key={bar.label} className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-2 text-xs sm:grid-cols-[130px_minmax(0,1fr)]">
+              <span className="text-slate-400">{bar.label}</span>
+              <div className="flex h-5" style={{ gap: 2 }}>
+                {bar.segments.map(([label, count, color]) => (
+                  <div key={label} title={`${label}: ${count}`} style={{ width: `${(count / total) * 100}%`, backgroundColor: color }} />
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-2 text-xs sm:grid-cols-[130px_minmax(0,1fr)]">
+            <span className="text-slate-400">Fields, by rank</span>
+            <div className="flex h-5" style={{ gap: 2 }}>
+              {[...FIELD_COLORS, CHART.other].map((color, index) => (
+                <div key={color} style={{ width: `${[26, 19, 15, 12, 9, 7, 12][index]}%`, backgroundColor: color }} />
+              ))}
+            </div>
+          </div>
+        </div>
+        <figcaption className="mt-2 text-[11px] text-slate-500">
+          Example with illustrative counts: one field&apos;s permits stacked by operator of record, then rolled up to parent
+          company. California Resources operators keep the CRC blue in both views. The last bar shows the order of field
+          colors, largest first, then Other.
+        </figcaption>
+      </figure>
+    </>
+  );
+}
+
+function ColorChip({ color, small = false }: { color: string; small?: boolean }) {
+  return <span className={`inline-block shrink-0 ${small ? 'h-2 w-2' : 'h-2.5 w-2.5'}`} style={{ backgroundColor: color, outline: `1px solid ${SURFACE.line}` }} />;
+}
+
+function MethodBlock({ title, wide = false, children }: { title: string; wide?: boolean; children: React.ReactNode }) {
+  return (
+    <section className={`border-t border-line pt-4${wide ? ' md:col-span-2' : ''}`}>
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{title}</h2>
       <div>{children}</div>
     </section>
   );
 }
 
+function MappingTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
+  return (
+    <div className="mt-2 overflow-x-auto">
+      <table className="w-full border-collapse text-left text-xs">
+        <thead>
+          <tr className="border-b border-line text-[11px] uppercase tracking-wide text-slate-500">
+            {headers.map((header) => (
+              <th key={header} className="py-1.5 pr-4 font-semibold">
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row[0]} className="border-b border-line/60">
+              {row.map((cell, index) => (
+                <td key={index} className={`py-1.5 pr-4 ${index === 0 ? 'font-semibold text-slate-200' : 'text-slate-400'}`}>
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function GaugeKey({ color, children }: { color: string; children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-2">
+      <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: color }} aria-hidden="true" />
+      <span>{children}</span>
+    </li>
+  );
+}
+
 function SourceLinks() {
-  const links: Array<[string, string]> = [
-    ['https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Notices/MapServer/1', 'Notices'],
-    ['https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Wells/MapServer/0', 'Wells'],
-    ['https://gis.conservation.ca.gov/server/rest/services/CalGEM/Admin_Bounds/MapServer/0', 'Fields'],
-    [SB237_DRILL_TRACKER_URL, 'Drill Tracker'],
-    ['https://rigcount.bakerhughes.com/', 'Rig count'],
-    ['https://www.conservation.ca.gov/calgem/Pages/permits.aspx', 'CalGEM']
+  const sources: Array<[string, string, string]> = [
+    ['https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Notices/MapServer/1', 'WellSTAR Notices', 'approved permits'],
+    ['https://gis.conservation.ca.gov/server/rest/services/WellSTAR/Wells/MapServer/0', 'WellSTAR Wells', 'well locations and status'],
+    ['https://gis.conservation.ca.gov/server/rest/services/CalGEM/Admin_Bounds/MapServer/0', 'CalGEM field boundaries', 'map field outlines'],
+    ['https://wellstar-public.conservation.ca.gov/General/PublicDownloads/Index', 'CalGEM wells file', 'pool names'],
+    [SB237_DRILL_TRACKER_URL, 'Central District Drill Tracker', 'Kern spud dates'],
+    ['https://www.conservation.ca.gov/calgem/Pages/permits.aspx', 'CalGEM permits', 'official permit information']
   ];
   return (
-    <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-wide">
-      {links.map(([href, label]) => (
-        <a key={label} className="text-slate-500 transition hover:text-accent" href={href} target="_blank" rel="noreferrer">
-          {label}
-        </a>
+    <ul className="space-y-1.5">
+      {sources.map(([href, label, use]) => (
+        <li key={label}>
+          <a className={`font-semibold ${LINK_CLASS}`} href={href} target="_blank" rel="noreferrer">
+            {label} ↗
+          </a>
+          <span className="text-slate-400"> · {use}</span>
+        </li>
       ))}
-    </div>
+    </ul>
+  );
+}
+
+function SiteFooter({
+  status,
+  links,
+  onNavigate
+}: {
+  status?: string;
+  links: Array<[string, string]>;
+  onNavigate: (path: string) => void;
+}) {
+  return (
+    <footer className="space-y-3 border-t border-line pt-4 text-xs text-slate-500">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {status && <span>{status}</span>}
+        <nav className="flex flex-wrap items-center gap-4" aria-label="More pages">
+          {links.map(([href, label]) => (
+            <a
+              key={href}
+              className="text-slate-500 transition hover:text-accent"
+              href={caHref(href)}
+              onClick={(event) => {
+                event.preventDefault();
+                onNavigate(href);
+              }}
+            >
+              {label}
+            </a>
+          ))}
+          <a className="text-slate-500 transition hover:text-accent" href={siteHref('/')}>
+            All states
+          </a>
+          <a
+            className="inline-flex items-center gap-1.5 border border-line px-2.5 py-1 font-semibold text-slate-300 transition hover:border-accent hover:text-accent"
+            href={CONTACT_MAILTO}
+          >
+            <Mail size={13} aria-hidden="true" />
+            Questions or issues
+          </a>
+        </nav>
+      </div>
+      <p>
+        Independent service by{' '}
+        <a className="text-slate-300 underline decoration-line underline-offset-2 hover:text-accent" href="https://ryweller.com" target="_blank" rel="noreferrer">
+          Ryan Weller
+        </a>
+        , not affiliated with or endorsed by CalGEM.
+      </p>
+    </footer>
   );
 }
