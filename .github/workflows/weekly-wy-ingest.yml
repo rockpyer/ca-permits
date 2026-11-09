@@ -2,6 +2,12 @@ name: Weekly WOGCC ingest
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "auto follows data/ingest_plan.json; full or delta forces one"
+        type: choice
+        options: [auto, delta, full]
+        default: auto
   schedule:
     # Monday, after the CalGEM (11:17 UTC) and ECMC (11:47 UTC) ingests.
     - cron: "13 12 * * 1"
@@ -33,11 +39,16 @@ jobs:
         run: pytest tests
 
       - name: Run WOGCC ingest
+        env:
+          INGEST_MODE: ${{ inputs.mode || 'auto' }}
         run: python backend/ingest_wyoming.py
 
       # Pushed with GITHUB_TOKEN, which does not start a push deploy; deploy.yml
       # redeploys from this workflow's success instead.
+      # Also after a failed ingest: the run record (with its error) reaches /admin. The job
+      # still fails, so deploy.yml does not redeploy.
       - name: Commit data store
+        if: ${{ !cancelled() }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from arcgis import ArcGISLayer, query_features
 from config import WELLS_LAYER_URL
-from store import fail_if_count_collapsed, merge_rows, read_jsonl, record_run, write_jsonl
+from store import fail_if_count_collapsed, merge_rows, read_jsonl, record_run, row_changes, write_jsonl
 from normalize import generated_links, normalize_api
 
 WELL_FIELDS = [
@@ -85,12 +85,14 @@ def ingest(api_10s: set[str]) -> int:
     by_api = {row["api_10"]: row for row in rows}
     fail_if_count_collapsed("wells", len(by_api), 1)
     matched = [row for api_10, row in by_api.items() if api_10 in api_10s]
-    merged = merge_rows(read_jsonl("wells.jsonl"), matched, "api_10")
+    changes = row_changes()
+    merged = merge_rows(read_jsonl("wells.jsonl"), matched, "api_10", changes)
     write_jsonl("wells.jsonl", merged, "api_10")
     record_run(
         "wells",
         source_count=len(rows),
         upsert_count=len(matched),
+        rows=changes,
         details={"deduped_count": len(by_api), "stored_count": len(merged)},
     )
     return len(matched)

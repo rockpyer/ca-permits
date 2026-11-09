@@ -76,6 +76,11 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:now
 .row input[type=search]{flex:1;min-width:160px}
 iframe{width:100%;height:70vh;border:1px solid var(--line);border-radius:6px;background:#fff}
 code{font-size:12px}
+/* Ingest */
+.plan{display:grid;grid-template-columns:130px 1fr;gap:4px 12px;margin:0 0 10px;font-size:13px}.plan dt{color:var(--muted)}.plan dd{margin:0}.plan ul{margin:0;padding-left:18px}
+.mode{font-size:11px;border:1px solid var(--line);border-radius:3px;padding:0 5px;white-space:nowrap}.mode-full{border-color:var(--accent);color:var(--accent)}
+.bad{color:var(--err)}.good{color:var(--ok)}
+@media (max-width:640px){.plan{grid-template-columns:1fr}}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -105,6 +110,7 @@ code{font-size:12px}
       <button role="tab" data-tab="digest" aria-selected="false">Weekly email</button>
       <button role="tab" data-tab="audit" aria-selected="false">Audit log</button>
       <button role="tab" data-tab="backlog" aria-selected="false">Backlog</button>
+      <button role="tab" data-tab="ingest" aria-selected="false">Ingest</button>
     </nav>
 
     <section data-panel="visitors">
@@ -166,6 +172,16 @@ code{font-size:12px}
       <p class="hint">Ranked in build order within each priority. Status, priority and notes save for you; the list itself lives in <code>worker/src/backlog.mjs</code>, with design notes in <code>BACKLOG.md</code> and <code>docs/colorado_plan.md</code>.</p>
     </section>
 
+    <section data-panel="ingest" hidden>
+      <p class="hint" id="iPolicy" style="margin:0 0 12px"></p>
+      <h2>Ingest runs this week <span class="n" id="iWeek"></span></h2>
+      <div class="tiles" id="iTiles"></div>
+      <div id="iSources"></div>
+      <div class="card"><h2>Weekly ingest totals <span class="n">last 8 weeks, by source</span></h2><div class="wrap" id="iWeeks"></div>
+        <p class="hint">Requests and downloads are counted from the first run after 2026-11-09; earlier runs show a dash. New and changed count records that differ from what was stored, ignoring the check date.</p></div>
+      <p class="hint">The plan lives in <code>data/ingest_plan.json</code>; runs are read from each state's <code>etl_runs.jsonl</code> on the main branch, within about two minutes of the ingest committing. Force a mode from GitHub Actions: run the workflow and pick <i>delta</i> or <i>full</i>.</p>
+    </section>
+
     <section data-panel="audit" hidden>
       <div class="card"><h2>Audit log <span class="n">append-only; people appear as an email hash</span></h2><div class="wrap" id="audit"></div>
         <button type="button" id="moreAudit" hidden>Older</button></div>
@@ -224,7 +240,7 @@ code{font-size:12px}
   $('#refresh').onclick = () => load();
   $('#days').onchange = () => load();
 
-  function load() { ({ visitors, subs: loadSubs, digest: loadDigest, audit: () => loadAudit(true), backlog: loadBacklog })[tab]().catch((e) => console.error(e)); }
+  function load() { ({ visitors, subs: loadSubs, digest: loadDigest, audit: () => loadAudit(true), backlog: loadBacklog, ingest: loadIngest })[tab]().catch((e) => console.error(e)); }
 
   /* ----- Visitors ----- */
   function chart(daily, days) {
@@ -323,6 +339,50 @@ code{font-size:12px}
       loadDigest();
     } catch (e) { digestMsg(e.message, true); }
   };
+
+  /* ----- Ingest ----- */
+  const mb = (b) => b == null ? '—' : b < 1e6 ? `${Math.max(0.1, b / 1e6).toFixed(1)} MB` : `${(b / 1e6).toFixed(b < 1e7 ? 1 : 0)} MB`;
+  const n0 = (v) => v == null ? '—' : fmt(v);
+  const day = (t) => t ? new Date(t).toLocaleDateString('en-US', { timeZone: 'America/Denver', month: 'short', day: 'numeric' }) : '';
+  const modeTag = (m) => `<span class="mode mode-${esc(m)}">${esc(m)}</span>`;
+  async function loadIngest() {
+    let d;
+    try { d = await api('GET', '/api/admin/ingest'); } catch (e) { $('#iSources').innerHTML = `<p class="err">${esc(e.message)}</p>`; return; }
+    $('#iPolicy').textContent = `${d.policy} (Plan updated ${d.updated}.)`;
+    $('#iWeek').textContent = `week of ${day(d.week_start + 'T12:00:00Z')}`;
+    const wk = d.sources.map((s) => s.weeks[0]), tot = (k) => wk.some((w) => w[k] != null) ? wk.reduce((n, w) => n + (w[k] || 0), 0) : null;
+    const failed = tot('failed');
+    $('#iTiles').innerHTML = [[n0(tot('runs')), 'runs'], [n0(failed), 'failed', failed ? 'bad' : ''], [n0(tot('requests')), 'requests to agency sites'],
+      [mb(tot('bytes')), 'downloaded'], [n0(tot('new')), 'new records'], [n0(tot('changed')), 'changed records'], [n0(tot('spuds_new')), 'new spuds (CO, WY)']]
+      .map(([v, l, c]) => `<div class="tile"><b class="${c || ''}">${v}</b><span>${l}</span></div>`).join('');
+    $('#iSources').innerHTML = d.sources.map((s) => `<div class="card">
+      <h2>${esc(s.state)} · ${esc(s.agency)} <span class="n">${esc(s.host)}</span></h2>
+      ${s.error ? `<p class="err">${esc(s.error)}</p>` : ''}
+      <dl class="plan">
+        <dt>Next run</dt><dd>${esc(when(s.next_run))} ${modeTag(s.next_mode)} <span class="org" style="display:inline">· ${esc(s.schedule)}, <code>${esc(s.workflow)}</code></span></dd>
+        <dt>Full refresh</dt><dd>${s.mode === 'auto' ? `every ${s.full_every_days} days; last ${esc(day(s.last_full) || 'never')}, next full run ${esc(day(s.next_full))}` : 'every run'}</dd>
+        <dt>Fetches</dt><dd><ul>${s.fetches.map((f) => `<li>${esc(f)}</li>`).join('')}</ul></dd>
+        ${s.limits ? `<dt>Limits</dt><dd>${esc(Object.entries(s.limits).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' · '))}</dd>` : ''}
+        ${s.notes ? `<dt>Notes</dt><dd>${esc(s.notes)}</dd>` : ''}
+      </dl>
+      <div class="wrap">${table([
+        { h: 'Finished', f: (r) => esc(when(r.finished_at)) },
+        { h: 'Step', f: (r) => esc(s.run_sources.length > 1 ? r.source : '') },
+        { h: 'Mode', f: (r) => modeTag(r.mode) },
+        { h: 'Status', f: (r) => `<span class="${r.status === 'success' ? 'good' : 'bad'}">${esc(r.status)}${r.blocked ? ' · blocked' : ''}</span>` },
+        { h: 'Requests', f: (r) => n0(r.requests), num: 1 }, { h: 'Downloaded', f: (r) => mb(r.bytes), num: 1 },
+        { h: 'Time', f: (r) => r.seconds == null ? '—' : dur(Math.round(r.seconds)), num: 1 },
+        { h: 'Read', f: (r) => n0(r.read), num: 1 }, { h: 'New', f: (r) => n0(r.rows?.new), num: 1 }, { h: 'Changed', f: (r) => n0(r.rows?.changed), num: 1 },
+        { h: 'Unchanged', f: (r) => n0(r.rows?.unchanged), num: 1 }, { h: 'New spuds', f: (r) => n0(r.spuds_new), num: 1 },
+        { h: 'Detail pages', f: (r) => r.details_fetched == null ? '' : `${fmt(r.details_fetched)}${r.details_limit != null ? ` of ${r.details_limit}` : ''}`, num: 1 },
+        { h: 'Notes', f: (r) => esc(r.notes.join('; ')) }], s.runs.slice(0, 8), 'No runs recorded yet.')}</div></div>`).join('');
+    const rows = d.sources.flatMap((s) => s.weeks.map((w) => ({ ...w, src: `${s.state} · ${s.agency}` }))).filter((w) => w.runs)
+      .sort((a, b) => b.week.localeCompare(a.week) || a.src.localeCompare(b.src));
+    $('#iWeeks').innerHTML = table([{ h: 'Week of', f: (w) => esc(day(w.week + 'T12:00:00Z')) }, { h: 'Source', k: 'src' }, { h: 'Runs', k: 'runs', num: 1 },
+      { h: 'Failed', f: (w) => `<span class="${w.failed ? 'bad' : ''}">${fmt(w.failed)}${w.blocked ? ' · blocked' : ''}</span>`, num: 1 },
+      { h: 'Requests', f: (w) => n0(w.requests), num: 1 }, { h: 'Downloaded', f: (w) => mb(w.bytes), num: 1 },
+      { h: 'New', f: (w) => n0(w.new), num: 1 }, { h: 'Changed', f: (w) => n0(w.changed), num: 1 }, { h: 'New spuds', f: (w) => n0(w.spuds_new), num: 1 }], rows, 'No runs in the last 8 weeks.');
+  }
 
   /* ----- Audit ----- */
   let auditRows = [];

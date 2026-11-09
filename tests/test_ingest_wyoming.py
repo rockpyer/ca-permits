@@ -230,3 +230,91 @@ def test_fetch_details_stops_after_consecutive_failures():
     fetched, failed, stopped = fetch_details(fetch, queue, {}, "2026-11-07")
     assert (fetched, failed) == (0, 5)
     assert stopped == "5 detail pages failed in a row"
+
+
+def test_delta_apd_keys_rotate_the_pending_queue():
+    from ingest_wyoming import delta_apd_keys
+
+    apds = [
+        {"source_key": "100", "apd_status": "Waiting on Approval"},
+        {"source_key": "101", "apd_status": "Waiting on Approval"},
+        {"source_key": "102", "apd_status": "Active Permit"},
+        {"source_key": "103", "apd_status": "Drilling or Drilled Permit", "spud_date": "2026-10-01"},
+        {"source_key": "104", "apd_status": "Drilling or Drilled Permit"},
+        {"source_key": "105", "apd_status": "Withdrawn"},
+    ]
+    assert delta_apd_keys(apds, week=0, rotation=4) == ["100", "102", "104"]
+    assert delta_apd_keys(apds, week=1, rotation=4) == ["101", "102", "104"]
+
+
+def test_delta_well_keys_and_blocked_last_run():
+    from ingest_wyoming import blocked_last_run, delta_well_keys
+
+    apds = [
+        {"approved_date": "2026-10-01", "well_pkey": "7"},
+        {"approved_date": "2026-10-01", "well_pkey": "8", "completion_date": "2026-11-01"},
+        {"approved_date": None, "well_pkey": "9"},
+    ]
+    assert delta_well_keys(apds, [{"well_pkey": "10"}]) == {"7", "10"}
+    assert blocked_last_run([{"details": {"details_stopped": "APD detail 1: the Data Explorer firewall rejected the request"}}])
+    assert blocked_last_run([{"details": {"blocked": True}}])
+    assert not blocked_last_run([{"details": {"details_stopped": "5 detail pages failed in a row"}}])
+    assert not blocked_last_run([])
+
+
+def test_delta_run_reads_only_new_and_open_apds(tmp_path, monkeypatch):
+    import ingest_wyoming as wy
+    import store
+
+    monkeypatch.setattr(store, "DATA_DIR", tmp_path)
+    monkeypatch.delenv("WY_DETAIL_LIMIT", raising=False)
+    store.write_jsonl(wy.APDS_FILE, [
+        {"source_key": "340000", "api": "49-005-00001", "apd_status": "Active Permit", "approved_date": "2026-10-01",
+         "latitude": 43.1, "longitude": -105.1, "well_pkey": "55"},
+        {"source_key": "340001", "api": "49-005-00002", "apd_status": "Withdrawn", "received_date": "2026-01-01",
+         "well_status": "AP", "latitude": 43.2, "longitude": -105.2},
+    ], key="source_key")
+    calls = {"wfs": [], "report": []}
+
+    def fake_wfs(client, layer, properties, cql=None):
+        calls["wfs"].append((layer, cql))
+        if layer == "APDVertical":
+            return [{"properties": {"PKey": 340005}, "geometry": {"coordinates": [-105.5, 43.5]}}]
+        if layer == "WELL":
+            return [{"properties": {"PKey": 66, "Status": "SP"}}]
+        return []
+
+    def fake_report(client, name, keys, expected):
+        calls["report"].append((name, list(keys)))
+        if name == "StandardAPD.xml":
+            return [
+                {**APD_ROW, "PKey": "340000", "API Number": "49-005-00001-00", "APD Status": "Drilling or Drilled Permit",
+                 "APD Received Date": "09/01/2026", "APD Approved Date": "10/01/2026"},
+                {**APD_ROW, "PKey": "340005", "API Number": "49-005-00003-00", "APD Status": "Waiting on Approval",
+                 "APD Received Date": "11/02/2026", "APD Approved Date": ""},
+            ]
+        return [
+            {"PKey": "55", "API Number": "49-005-00001-00", "Spud Date": "11/03/2026", "Well Status": "SP"},
+            {"PKey": "66", "API Number": "49-005-00009-00", "Spud Date": "11/04/2026", "Well Status": "SP"},
+        ]
+
+    monkeypatch.setattr(wy, "wfs_features", fake_wfs)
+    monkeypatch.setattr(wy, "report", fake_report)
+    monkeypatch.setattr(wy, "fetch_detail", lambda client, pkey: {"APD Status": "x", "Mineral and Surface Ownership": "Mineral: FEE / Surface: FEE"})
+
+    wy.run("delta", store.load_plan("wogcc"))
+
+    assert calls["wfs"][0] == ("APDVertical", "PKey>340001")
+    assert calls["wfs"][2] == ("WELL", "Status='SP'")
+    apd_keys = calls["report"][0][1]
+    assert apd_keys == ["340000", "340005"]  # withdrawn APD waits for the full run
+    assert set(calls["report"][1][1]) == {"55", "66"}
+    apds = {row["source_key"]: row for row in store.read_jsonl(wy.APDS_FILE)}
+    assert apds["340000"]["latitude"] == 43.1  # stored location kept
+    assert apds["340000"]["spud_date"] == "2026-11-03"
+    assert apds["340001"]["well_status"] == "AP"  # not looked up, not cleared
+    assert apds["340005"]["latitude"] == 43.5
+    run = store.read_jsonl(wy.RUNS_FILE)[0]
+    assert run["mode"] == "delta" and run["rows"] == {"new": 1, "changed": 1, "unchanged": 0}
+    assert run["details"]["new_apd_keys"] == 1 and run["details"]["spuds_new"] == 2
+    assert run["details"]["details_limit"] == 15 and run["details"]["details_fetched"] == 1
