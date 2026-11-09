@@ -1,13 +1,14 @@
 import { DEFAULT_WORK_ACTIVITY_GROUPS, functionalTypeGroup, workActivityGroup } from './grouping';
 import { operatorParentName, rowOperatorDisplayName, type OperatorView } from './operators';
-import { permitDate } from './permitDates';
+import { permitDate, trailingYearStart } from './permitDates';
 import type { Filters, PermitActivity } from './types';
 
 const DEFAULT_START_DATE = '2026-01-01';
 
+// Default view: the last 12 months of data (not the calendar year, which would empty out every January).
 export function defaultFilters(bounds?: { minDate?: string; maxDate?: string }): Filters {
-  const end = new Date();
-  const boundedMinDate = latestDate(bounds?.minDate || '', DEFAULT_START_DATE);
+  const end = bounds?.maxDate || new Date().toISOString().slice(0, 10);
+  const boundedMinDate = latestDate(bounds?.minDate || '', trailingYearStart(end) || DEFAULT_START_DATE);
   return {
     workActivities: [...DEFAULT_WORK_ACTIVITY_GROUPS],
     functionalTypes: [],
@@ -18,7 +19,7 @@ export function defaultFilters(bounds?: { minDate?: string; maxDate?: string }):
     wellStatuses: [],
     directional: 'all',
     startDate: boundedMinDate,
-    endDate: bounds?.maxDate || end.toISOString().slice(0, 10)
+    endDate: end
   };
 }
 

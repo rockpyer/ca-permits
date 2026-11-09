@@ -53,12 +53,13 @@ describe('filters', () => {
     const filters = defaultFilters();
     expect(filters.workActivities).toEqual(['new_drills', 'existing']);
     expect(filters.workActivities).not.toContain('abandonment');
-    expect(filters.startDate).toBe('2026-01-01');
   });
 
-  it('keeps January 1 2026 as the default while allowing earlier database bounds', () => {
-    expect(defaultFilters({ minDate: '2025-12-01', maxDate: '2026-05-15' }).startDate).toBe('2026-01-01');
+  it('defaults to the last 12 months of data, clamped to the earliest data', () => {
+    expect(defaultFilters({ minDate: '2024-05-06', maxDate: '2026-05-15' })).toMatchObject({ startDate: '2025-05-16', endDate: '2026-05-15' });
     expect(defaultFilters({ minDate: '2026-02-01', maxDate: '2026-05-15' }).startDate).toBe('2026-02-01');
+    // Crossing into a new year keeps a full 12 months instead of resetting to Jan 1.
+    expect(defaultFilters({ minDate: '2024-05-06', maxDate: '2027-01-04' }).startDate).toBe('2026-01-05');
   });
 
   it('filters out abandonment unless toggled on', () => {

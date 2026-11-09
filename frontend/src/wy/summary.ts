@@ -1,3 +1,4 @@
+import { trailingYearStart } from '../lib/permitDates';
 import { activitySeries, daysBetween, median, stackedCategories, weekStart } from '../state/stats';
 import { applicationOf, approvalToSpudDays, mineralOf, needsBlm, receivedToApprovedDays, reservoirOf, stage, STAGE_LABELS } from './lifecycle';
 import { operatorFor, type OperatorView } from './operators';
@@ -7,8 +8,10 @@ export { weekStart };
 
 export type Scope = 'approved' | 'pending';
 
+// Default view: the last 12 months of data, or the whole history if it is shorter.
 export function defaultWyFilters(bounds: { minDate: string; maxDate: string }): WyFilters {
-  return { startDate: bounds.minDate, endDate: bounds.maxDate, operators: [], counties: [], reservoirs: [], minerals: [], applicationTypes: [], stages: [] };
+  const lastYear = trailingYearStart(bounds.maxDate);
+  return { startDate: lastYear && lastYear > bounds.minDate ? lastYear : bounds.minDate, endDate: bounds.maxDate, operators: [], counties: [], reservoirs: [], minerals: [], applicationTypes: [], stages: [] };
 }
 
 /**

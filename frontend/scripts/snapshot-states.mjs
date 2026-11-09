@@ -46,10 +46,14 @@ export function weeklySeries(dates, week, weeks = WEEKS) {
   return counts;
 }
 
-// Locations for the card map: this year's rows through week.end, rounded to 0.01° and de-duplicated.
-// `latest` marks a point with a row in the latest week.
+// The 12 months ending at week.end. The states page uses rolling windows, not calendar years, so nothing
+// empties out on Jan 1.
+export const twelveMonthStart = (end) => iso(Date.parse(`${end}T00:00:00Z`) - 364 * DAY);
+
+// Locations for the card map: the last 12 months of rows through week.end, rounded to 0.01° and
+// de-duplicated. `latest` marks a point with a row in the latest week.
 export function mapPoints(rows, dateKey, week) {
-  const yearStart = `${week.end.slice(0, 4)}-01-01`;
+  const yearStart = twelveMonthStart(week.end);
   const points = new Map();
   for (const row of rows) {
     const date = row[dateKey];
@@ -62,24 +66,36 @@ export function mapPoints(rows, dateKey, week) {
   return [...points].map(([key, latest]) => [...key.split(',').map(Number), latest]);
 }
 
-// Weekly and year-to-date counts for a state with approval and spud dates (Colorado, Wyoming).
+// Weekly and last-12-month counts for a state with approval and spud dates (Colorado, Wyoming).
 function approvalsAndSpuds(approvedDates, spudDates, week) {
-  const yearStart = `${week.end.slice(0, 4)}-01-01`;
+  const yearStart = twelveMonthStart(week.end);
   return {
     approvals: approvedDates.filter((date) => inRange(date, week.start, week.end)).length,
     spuds: spudDates.filter((date) => inRange(date, week.start, week.end)).length,
-    ytdApprovals: approvedDates.filter((date) => inRange(date, yearStart, week.end)).length,
-    ytdSpuds: spudDates.filter((date) => inRange(date, yearStart, week.end)).length
+    yearApprovals: approvedDates.filter((date) => inRange(date, yearStart, week.end)).length,
+    yearSpuds: spudDates.filter((date) => inRange(date, yearStart, week.end)).length
   };
 }
 
 // California's chart and map use New Drill permits (CalGEM notice type), as in scripts/digest.mjs.
 function caExtras(permits, week) {
-  const rows = rowsOf(permits)
-    .filter((row) => String(row.notice_type || row.notice_type_label || '').includes('New Drill'))
-    .map((row) => ({ ...row, date: row.notice_date_determination || row.notice_dated || '' }));
+  const all = rowsOf(permits).map((row) => ({ ...row, date: row.notice_date_determination || row.notice_dated || '' }));
+  const rows = all.filter((row) => String(row.notice_type || row.notice_type_label || '').includes('New Drill'));
   if (!rows.length) return {};
-  return { series: weeklySeries(rows.map((row) => row.date), week), points: mapPoints(rows, 'date', week) };
+  const yearStart = twelveMonthStart(week.end);
+  return {
+    series: weeklySeries(rows.map((row) => row.date), week),
+    points: mapPoints(rows, 'date', week),
+    yearApprovals: all.filter((row) => inRange(row.date, yearStart, week.end)).length,
+    yearNewDrills: rows.filter((row) => inRange(row.date, yearStart, week.end)).length
+  };
+}
+
+// When a state's data starts inside the 12-month window, its "last 12 months" counts only cover the time
+// since then; `since` lets the page say so.
+function shortHistory(meta, week) {
+  const start = meta?.historyStart || meta?.dateBounds?.minDate || '';
+  return start && start > twelveMonthStart(week.end) ? { since: start } : {};
 }
 
 export function statesSummary({ ca, co, wy, rigWeeks, generatedAt = new Date().toISOString() }) {
@@ -96,8 +112,6 @@ export function statesSummary({ ca, co, wy, rigWeeks, generatedAt = new Date().t
       week,
       newDrills: digest.week.new_drills,
       approvals: digest.week.total,
-      ytdNewDrills: digest.ytd?.new_drills ?? null,
-      ytdApprovals: digest.ytd?.total ?? null,
       rigs: latestRigs(rigWeeks, 'california', week.end),
       ...caExtras(ca.permits, week)
     });
@@ -112,7 +126,7 @@ export function statesSummary({ ca, co, wy, rigWeeks, generatedAt = new Date().t
     );
     const permits = rowsOf(co.permits);
     states.push({
-      code: 'co', name: 'Colorado', draft: true, source: 'ECMC', dataThrough: through, week, ...counts,
+      code: 'co', name: 'Colorado', draft: true, source: 'ECMC', dataThrough: through, week, ...counts, ...shortHistory(co.meta, week),
       rigs: latestRigs(rigWeeks, 'colorado', week.end),
       series: weeklySeries(permits.map((row) => row.approved_date), week),
       points: mapPoints(permits, 'approved_date', week)
@@ -128,7 +142,7 @@ export function statesSummary({ ca, co, wy, rigWeeks, generatedAt = new Date().t
     );
     const apds = rowsOf(wy.apds);
     states.push({
-      code: 'wy', name: 'Wyoming', draft: true, source: 'WOGCC', dataThrough: through, week, ...counts,
+      code: 'wy', name: 'Wyoming', draft: true, source: 'WOGCC', dataThrough: through, week, ...counts, ...shortHistory(wy.meta, week),
       rigs: latestRigs(rigWeeks, 'wyoming', week.end),
       series: weeklySeries(apds.map((row) => row.approved_date), week),
       points: mapPoints(apds, 'approved_date', week)

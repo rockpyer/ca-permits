@@ -29,8 +29,9 @@ describe('states snapshot', () => {
     });
     expect(summary.states.map((state) => state.code)).toEqual(['ca', 'co']);
     const [ca, co] = summary.states;
-    expect(ca).toMatchObject({ approvals: 114, newDrills: 5, ytdNewDrills: 471, rigs: { date: '2026-10-30', count: 3 } });
-    expect(co).toMatchObject({ draft: true, week: { start: '2026-10-26', end: '2026-11-01' }, approvals: 2, spuds: 1, ytdApprovals: 3, ytdSpuds: 1, rigs: { count: 11 } });
+    expect(ca).toMatchObject({ approvals: 114, newDrills: 5, rigs: { date: '2026-10-30', count: 3 } });
+    expect(co).not.toHaveProperty('since');
+    expect(co).toMatchObject({ draft: true, week: { start: '2026-10-26', end: '2026-11-01' }, approvals: 2, spuds: 1, yearApprovals: 4, yearSpuds: 1, rigs: { count: 11 } });
   });
 
   it('counts weeks and marks this week\'s map points', () => {
@@ -46,7 +47,7 @@ describe('states snapshot', () => {
         { d: '2026-10-27', latitude: 35.001, longitude: -119.004 },
         { d: '2026-03-01', latitude: 35.004, longitude: -119.001 },
         { d: '2026-03-01', latitude: 36, longitude: -120 },
-        { d: '2025-12-31', latitude: 37, longitude: -121 },
+        { d: '2025-10-31', latitude: 37, longitude: -121 },
         { d: '2026-03-01', latitude: null, longitude: null }
       ],
       'd',

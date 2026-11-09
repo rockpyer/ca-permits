@@ -1,3 +1,4 @@
+import { trailingYearStart } from '../lib/permitDates';
 import { activitySeries, countBy, daysBetween, median, monthsBetween, quarterOf, stackedCategories, stackedWeeks, weekStart } from '../state/stats';
 import { approvalToSpudDays, lifecycle, LIFECYCLE_LABELS, LIFECYCLES, type Lifecycle } from './lifecycle';
 import { operatorFor, type OperatorView } from './operators';
@@ -5,9 +6,11 @@ import type { CoFilters, CoPermit, CoSpud, CoUndrilled, RigWeek } from './types'
 
 export { countBy, median, monthsBetween, quarterOf, weekStart };
 
+// Default view: the last 12 months of data, or the whole history if it is shorter.
 export function defaultCoFilters(bounds: { minDate: string; maxDate: string }): CoFilters {
+  const lastYear = trailingYearStart(bounds.maxDate);
   return {
-    startDate: bounds.minDate,
+    startDate: lastYear && lastYear > bounds.minDate ? lastYear : bounds.minDate,
     endDate: bounds.maxDate,
     operators: [],
     counties: [],
