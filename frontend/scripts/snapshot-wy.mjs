@@ -36,19 +36,22 @@ function columnar(rows, columns) {
   return { columns, rows: rows.map((row) => columns.map((column) => row[column] ?? null)) };
 }
 
-export function wySnapshot(apds, details, spuds, runs) {
+export function wySnapshot(apds, details, spuds, runs, ownership = []) {
   const detailByApi = new Map(details.map((row) => [row.api, row]));
+  // Ownership by APD from the filtered report wins; the detail page (stored by API) fills in.
+  const ownershipByKey = new Map(ownership.map((row) => [row.source_key, row]));
   const joined = apds.map((row) => {
     const detail = detailByApi.get(row.api);
+    const owned = ownershipByKey.get(row.source_key);
     return {
       ...row,
       // The WFS point is the surface location; the detail page adds the bottom hole.
       latitude: row.latitude ?? detail?.shl_latitude ?? null,
       longitude: row.longitude ?? detail?.shl_longitude ?? null,
-      bhl_latitude: detail?.bhl_latitude ?? null,
-      bhl_longitude: detail?.bhl_longitude ?? null,
-      mineral_class: detail ? detail.mineral_class : null,
-      surface_owner: detail?.surface_owner ?? null,
+      bhl_latitude: row.bhl_latitude ?? detail?.bhl_latitude ?? null,
+      bhl_longitude: row.bhl_longitude ?? detail?.bhl_longitude ?? null,
+      mineral_class: owned?.mineral_class ?? detail?.mineral_class ?? null,
+      surface_owner: owned?.surface_owner ?? detail?.surface_owner ?? null,
       federal_lease: detail?.federal_lease ?? null,
       proposed_md: detail?.proposed_md ?? null,
       proposed_tvd: detail?.proposed_tvd ?? null,
@@ -78,6 +81,7 @@ export function wySnapshot(apds, details, spuds, runs) {
       apdCount: rows.length,
       spudCount: spudRows.length,
       detailCount: details.length,
+      ownershipCount: ownership.length,
       detailMissing: rows.filter((row) => row.mineral_class === null).length,
       dateBounds: { minDate: dates[0] || '', maxDate: dates.at(-1) || '' },
       checkedDate: checked,
@@ -105,7 +109,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const details = await readJsonl('details.jsonl').catch(() => []);
     const spuds = await readJsonl('spuds.jsonl').catch(() => []);
     const runs = await readJsonl('etl_runs.jsonl').catch(() => []);
-    const snapshot = wySnapshot(apds, details, spuds, runs);
+    const ownership = await readJsonl('ownership.jsonl').catch(() => []);
+    const snapshot = wySnapshot(apds, details, spuds, runs, ownership);
     await mkdir(outDir, { recursive: true });
     await writeFile(resolve(outDir, 'apds.json'), JSON.stringify(snapshot.apds));
     await writeFile(resolve(outDir, 'spuds.json'), JSON.stringify(snapshot.spuds));

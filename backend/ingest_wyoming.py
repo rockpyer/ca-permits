@@ -18,6 +18,9 @@ Writes, under data/wy/:
 - spuds.jsonl: every Wyoming well spudded since HISTORY_START. Merged by API.
 - wells.jsonl: the Standard Well rows for stored APIs, merged by API, so a run that
   re-fetches only changed wells can still join every APD to its well.
+- ownership.jsonl: mineral and surface ownership by APD PKey, from the Standard APD report
+  filtered by its MineralOwnership code (about 25 requests on a full refresh), which covers
+  the whole pending queue without a detail page per APD.
 - source_codes.jsonl: each APD and well key with the status code the WFS gave it last run.
   Weekly runs request report rows only for keys that are new or whose code changed; a full
   refresh runs every FULL_REFRESH_DAYS.
@@ -61,6 +64,8 @@ SPUDS_FILE = "wy/spuds.jsonl"
 RUNS_FILE = "wy/etl_runs.jsonl"
 WELLS_FILE = "wy/wells.jsonl"
 CODES_FILE = "wy/source_codes.jsonl"
+OWNERSHIP_FILE = "wy/ownership.jsonl"
+LOOKUP_URL = f"{BASE_URL}/api/Lookup/"
 # Report rows are re-fetched for every key at least this often, to pick up date or name
 # corrections that do not change a key's WFS status code. WY_FULL=1 forces one.
 FULL_REFRESH_DAYS = 28
@@ -382,6 +387,62 @@ def report(client: requests.Session, name: str, keys: list[str], expected: list[
     return dedupe(rows)
 
 
+def lookup(client: requests.Session, name: str) -> list[tuple[str, str]]:
+    """(value, display) pairs for one of the Data Explorer's filter drop-downs."""
+    response = client.get(LOOKUP_URL, params={"lookupName": name}, timeout=60)
+    response.raise_for_status()
+    if "json" not in response.headers.get("content-type", ""):
+        check_rejected(response.text, f"lookup {name}")
+        raise SourceError(f"lookup {name} did not return JSON")
+    time.sleep(DELAY)
+    return [(str(item["OptionValue"]), clean(item["OptionDisplay"]) or "") for item in response.json()]
+
+
+def report_filtered(client: requests.Session, name: str, controls: list[tuple[str, str]], expected: list[str]) -> list[dict[str, Any]]:
+    """One report request with '=' filters, e.g. [("MineralOwnership", "93"), ("APDStatus", "WP")]."""
+    data = {}
+    for index, (control, value) in enumerate(controls):
+        data[f"FilterControls[{index}][ControlName]"] = control
+        data[f"FilterControls[{index}][CompareSelected]"] = "="
+        data[f"FilterControls[{index}][ValueSelected]"] = value
+    response = client.post(REPORT_URL, params={"sourceID": "list", "activeReport": name}, data=data, timeout=300)
+    response.raise_for_status()
+    if "json" not in response.headers.get("content-type", ""):
+        check_rejected(response.text, name)
+        raise SourceError(f"{name} returned {response.headers.get('content-type')}: {response.text[:200]}")
+    time.sleep(DELAY)
+    return dedupe(report_rows(response.json(), expected))
+
+
+def ownership_records(options: list[tuple[str, str]], rows_by_code: dict[str, list[dict[str, Any]]], checked: str) -> list[dict[str, Any]]:
+    """Ownership rows by PKey from reports filtered by MineralOwnership code."""
+    display = dict(options)
+    records = []
+    for code, rows in rows_by_code.items():
+        ownership = display.get(code)
+        for row in rows:
+            records.append(
+                {
+                    "source_key": str(row["PKey"]),
+                    "ownership": ownership,
+                    "mineral_class": mineral_class(ownership),
+                    "surface_owner": surface_owner(ownership),
+                    "ownership_checked_date": checked,
+                }
+            )
+    return records
+
+
+def fetch_ownership(client: requests.Session, checked: str) -> list[dict[str, Any]]:
+    """Ownership of every APD waiting on approval: one request per ownership code."""
+    options = lookup(client, "MineralOwnership")
+    rows_by_code = {
+        code: report_filtered(client, "StandardAPD.xml", [("MineralOwnership", code), ("APDStatus", "WP")], APD_COLUMNS)
+        for code, _ in options
+    }
+    return ownership_records(options, rows_by_code, checked)
+
+
 def fetch_detail(client: requests.Session, pkey: str) -> dict[str, str | None]:
     response = client.get(
         DETAIL_URL,
@@ -581,6 +642,21 @@ def run(plan: dict[str, Any]) -> None:
     apds = merge_rows(stored_apds, kept, "source_key", apd_changes)
     # An APD no longer returned by the source keeps its last values.
 
+    # 2b. On a full refresh, or while no ownership is stored yet: ownership for the pending
+    #     queue (about 25 filtered requests) and bottom-hole points for every APD (one WFS
+    #     request), instead of detail pages.
+    ownership = {row["source_key"]: row for row in read_jsonl(OWNERSHIP_FILE)}
+    if full or not ownership:
+        for row in fetch_ownership(client, checked):
+            ownership[row["source_key"]] = row
+        bottoms = {
+            str(feature["properties"]["PKey"]): point(feature)
+            for feature in wfs_features(client, "APDBH", ["PKey", "the_geom"], f"PKey>={MIN_APD_PKEY}")
+        }
+        for row in apds:
+            if row["source_key"] in bottoms:
+                row["bhl_latitude"], row["bhl_longitude"] = bottoms[row["source_key"]]
+
     # 3. Wells: WFS key and status code by API, then the well report for wells on stored APDs
     #    plus wells marked spudded (catches spuds on APDs from before the history window),
     #    again only where new or changed.
@@ -650,6 +726,7 @@ def run(plan: dict[str, Any]) -> None:
     write_jsonl(DETAILS_FILE, list(details.values()), key="api")
     write_jsonl(SPUDS_FILE, spuds, key="api")
     write_jsonl(WELLS_FILE, list(wells_by_api.values()), key="api")
+    write_jsonl(OWNERSHIP_FILE, list(ownership.values()), key="source_key")
     # Codes are saved only after every write, so a failed run re-requests what it missed.
     write_codes(apd_codes, well_codes, checked if full else last_full)
     record_run(
@@ -664,6 +741,7 @@ def run(plan: dict[str, Any]) -> None:
             "apd_keys_requested": len(apd_keys),
             "well_keys_requested": len(well_keys),
             "apds_stored": len(apds),
+            "ownership_stored": len(ownership),
             "wells_checked": len(wells),
             "spuds_stored": len(spuds),
             "spuds_new": spud_changes["new"],
