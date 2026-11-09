@@ -1,12 +1,12 @@
--- One weekly email per state (src/lists.mjs): ca, co, wy. A subscriber row is now one address on one state's list, so
--- the same address can be on several lists, each with its own consent record, confirmation and unsubscribe link.
--- Existing rows are the California list. SQLite cannot change a UNIQUE constraint in place, so both tables are rebuilt.
--- Apply once (D1 console, or npx wrangler d1 execute ca-permits --remote --file migrations/0004_state_lists.sql),
--- before deploying the Worker that reads the list column.
+/* One weekly email per state (src/lists.mjs): ca, co, wy. A subscriber row is now one address on one state's list, so */
+/* the same address can be on several lists, each with its own consent record, confirmation and unsubscribe link. */
+/* Existing rows are the California list. SQLite cannot change a UNIQUE constraint in place, so both tables are rebuilt. */
+/* Apply once (D1 console, or npx wrangler d1 execute ca-permits --remote --file migrations/0004_state_lists.sql), */
+/* before deploying the Worker that reads the list column. */
 
 CREATE TABLE subscribers_new (
   id TEXT PRIMARY KEY,
-  list TEXT NOT NULL DEFAULT 'ca',        -- ca, co, wy
+  list TEXT NOT NULL DEFAULT 'ca',  /* ca, co, wy */
   email TEXT NOT NULL COLLATE NOCASE,
   email_hash TEXT NOT NULL,
   name TEXT,
@@ -34,7 +34,7 @@ DROP TABLE subscribers;
 ALTER TABLE subscribers_new RENAME TO subscribers;
 CREATE INDEX IF NOT EXISTS subscribers_status ON subscribers (list, status);
 
--- One row per state per weekly email.
+/* One row per state per weekly email. */
 CREATE TABLE digests_new (
   list TEXT NOT NULL DEFAULT 'ca',
   week TEXT NOT NULL,
@@ -50,4 +50,4 @@ INSERT INTO digests_new (list, week, data_generated_at, started_at, finished_at,
   SELECT 'ca', week, data_generated_at, started_at, finished_at, recipients, sent, failed FROM digests;
 DROP TABLE digests;
 ALTER TABLE digests_new RENAME TO digests;
--- sends stays keyed by (week, subscriber_id): a subscriber row belongs to one list, so the week is unambiguous.
+/* sends stays keyed by (week, subscriber_id): a subscriber row belongs to one list, so the week is unambiguous. */
