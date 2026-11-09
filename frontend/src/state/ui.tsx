@@ -1,16 +1,16 @@
 // Page pieces shared by the state pages (/co, /wy). Each state supplies its own data,
 // labels, colors and copy; these components hold the layout and chart wiring.
-import { useState, type ReactNode } from 'react';
-import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useMemo, useState, type ReactNode } from 'react';
+import { Bar, BarChart, CartesianGrid, Cell, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { CalendarDays, Download, ExternalLink, Loader2, Mail, X } from 'lucide-react';
 import { CompactChartTooltip } from '../components/CompactChartTooltip';
 import { ACCENT, CHART, SURFACE } from '../lib/palette';
 import { longDate, monthLabel, shortDate, truncate } from './format';
 import type { ActivityRow } from './stats';
+import { sortRows, type ChartFilter, type Column, type SortState } from './table';
 
-const LEGEND_STYLE = { fontSize: 12, paddingTop: 4 };
-// Legend labels stay dark; the swatch carries the series color, so light colors stay readable.
-const legendText = (value: string) => <span style={{ color: CHART.label }}>{value}</span>;
+export type { ChartFilter, Column };
+
 
 export type Stage = { key: string; label: string; color: string };
 
@@ -339,29 +339,101 @@ export function ActivityPanel({
   );
 }
 
-function stageBars(data: Record<string, number | string>[], stages: Stage[]) {
-  return stages
-    .filter((stage) => data.some((row) => Number(row[stage.key]) > 0))
-    .map((stage) => <Bar key={stage.key} dataKey={stage.key} name={stage.label} stackId="status" fill={stage.color} stroke={SURFACE.panel} strokeWidth={1} />);
+const DIM = 0.28;
+
+function dimmed(filter: ChartFilter | undefined, value: string) {
+  return Boolean(filter && filter.active.length && !filter.active.includes(value));
 }
 
-/** Horizontal stacked bars by category. */
+/** Legend that doubles as a filter: click a status to show only it; click again to clear. */
+export function StageLegend({ stages, filter, data }: { stages: Stage[]; filter?: ChartFilter; data?: Record<string, number | string>[] }) {
+  // Without a filter, list only the stages in the data. With one, list every stage so a hidden one can be turned back on.
+  const shown = filter ? stages : stages.filter((stage) => !data || data.some((row) => Number(row[stage.key]) > 0));
+  return (
+    <ul className="mt-1 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs" aria-label="Chart legend">
+      {shown.map((stage) => {
+        const swatch = <span className="inline-block h-2.5 w-2.5" style={{ background: stage.color }} aria-hidden="true" />;
+        if (!filter)
+          return (
+            <li key={stage.key} className="flex items-center gap-1.5" style={{ color: CHART.label }}>
+              {swatch}
+              {stage.label}
+            </li>
+          );
+        const on = filter.active.includes(stage.label);
+        return (
+          <li key={stage.key}>
+            <button
+              type="button"
+              aria-pressed={on}
+              title={on ? `Remove the ${stage.label} filter` : `Filter the page to ${stage.label}`}
+              className={`flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-slate-950 ${on ? 'font-semibold underline' : ''}`}
+              style={{ color: CHART.label, opacity: dimmed(filter, stage.label) ? 0.55 : 1 }}
+              onClick={() => filter.toggle(stage.label)}
+            >
+              {swatch}
+              {stage.label}
+            </button>
+          </li>
+        );
+      })}
+      {filter && filter.active.length > 0 && (
+        <li>
+          <button type="button" className="px-1 text-accent hover:underline" onClick={filter.clear}>
+            Clear
+          </button>
+        </li>
+      )}
+    </ul>
+  );
+}
+
+function stageBars(data: Record<string, number | string>[], stages: Stage[], stageFilter?: ChartFilter, nameFilter?: ChartFilter, nameKey?: string) {
+  return stages
+    .filter((stage) => data.some((row) => Number(row[stage.key]) > 0))
+    .map((stage) => (
+      <Bar
+        key={stage.key}
+        dataKey={stage.key}
+        name={stage.label}
+        stackId="status"
+        fill={stage.color}
+        stroke={SURFACE.panel}
+        strokeWidth={1}
+        cursor={stageFilter ? 'pointer' : undefined}
+        onClick={stageFilter ? () => stageFilter.toggle(stage.label) : undefined}
+      >
+        {nameFilter && nameKey
+          ? data.map((row) => <Cell key={String(row[nameKey])} fillOpacity={dimmed(nameFilter, String(row[nameKey])) ? DIM : 1} />)
+          : null}
+      </Bar>
+    ));
+}
+
+const FILTER_HINT = 'Click a bar, a legend entry or a name to filter the whole page; click it again to clear.';
+
+/** Horizontal stacked bars by category. With filters, bars, legend entries and names toggle page filters. */
 export function CategoryPanel({
   title,
   subtitle,
   data,
   stages,
-  nameColor
+  nameColor,
+  stageFilter,
+  nameFilter
 }: {
   title: string;
   subtitle?: string;
   data: Record<string, number | string>[];
   stages: Stage[];
   nameColor?: (name: string) => string | undefined;
+  stageFilter?: ChartFilter;
+  nameFilter?: ChartFilter;
 }) {
-  const height = Math.max(200, data.length * 30 + 60);
+  const height = Math.max(200, data.length * 30 + 30);
+  const clickable = (name: string) => Boolean(nameFilter) && name !== 'Other';
   return (
-    <Panel title={title} subtitle={subtitle}>
+    <Panel title={title} subtitle={subtitle ?? (stageFilter || nameFilter ? FILTER_HINT : undefined)}>
       <div style={{ height }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} layout="vertical" margin={{ top: 4, right: 10, bottom: 0, left: 8 }}>
@@ -374,23 +446,40 @@ export function CategoryPanel({
               interval={0}
               tickLine={false}
               axisLine={false}
-              tick={({ x, y, payload }) => (
-                <text x={x} y={y} dy={4} textAnchor="end" fontSize={11} fill={nameColor?.(String(payload.value)) || CHART.label} fontWeight={nameColor?.(String(payload.value)) ? 600 : 400}>
-                  {truncate(String(payload.value), 26)}
-                </text>
-              )}
+              tick={({ x, y, payload }) => {
+                const name = String(payload.value);
+                const on = nameFilter?.active.includes(name);
+                return (
+                  <text
+                    x={x}
+                    y={y}
+                    dy={4}
+                    textAnchor="end"
+                    fontSize={11}
+                    fill={nameColor?.(name) || CHART.label}
+                    fontWeight={on || nameColor?.(name) ? 600 : 400}
+                    textDecoration={on ? 'underline' : undefined}
+                    opacity={dimmed(nameFilter, name) ? 0.55 : 1}
+                    style={{ cursor: clickable(name) ? 'pointer' : 'default' }}
+                    onClick={clickable(name) ? () => nameFilter!.toggle(name) : undefined}
+                  >
+                    <title>{clickable(name) ? `${name}: click to ${on ? 'remove the filter' : 'filter the page'}` : name}</title>
+                    {truncate(name, 26)}
+                  </text>
+                );
+              }}
             />
             <Tooltip content={<CompactChartTooltip showTotal totalExclude={['total']} />} cursor={{ fill: CHART.cursorFill }} />
-            <Legend wrapperStyle={LEGEND_STYLE} formatter={legendText} />
-            {stageBars(data, stages)}
+            {stageBars(data, stages, stageFilter, nameFilter, 'name')}
           </BarChart>
         </ResponsiveContainer>
       </div>
+      <StageLegend stages={stages} filter={stageFilter} data={data} />
     </Panel>
   );
 }
 
-/** Vertical stacked bars by period (`xKey`). */
+/** Vertical stacked bars by period (`xKey`). With `stageFilter`, bars and legend entries toggle a page filter. */
 export function StackedColumnsPanel({
   title,
   subtitle,
@@ -399,7 +488,8 @@ export function StackedColumnsPanel({
   xKey,
   xFormat,
   labelFormat,
-  height = 240
+  height = 240,
+  stageFilter
 }: {
   title: string;
   subtitle?: string;
@@ -409,28 +499,27 @@ export function StackedColumnsPanel({
   xFormat?: (value: string) => string;
   labelFormat?: (value: string) => string;
   height?: number;
+  stageFilter?: ChartFilter;
 }) {
   return (
     <Panel title={title} subtitle={subtitle}>
-      <div style={{ height }}>
+      <div style={{ height: height - 24 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
             <CartesianGrid stroke={CHART.grid} vertical={false} />
             <XAxis dataKey={xKey} tick={{ fill: CHART.axis, fontSize: 10 }} tickFormatter={xFormat} />
             <YAxis allowDecimals={false} tick={{ fill: CHART.axis, fontSize: 10 }} />
             <Tooltip content={<CompactChartTooltip showTotal />} cursor={{ fill: CHART.cursorFill }} labelFormatter={labelFormat ? (value) => labelFormat(String(value)) : undefined} />
-            <Legend wrapperStyle={LEGEND_STYLE} formatter={legendText} />
-            {stageBars(data, stages)}
+            {stageBars(data, stages, stageFilter)}
           </BarChart>
         </ResponsiveContainer>
       </div>
+      <StageLegend stages={stages} filter={stageFilter} data={data} />
     </Panel>
   );
 }
 
-export type Column<T> = { label: string; value: (row: T) => string | number | null | undefined; numeric?: boolean; color?: (row: T) => string | undefined };
-
-/** Compact table with "show more"; rows are clickable when `onSelect` is given. */
+/** Compact table with sortable headers and "show more"; rows are clickable when `onSelect` is given. */
 export function DataTable<T>({
   rows,
   columns,
@@ -449,21 +538,48 @@ export function DataTable<T>({
   onSelect?: (row: T) => void;
 }) {
   const [limit, setLimit] = useState(initial);
+  const [sort, setSort] = useState<SortState>(null);
+  const sorted = useMemo(() => sortRows(rows, columns, sort), [rows, columns, sort]);
+  // First click sorts text A→Z and numbers largest first; the second reverses; the third restores the default order.
+  const cycle = (index: number) =>
+    setSort((current) => {
+      const first = columns[index].numeric ? 'desc' : 'asc';
+      if (!current || current.index !== index) return { index, dir: first };
+      if (current.dir === first) return { index, dir: first === 'asc' ? 'desc' : 'asc' };
+      return null;
+    });
   return (
     <>
       <div className="permit-table overflow-x-auto">
         <table className="w-full text-left text-xs">
           <thead className="border-b border-line text-slate-500">
             <tr>
-              {columns.map((column) => (
-                <th key={column.label} className={`whitespace-nowrap px-2 py-1.5 font-semibold ${column.numeric ? 'text-right' : ''}`}>
-                  {column.label}
-                </th>
-              ))}
+              {columns.map((column, index) => {
+                const active = sort?.index === index;
+                return (
+                  <th
+                    key={column.label}
+                    aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                    className={`whitespace-nowrap px-2 py-1.5 font-semibold ${column.numeric ? 'text-right' : ''}`}
+                  >
+                    <button
+                      type="button"
+                      className={`inline-flex items-center gap-1 hover:text-slate-200 ${active ? 'text-slate-200' : ''}`}
+                      title={`Sort by ${column.label}`}
+                      onClick={() => cycle(index)}
+                    >
+                      {column.label}
+                      <span aria-hidden="true" className={active ? '' : 'opacity-30'}>
+                        {active ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}
+                      </span>
+                    </button>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
-            {rows.slice(0, limit).map((row) => (
+            {sorted.slice(0, limit).map((row) => (
               <tr
                 key={rowKey(row)}
                 className={`border-b border-line/60 ${onSelect ? 'cursor-pointer hover:bg-slate-950' : ''} ${selectedKey === rowKey(row) ? 'bg-slate-900' : ''}`}
