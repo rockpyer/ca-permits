@@ -1,7 +1,7 @@
 // Weekly digest email. Each Monday after the CalGEM ingest and site redeploy, the cron trigger reads
 // ${SITE_URL}/data/digest.json (built by frontend/scripts/digest.mjs) and emails every active subscriber.
 // Safe to run again: the `sends` table records each delivery, so a retry only reaches people not yet sent that week.
-import { C, COND, FONT, WORK, button, emailFooterText, emailHtml, fmt, kernQuota, kpiStrip, mapBlock, masthead, note, p, range, section, weeklyChart, weeklyChartText } from './layout.mjs';
+import { C, COND, FONT, WORK, button, caUrl, emailFooterText, emailHtml, fmt, kernQuota, kpiStrip, mapBlock, masthead, note, p, range, section, weeklyChart, weeklyChartText } from './layout.mjs';
 import { sendMail } from './mail.mjs';
 import { unsubscribeUrl } from './subscribe.mjs';
 import { audit, esc, iso } from './util.mjs';
@@ -114,7 +114,7 @@ function newDrillRows(d) {
 
 // Subject, HTML and text for one digest. unsub is the recipient's unsubscribe link; mapSrc the stored map's URL.
 export function renderDigest(d, env, unsub, mapSrc = null) {
-  const site = env.SITE_URL, w = d.week, pr = d.prior;
+  const site = caUrl(env), w = d.week, pr = d.prior;
   const opening = lead(d), subject = opening.subject;
   const summary = `All work: ${fmt(w.total)} approved permits for ${range(d)}, ${change(w.total, pr.total)} the prior week. ${d.ytd.year} to date: ${fmt(d.ytd.new_drills)} New Drill, ${fmt(d.ytd.total)} total.`;
   const body = [

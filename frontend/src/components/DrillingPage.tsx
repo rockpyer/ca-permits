@@ -25,6 +25,7 @@ import { operatorDisplayName, rowOperatorDisplayName } from '../lib/operators';
 import { AGE_COLORS, CHART, SURFACE, WORK_COLORS } from '../lib/palette';
 import { SB237_DRILL_TRACKER_URL as DRILL_TRACKER_URL } from '../lib/sb237';
 import type { DrillTracker, DrillTrackerRow, PermitActivity, RigCount } from '../lib/types';
+import { caHref } from '../lib/routes';
 
 type Props = {
   rows: PermitActivity[];
@@ -157,7 +158,7 @@ export function DrillingPage({ rows, drillTracker, rigCount, asOf, operatorColor
       <div className="mx-auto max-w-[1560px]">
         <a
           className="mb-5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 transition hover:text-accent"
-          href="/"
+          href={caHref('/')}
           onClick={(event) => {
             event.preventDefault();
             onNavigateHome();

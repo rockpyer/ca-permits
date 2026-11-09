@@ -2,41 +2,48 @@ import React, { Suspense, lazy } from 'react';
 import ReactDOM from 'react-dom/client';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './styles/index.css';
-import { App } from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { legacyRedirect, pageFor, routePath } from './lib/routes';
 import { startVisitBeacon } from './lib/visits';
 
-// /co and /wy are separate state pages with their own data; they load on demand.
+// / lists the states; /ca, /co and /wy are separate apps with their own data, loaded on demand.
+const StatesPage = lazy(() => import('./home/StatesPage').then((module) => ({ default: module.StatesPage })));
+const CaApp = lazy(() => import('./App').then((module) => ({ default: module.App })));
 const CoApp = lazy(() => import('./co/CoApp').then((module) => ({ default: module.CoApp })));
 const WyApp = lazy(() => import('./wy/WyApp').then((module) => ({ default: module.WyApp })));
 
-function statePage(): 'ca' | 'co' | 'wy' {
-  const path = window.location.hash.startsWith('#/') ? window.location.hash.slice(1) : window.location.pathname;
-  if (/^\/co(\/|$)/.test(path)) return 'co';
-  if (/^\/wy(\/|$)/.test(path)) return 'wy';
-  return 'ca';
+const APPS = { home: StatesPage, ca: CaApp, co: CoApp, wy: WyApp };
+
+// Old California links: rewrite the address in place and render the /ca view, no extra page load.
+const redirect = legacyRedirect();
+if (redirect) window.history.replaceState(null, '', redirect);
+render();
+
+function render() {
+  const page = pageFor(routePath());
+  const Page = APPS[page];
+
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <ErrorBoundary>
+        <Suspense fallback={null}>
+          <Page />
+        </Suspense>
+      </ErrorBoundary>
+    </React.StrictMode>
+  );
+
+  // Each app is chosen once at load, so crossing between them (e.g. preview hash links like #/co)
+  // reloads the page. Old California hash links (#/drilling) are sent to their /ca view.
+  const onRouteChange = () => {
+    const next = legacyRedirect();
+    if (next) {
+      window.history.replaceState(null, '', next);
+      window.location.reload();
+    } else if (pageFor(routePath()) !== page) window.location.reload();
+  };
+  window.addEventListener('hashchange', onRouteChange);
+  window.addEventListener('popstate', onRouteChange);
+
+  startVisitBeacon();
 }
-
-const page = statePage();
-
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      {page === 'ca' ? (
-        <App />
-      ) : (
-        <Suspense fallback={null}>{page === 'co' ? <CoApp /> : <WyApp />}</Suspense>
-      )}
-    </ErrorBoundary>
-  </React.StrictMode>
-);
-
-// The state apps are chosen once at load, so crossing between them (e.g. preview hash
-// links like #/co) reloads the page.
-const reloadOnStateChange = () => {
-  if (statePage() !== page) window.location.reload();
-};
-window.addEventListener('hashchange', reloadOnStateChange);
-window.addEventListener('popstate', reloadOnStateChange);
-
-startVisitBeacon();

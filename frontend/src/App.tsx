@@ -20,6 +20,7 @@ import {
 import { loadSb237DrillTrackerStats, SB237_DRILL_TRACKER_URL, SB237_PAGE_URL, sb237StatsFromTracker, type Sb237DrillTrackerStats } from './lib/sb237';
 import { operatorColorMap } from './lib/operatorColors';
 import { CRC_PARENT_MEMBERS, CRC_PARENT_NAME, operatorAnalysisRows, rowOperatorDisplayName, type OperatorView } from './lib/operators';
+import { caHref, routePath, siteHref } from './lib/routes';
 import { countByValue, shiftDate } from './lib/summary';
 import { ACCENT, BRAND, CHART, CRC_MEMBER_SHADES, FUNCTIONAL_TYPE_COLORS, FIELD_COLORS, NOTICE_TYPE_COLORS, OPERATOR_SLOTS, SOURCE_TYPE_COLORS, SURFACE, WORK_COLORS } from './lib/palette';
 import type { DrillTracker, EtlRun, FieldBoundary, Filters, PermitActivity, RigCount } from './lib/types';
@@ -264,15 +265,15 @@ export function App() {
   );
 }
 
+// California's view within its app ('/', '/drilling', '/prod', '/about-methodology'), from /ca/… or #/ca/….
 function normalizedPath() {
-  // `#/drilling`-style links serve hosts that can't route custom paths (e.g. private previews).
-  if (window.location.hash.startsWith('#/')) return window.location.hash.slice(1).replace(/\/$/, '') || '/';
-  const pathname = window.location.pathname.replace(/\/$/, '') || '/';
-  return pathname === '/ca-permits' ? '/' : pathname;
+  return routePath().replace(/^\/ca(?=\/|$)/, '') || '/';
 }
 
 function navigateTo(path: string, setPath: (path: string) => void) {
-  window.history.pushState({}, '', path);
+  const href = caHref(path);
+  if (href.startsWith('#')) window.history.pushState({}, '', `${window.location.pathname}${href}`);
+  else window.history.pushState({}, '', href);
   setPath(path);
   window.scrollTo({ top: 0 });
 }
@@ -438,8 +439,9 @@ function persistFiltersToUrl(filters: Filters, dateBounds: { minDate: string; ma
   if (filters.endDate && filters.endDate !== defaults.endDate) params.set('to', filters.endDate);
 
   const query = params.toString();
-  const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}`;
-  if (nextUrl !== `${window.location.pathname}${window.location.search}`) {
+  // Keep the hash: preview builds route by it (#/ca).
+  const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`;
+  if (nextUrl !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
     window.history.replaceState({}, '', nextUrl);
   }
 }
@@ -517,9 +519,10 @@ function PreviewNav() {
     <nav className="fixed bottom-3 left-3 z-[60] flex items-center gap-2 border border-amber/60 bg-ink/95 px-3 py-1.5 text-xs" aria-label="Preview navigation">
       <span className="font-semibold uppercase tracking-wide text-amber">Preview</span>
       {[
-        ['#/', 'Main'],
-        ['#/drilling', 'Drilling'],
-        ['#/prod', 'Production'],
+        ['#/', 'States'],
+        ['#/ca', 'California'],
+        ['#/ca/drilling', 'Drilling'],
+        ['#/ca/prod', 'Production'],
         ['#/co', 'Colorado'],
         ['#/wy', 'Wyoming']
       ].map(([href, label]) => (
@@ -537,7 +540,7 @@ function AboutMethodology({ onNavigateHome, onNavigate }: { onNavigateHome: () =
       <div className="mx-auto max-w-4xl">
         <a
           className="mb-8 inline-flex text-sm font-semibold uppercase tracking-wide text-slate-500 transition hover:text-accent"
-          href="/"
+          href={caHref('/')}
           onClick={(event) => {
             event.preventDefault();
             onNavigateHome();
@@ -702,7 +705,7 @@ function ViewLink({ href, title, onNavigate, children }: { href: string; title: 
   return (
     <a
       className="block border border-line bg-panel/40 p-3 transition hover:border-accent/60"
-      href={href}
+      href={caHref(href)}
       onClick={(event) => {
         event.preventDefault();
         onNavigate(href);
@@ -949,7 +952,7 @@ function SiteFooter({
             <a
               key={href}
               className="text-slate-500 transition hover:text-accent"
-              href={href}
+              href={caHref(href)}
               onClick={(event) => {
                 event.preventDefault();
                 onNavigate(href);
@@ -958,6 +961,9 @@ function SiteFooter({
               {label}
             </a>
           ))}
+          <a className="text-slate-500 transition hover:text-accent" href={siteHref('/')}>
+            All states
+          </a>
           <a
             className="inline-flex items-center gap-1.5 border border-line px-2.5 py-1 font-semibold text-slate-300 transition hover:border-accent hover:text-accent"
             href={CONTACT_MAILTO}

@@ -38,7 +38,8 @@ User-agent: Google-Extended
 User-agent: Applebot-Extended
 Disallow: /
 Allow: /$
-Allow: /about-methodology/
+Allow: /ca/$
+Allow: /ca/about-methodology/
 Allow: /llms.txt
 Allow: /social-preview.png
 

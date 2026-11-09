@@ -111,7 +111,8 @@ export function CoApp() {
       disclaimer="Independent project, not affiliated with or endorsed by the Colorado Energy & Carbon Management Commission. ECMC records remain the system of record."
       contactSubject="Colorado well permit activity"
       links={[
-        ['/', 'California'],
+        ['/', 'All states'],
+        ['/ca', 'California'],
         ['/wy', 'Wyoming']
       ]}
       drawer={selected && <CoDrawer row={selected} asOf={asOf} onClose={() => setSelected(null)} />}

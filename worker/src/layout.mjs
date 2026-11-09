@@ -18,6 +18,8 @@ export const day = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US',
 const longDay = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 const shift = (d, days) => new Date(Date.parse(`${d}T12:00:00Z`) + days * 864e5).toISOString().slice(0, 10);
 export const range = (d) => `${day(d.weekStart)}–${day(d.weekEnd)}`;
+// California's page; SITE_URL alone is the states page (and where /data/ lives).
+export const caUrl = (env) => `${String(env.SITE_URL).replace(/\/$/, '')}/ca/`;
 const host = (url) => String(url || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
 const signed = (n) => (n > 0 ? `+${fmt(n)}` : n < 0 ? `−${fmt(-n)}` : '±0');
 
@@ -39,11 +41,11 @@ export const legend = () => `<div style="font:12px/1.6 ${FONT};color:${C.muted}"
 export function masthead(env, d, label = 'Weekly update') {
   return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
 <td style="vertical-align:bottom;padding:0 0 14px">
-<a href="${esc(env.SITE_URL)}" style="text-decoration:none;font:700 27px/1.05 ${COND};letter-spacing:-.01em"><span style="color:${C.title}">California</span> <span style="color:${C.ink}">well permit activity</span></a>
+<a href="${esc(caUrl(env))}" style="text-decoration:none;font:700 27px/1.05 ${COND};letter-spacing:-.01em"><span style="color:${C.title}">California</span> <span style="color:${C.ink}">well permit activity</span></a>
 <div style="margin-top:6px;font:500 11px/1.4 ${COND};letter-spacing:.12em;text-transform:uppercase;color:${C.muted}">${esc(label)}${d ? `: ${esc(longDay(d.weekEnd))}` : ''} &nbsp;·&nbsp; by <a href="https://ryweller.com" style="color:${C.muted};text-decoration:none">Ryan Weller</a></div>
 </td>
 <td style="vertical-align:bottom;text-align:right;padding:0 0 16px 12px;white-space:nowrap">
-<a href="${esc(env.SITE_URL)}" style="font:600 13px/1 ${FONT};color:${C.link};text-decoration:none">Open the site&nbsp;→</a></td>
+<a href="${esc(caUrl(env))}" style="font:600 13px/1 ${FONT};color:${C.link};text-decoration:none">Open the site&nbsp;→</a></td>
 </tr></table>`;
 }
 
@@ -63,7 +65,7 @@ ${WORK.map(([k, l]) => cell(l, d.week[k], `${signed(d.week[k] - d.prior[k])} vs 
 export function mapBlock(env, d, src) {
   if (!src) return '';
   const alt = `Map of ${fmt(d.week.total)} approved permits, ${range(d)}: ${fmt(d.week.new_drills)} New Drill, ${fmt(d.week.existing)} Existing, ${fmt(d.week.abandonment)} Abandonment.`;
-  return `<a href="${esc(env.SITE_URL)}" style="display:block;text-decoration:none;margin:18px 0 8px"><img src="${esc(src)}" width="556" alt="${esc(alt)}"
+  return `<a href="${esc(caUrl(env))}" style="display:block;text-decoration:none;margin:18px 0 8px"><img src="${esc(src)}" width="556" alt="${esc(alt)}"
 style="display:block;width:100%;max-width:556px;height:auto;border:1px solid ${C.line};border-radius:6px"></a>
 ${legend()}${note('Rings group permits at nearby wells; the number is the total. Shaded areas are oil and gas fields.')}`;
 }

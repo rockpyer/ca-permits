@@ -7,7 +7,7 @@
 // GET/POST /confirm?t=...            GET shows a button, POST confirms (mail scanners follow GET links, never POST).
 // GET/POST /unsubscribe?s=...&k=...  Same, and POST is also RFC 8058 one-click unsubscribe from the mail client.
 import { latestDigest } from './digest.mjs';
-import { button, emailFooterText, emailHtml, kpiStrip, mapBlock, masthead, note, p, page, range, section, weeklyChart } from './layout.mjs';
+import { button, caUrl, emailFooterText, emailHtml, kpiStrip, mapBlock, masthead, note, p, page, range, section, weeklyChart } from './layout.mjs';
 import { sendMail } from './mail.mjs';
 import { audit, emailHash, esc, hmac, iso, ipHash, json, randomId, randomToken, safeEqual, sha, throttled } from './util.mjs';
 
@@ -142,7 +142,7 @@ export async function confirm(req, env) {
   await env.DB.prepare(`UPDATE subscribers SET status = 'active', confirmed_at = ?1, confirm_hash = NULL, confirm_expires = NULL WHERE id = ?2`).bind(iso(), row.id).run();
   await audit(env, req, 'public', 'confirmed', row.email_hash);
   return page('Subscription confirmed', `<p>The weekly summary goes out each Monday after the CalGEM data refresh. Every email has a one-click unsubscribe link.</p>
-${button(env.SITE_URL, 'Open the permit map')}${latestWeek(env, await latestDigest(env))}`, 200, env);
+${button(caUrl(env), 'Open the permit map')}${latestWeek(env, await latestDigest(env))}`, 200, env);
 }
 
 /* ---------- /unsubscribe ---------- */

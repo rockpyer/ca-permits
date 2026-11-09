@@ -8,6 +8,7 @@ import { ACCENT, CHART, SURFACE } from '../lib/palette';
 import { longDate, monthLabel, shortDate, truncate } from './format';
 import type { ActivityRow } from './stats';
 import { sortRows, type ChartFilter, type Column, type SortState } from './table';
+import { siteHref } from '../lib/routes';
 
 export type { ChartFilter, Column };
 
@@ -95,7 +96,6 @@ export function StatePage({
   drawer?: ReactNode;
   children: ReactNode;
 }) {
-  const preview = import.meta.env.VITE_PREVIEW === '1';
   return (
     <div className="min-h-screen bg-ink text-slate-100">
       <a className="skip-link" href={`#${contentId}`}>
@@ -137,7 +137,7 @@ export function StatePage({
                   <span>{footerCount}</span>
                   <nav className="flex flex-wrap items-center gap-4" aria-label="More pages">
                     {links.map(([path, label]) => (
-                      <a key={path} className="text-slate-500 hover:text-accent" href={preview ? `#${path}` : path}>
+                      <a key={path} className="text-slate-500 hover:text-accent" href={siteHref(path)}>
                         {label}
                       </a>
                     ))}

@@ -16,10 +16,16 @@
 
 {{latest}}
 
+By state, latest full week:
+
+{{states}}
+
 ## Pages
 
-- [California well permit activity](https://permits.ryweller.com/): the permit explorer
-- [About / methodology](https://permits.ryweller.com/about-methodology/): data sources, definitions, and limitations
+- [Well permit activity by state](https://permits.ryweller.com/): one card per state with the latest week's numbers
+- [California well permit activity](https://permits.ryweller.com/ca/): the permit explorer
+- [About / methodology](https://permits.ryweller.com/ca/about-methodology/): data sources, definitions, and limitations
+- Colorado (https://permits.ryweller.com/co/) and Wyoming (https://permits.ryweller.com/wy/) pages are drafts.
 
 ## Data sources
 
