@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
+import type { ChartFilter } from './ui';
 
 const MAP_STYLE = {
   version: 8,
@@ -43,10 +44,12 @@ type Props = {
   legend: Array<{ key: string; label: string; color: string }>;
   selectedKey: string | null;
   onSelect: (key: string) => void;
+  /** When set, legend entries toggle this page filter (values are legend labels). */
+  legendFilter?: ChartFilter;
 };
 
 /** Surface locations colored by stage, with optional surface-to-bottom-hole lines. */
-export function StateMap({ title, subtitle, ariaLabel, bounds, points, legend, selectedKey, onSelect }: Props) {
+export function StateMap({ title, subtitle, ariaLabel, bounds, points, legend, selectedKey, onSelect, legendFilter }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const onSelectRef = useRef(onSelect);
@@ -141,13 +144,34 @@ export function StateMap({ title, subtitle, ariaLabel, bounds, points, legend, s
         </div>
         <ul className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400" aria-label="Map legend">
           {legend
-            .filter((item) => present.has(item.key))
-            .map((item) => (
-              <li key={item.key} className="flex items-center gap-1.5">
-                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: item.color }} aria-hidden="true" />
-                {item.label}
-              </li>
-            ))}
+            .filter((item) => present.has(item.key) || legendFilter)
+            .map((item) => {
+              const swatch = <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: item.color }} aria-hidden="true" />;
+              if (!legendFilter)
+                return (
+                  <li key={item.key} className="flex items-center gap-1.5">
+                    {swatch}
+                    {item.label}
+                  </li>
+                );
+              const on = legendFilter.active.includes(item.label);
+              const dim = legendFilter.active.length > 0 && !on;
+              return (
+                <li key={item.key}>
+                  <button
+                    type="button"
+                    aria-pressed={on}
+                    title={on ? `Remove the ${item.label} filter` : `Filter the page to ${item.label}`}
+                    className={`flex items-center gap-1.5 hover:text-slate-200 ${on ? 'font-semibold text-slate-200 underline' : ''}`}
+                    style={{ opacity: dim ? 0.55 : 1 }}
+                    onClick={() => legendFilter.toggle(item.label)}
+                  >
+                    {swatch}
+                    {item.label}
+                  </button>
+                </li>
+              );
+            })}
         </ul>
       </div>
       <div ref={containerRef} className="h-[340px] w-full sm:h-[430px]" role="region" aria-label={ariaLabel} />
