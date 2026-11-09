@@ -70,7 +70,7 @@ export function CoApp() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    document.title = 'Colorado well permits and drilling (draft)';
+    document.title = 'Colorado well permits and drilling (draft) | WellerTracker';
     loadCoData()
       .then(({ permits, spuds: loadedSpuds, undrilled: loadedUndrilled, rigWeeks: loadedRigs, meta: loaded }) => {
         setRows(permits);

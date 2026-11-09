@@ -8,7 +8,7 @@ describe('route pages', () => {
 
   it('gives /ca/drilling its own title, canonical, description, and card image', () => {
     const page = routeHtml(html, ROUTES.find((route) => route.path === 'ca/drilling'));
-    expect(page).toContain('<title>Kern permits vs drilling activity</title>');
+    expect(page).toContain('<title>Kern permits vs drilling activity | WellerTracker</title>');
     expect(page).toContain('<link rel="canonical" href="https://permits.ryweller.com/ca/drilling/" />');
     expect(page).toContain('<meta property="og:image" content="https://permits.ryweller.com/social-drilling.png?v=2" />');
     expect(page).toMatch(/<meta name="twitter:description" content="Kern County New Drill permits/);
@@ -105,10 +105,12 @@ describe('states page and moved California links', () => {
 
   it('gives / its own title, canonical URL, JSON-LD and state list', () => {
     const page = homeHtml(html, states);
-    expect(page).toContain('<title>Oil and gas well permit activity by state</title>');
+    expect(page).toContain('<title>WellerTracker – Oil and gas well activity by state</title>');
     expect(page).toContain('<link rel="canonical" href="https://permits.ryweller.com/" />');
     expect(page).toContain('<meta property="og:url" content="https://permits.ryweller.com/" />');
     expect(page).toContain('"@type": "WebSite"');
+    expect(page).toContain('"name": "WellerTracker"');
+    expect(page).toContain('<h1>Oil and gas well activity by state</h1>');
     expect(page).not.toContain('"@type": "Dataset"');
     expect(page).toContain('<p>California, week of Oct 26, 2026 to Nov 1, 2026: 5 New Drill permits of 114 approved permits, 3 rigs.</p>');
     expect(page).toContain('<p>Colorado (draft), week of Oct 26, 2026 to Nov 1, 2026: 28 approved permits, 4 spuds.</p>');
@@ -130,5 +132,19 @@ describe('states page and moved California links', () => {
 
   it('lists each state in llms.txt', () => {
     expect(llmsTxt('{{latest}}\n{{states}}', null, states)).toContain('- Colorado (draft), week of Oct 26, 2026');
+  });
+});
+
+describe('prerendered content for bots', () => {
+  it('moves the noscript summary into #root without the JavaScript notice', async () => {
+    const { prerender, homeHtml, aboutHtml, ABOUT } = await import('./route-pages.mjs');
+    const html = readFileSync(resolve(__dirname, '../index.html'), 'utf8');
+    const page = prerender(homeHtml(html, null));
+    expect(page).not.toContain('<noscript>');
+    expect(page).toMatch(/<div id="root">\s*<div style="[^"]*">\s*<h1>Oil and gas well activity by state<\/h1>/);
+    expect(page).not.toContain('needs JavaScript');
+    const about = prerender(aboutHtml(routeHtml(homeHtml(html, null), ABOUT)));
+    expect(about).toContain('<h1>About WellerTracker</h1>');
+    expect(about).toContain('<a href="/wy/">Wyoming (draft)</a>');
   });
 });

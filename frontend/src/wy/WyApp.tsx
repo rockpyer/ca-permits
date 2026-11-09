@@ -85,7 +85,7 @@ export function WyApp() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    document.title = 'Wyoming drilling permits and spuds (draft)';
+    document.title = 'Wyoming drilling permits and spuds (draft) | WellerTracker';
     loadWyData()
       .then((data) => {
         setApds(data.apds);
