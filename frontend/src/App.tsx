@@ -1046,11 +1046,11 @@ function SiteFooter({
         </nav>
       </div>
       <p>
-        Independent project, not affiliated with or endorsed by CalGEM. Built by{' '}
+        Independent service by{' '}
         <a className="text-slate-300 underline decoration-line underline-offset-2 hover:text-accent" href="https://ryweller.com" target="_blank" rel="noreferrer">
           Ryan Weller
         </a>
-        .
+        , not affiliated with or endorsed by CalGEM.
       </p>
     </footer>
   );

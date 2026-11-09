@@ -15,6 +15,8 @@ Never write:
 - Buzzy or clever section titles ("Permit pulse", "The read-through", "What changed", "Three takeaways", "Your watchlist").
 - Rhetorical questions, teaser phrasing, or exclamation in headings.
 
+- Formula copy and option framing: "Why it matters", "The question it answers", "the earliest signal of…", "Who, where, and how many". Subtitles and intros should read like the owner wrote them: short, direct, a little loose. Example the owner liked: "Explore permit and drilling activity across key oil and gas states. Sign up for weekly emails and stay on top of current activity."
+
 When unsure, choose the title a USGS, EIA, or CalGEM report would use.
 
 ## Previews for the owner

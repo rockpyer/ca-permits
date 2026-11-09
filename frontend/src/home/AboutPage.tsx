@@ -34,7 +34,7 @@ const TERMS: Array<[string, string]> = [
 export function AboutPage() {
   const { summaries } = useStatesSummary();
   useEffect(() => {
-    document.title = 'About · Well permit activity by state';
+    document.title = 'About | WellerTracker';
   }, []);
 
   return (
@@ -44,7 +44,7 @@ export function AboutPage() {
         <header className="border-b border-line pb-6">
           <h1 className="product-title">
             <span>About</span>
-            <span> well permit activity by state</span>
+            <span> WellerTracker</span>
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">
             An independent view of oil and gas drilling permits, spuds and rigs, built from each state regulator&apos;s public data and
@@ -126,7 +126,7 @@ export function AboutPage() {
             Use and license
           </h2>
           <p className="mt-3 text-sm leading-6 text-slate-400">
-            You may link to any page and quote individual figures with credit: &ldquo;Well permit activity, permits.ryweller.com&rdquo;.
+            You may link to any page and quote individual figures with credit: &ldquo;WellerTracker, permits.ryweller.com&rdquo;.
             Copying the code, design or compiled datasets, scraping the site, and using it to train models are not permitted without
             permission. The underlying public records are available from each regulator.
           </p>
