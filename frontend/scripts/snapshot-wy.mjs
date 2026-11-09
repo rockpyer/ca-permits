@@ -4,6 +4,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildWyDigest } from './state-digest.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const dataDir = resolve(here, '../../data/wy');
@@ -115,6 +116,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     await writeFile(resolve(outDir, 'apds.json'), JSON.stringify(snapshot.apds));
     await writeFile(resolve(outDir, 'spuds.json'), JSON.stringify(snapshot.spuds));
     await writeFile(resolve(outDir, 'meta.json'), JSON.stringify(snapshot.meta));
+    // Read by the weekly email Worker (worker/src/digest.mjs).
+    const digest = buildWyDigest(apds, spuds, { checkedDate: snapshot.meta.checkedDate, generatedAt: snapshot.meta.generatedAt });
+    if (digest) await writeFile(resolve(outDir, 'digest.json'), JSON.stringify(digest));
     console.log(
       `snapshot wy: ${apds.length} APDs (${snapshot.meta.detailMissing} without detail), ${spuds.length} spuds, through ${snapshot.meta.dateBounds.maxDate}`
     );

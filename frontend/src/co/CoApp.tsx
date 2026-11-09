@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from 're
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { CompactChartTooltip } from '../components/CompactChartTooltip';
 import { MultiSelect } from '../components/MultiSelect';
+import { NewsletterSignup } from '../components/NewsletterSignup';
 import { CHART, WORK_COLORS } from '../lib/palette';
 import { downloadCsv, longDate, shortDate } from '../state/format';
 import { daysBetween, withNames } from '../state/stats';
@@ -274,6 +275,7 @@ function CoFilterRail({
         onChange={(lifecycles) => set({ lifecycles })}
         colorFor={(value) => LABEL_COLORS[value]}
       />
+      <NewsletterSignup list="co" />
     </FilterRail>
   );
 }

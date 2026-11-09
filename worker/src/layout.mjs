@@ -2,6 +2,7 @@
 // white panels, condensed bold headings with "California" in steel blue, small uppercase labels, and the site's work
 // activity colors. Everything is inline-styled tables, which is what email clients (Gmail, Outlook, Apple Mail) render
 // reliably; charts are table cells, so they need no images or scripts. The one image is the weekly map (PNG).
+import { LISTS, listOf, siteUrl } from './lists.mjs';
 import { esc } from './util.mjs';
 
 // Same values as frontend/src/lib/palette.ts.
@@ -32,30 +33,34 @@ export const note = (html) => `<p style="margin:8px 0 0;font:12px/1.5 ${FONT};co
 export const button = (href, label) =>
   `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 4px"><tr><td style="background:${C.accent};border-radius:4px">
 <a href="${esc(href)}" style="display:inline-block;padding:11px 20px;font:600 15px/1 ${FONT};color:#ffffff;text-decoration:none">${esc(label)}</a></td></tr></table>`;
-const swatch = (k) => `<span style="display:inline-block;width:9px;height:9px;border-radius:5px;background:${C.work[k]};vertical-align:0;margin-right:5px"></span>`;
-export const legend = () => `<div style="font:12px/1.6 ${FONT};color:${C.muted}">${WORK.map(([k, l]) => `<span style="display:inline-block;margin-right:14px;white-space:nowrap">${swatch(k)}${esc(l)}</span>`).join('')}</div>`;
+// Chart series: [key, label, color]. California's are its three work activities.
+export const WORK_SERIES = WORK.map(([k, l]) => [k, l, C.work[k]]);
+const swatch = (color) => `<span style="display:inline-block;width:9px;height:9px;border-radius:5px;background:${color};vertical-align:0;margin-right:5px"></span>`;
+export const legend = (series = WORK_SERIES) => `<div style="font:12px/1.6 ${FONT};color:${C.muted}">${series.map(([, l, c]) => `<span style="display:inline-block;margin-right:14px;white-space:nowrap">${swatch(c)}${esc(l)}</span>`).join('')}</div>`;
 
 /* ---------- Masthead: the site's title, the week, and an early link to the site ---------- */
-export function masthead(env, d, label = 'Weekly update') {
+export function masthead(env, d, label = 'Weekly update', list = 'ca') {
+  const L = listOf(list), site = siteUrl(env, list);
   return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
 <td style="vertical-align:bottom;padding:0 0 14px">
-<a href="${esc(env.SITE_URL)}" style="text-decoration:none;font:700 27px/1.05 ${COND};letter-spacing:-.01em"><span style="color:${C.title}">California</span> <span style="color:${C.ink}">well permit activity</span></a>
+<a href="${esc(site)}" style="text-decoration:none;font:700 27px/1.05 ${COND};letter-spacing:-.01em"><span style="color:${C.title}">${esc(L.state)}</span> <span style="color:${C.ink}">well permit activity</span></a>
 <div style="margin-top:6px;font:500 11px/1.4 ${COND};letter-spacing:.12em;text-transform:uppercase;color:${C.muted}">${esc(label)}${d ? `: ${esc(longDay(d.weekEnd))}` : ''} &nbsp;·&nbsp; by <a href="https://ryweller.com" style="color:${C.muted};text-decoration:none">Ryan Weller</a></div>
 </td>
 <td style="vertical-align:bottom;text-align:right;padding:0 0 16px 12px;white-space:nowrap">
-<a href="${esc(env.SITE_URL)}" style="font:600 13px/1 ${FONT};color:${C.link};text-decoration:none">Open the site&nbsp;→</a></td>
+<a href="${esc(site)}" style="font:600 13px/1 ${FONT};color:${C.link};text-decoration:none">Open the site&nbsp;→</a></td>
 </tr></table>`;
 }
 
 /* ---------- Figures: the site's KPI strip for the week ---------- */
-export function kpiStrip(d) {
+// cells: [label, value, prior, color]; defaults to California's total and work activities.
+export function kpiStrip(d, cells = null) {
   const cell = (label, value, delta, color) => `<td class="kpi" style="padding:0 10px 0 0;vertical-align:top;width:25%">
 <div style="font:600 11px/1.3 ${COND};letter-spacing:.06em;text-transform:uppercase;color:${C.muted}">${esc(label)}</div>
 <div style="font:700 26px/1.15 ${COND};color:${color};margin-top:2px">${fmt(value)}</div>
 <div style="font:12px/1.3 ${FONT};color:${C.muted}">${esc(delta)}</div></td>`;
+  const list = cells || [['Permits', d.week.total, d.prior.total, C.ink], ...WORK.map(([k, l]) => [l, d.week[k], d.prior[k], C.work[k]])];
   return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
-${cell('Permits', d.week.total, `${signed(d.week.total - d.prior.total)} vs prior wk`, C.ink)}
-${WORK.map(([k, l]) => cell(l, d.week[k], `${signed(d.week[k] - d.prior[k])} vs prior wk`, C.work[k])).join('')}
+${list.map(([l, v, pr, c]) => cell(l, v, pr == null ? '' : `${signed(v - pr)} vs prior wk`, c)).join('\n')}
 </tr></table>`;
 }
 
@@ -69,26 +74,26 @@ ${legend()}${note('Rings group permits at nearby wells; the number is the total.
 }
 
 /* ---------- Weekly approved permits, stacked horizontal bars ---------- */
-export function weeklyChart(d) {
+export function weeklyChart(d, series = WORK_SERIES) {
   const weeks = Array.isArray(d.weeks) ? d.weeks : [];
   if (!weeks.length) return '';
   const max = Math.max(1, ...weeks.map((w) => w.total));
   const rows = weeks.map((w) => {
     const last = w.weekEnd === d.weekEnd, color = last ? C.ink : C.muted, weight = last ? '600' : '400';
-    const segs = WORK.filter(([k]) => w[k] > 0).map(([k, l]) => `<td title="${esc(l)}: ${w[k]}" style="background:${C.work[k]};width:${((100 * w[k]) / max).toFixed(2)}%;height:14px;font-size:0;line-height:0">&nbsp;</td>`).join('');
+    const segs = series.filter(([k]) => w[k] > 0).map(([k, l, c]) => `<td title="${esc(l)}: ${w[k]}" style="background:${c};width:${((100 * w[k]) / max).toFixed(2)}%;height:14px;font-size:0;line-height:0">&nbsp;</td>`).join('');
     const rest = w.total < max ? `<td style="font-size:0;line-height:0">&nbsp;</td>` : '';
     return `<tr><td style="padding:3px 10px 3px 0;font:${weight} 12px/1 ${FONT};color:${color};white-space:nowrap;width:1%">${day(shift(w.weekEnd, -6))}</td>
 <td style="padding:3px 0;${last ? `background:${C.ground}` : ''}"><table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse"><tr>${segs}${rest}</tr></table></td>
 <td style="padding:3px 0 3px 10px;font:${weight} 12px/1 ${FONT};color:${color};text-align:right;white-space:nowrap;width:1%">${fmt(w.total)}</td></tr>`;
   }).join('');
-  return `${legend()}<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin-top:6px">${rows}</table>`;
+  return `${legend(series)}<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin-top:6px">${rows}</table>`;
 }
 
-export function weeklyChartText(d) {
+export function weeklyChartText(d, title = 'Weekly approved permits') {
   const weeks = Array.isArray(d.weeks) ? d.weeks : [];
   if (!weeks.length) return '';
   const max = Math.max(1, ...weeks.map((w) => w.total));
-  return ['Weekly approved permits (week starting):', ...weeks.map((w) => `  ${day(shift(w.weekEnd, -6)).padEnd(7)} ${'#'.repeat(Math.round((20 * w.total) / max)).padEnd(20)} ${w.total}`)].join('\n');
+  return [`${title} (week starting):`, ...weeks.map((w) => `  ${day(shift(w.weekEnd, -6)).padEnd(7)} ${'#'.repeat(Math.round((20 * w.total) / max)).padEnd(20)} ${w.total}`)].join('\n');
 }
 
 /* ---------- Kern New Drill permits vs. the SB 237 annual cap, like the site's quota meter ---------- */
@@ -112,10 +117,27 @@ const LINKEDIN = 'https://www.linkedin.com/in/ryweller/';
 // LinkedIn's "in" mark as a styled span: Gmail and Outlook don't show SVG, and a span still shows with images off.
 const linkedinBadge = `<span style="display:inline-block;width:16px;height:16px;border-radius:3px;background:#0a66c2;color:#ffffff;font:700 11px/16px Arial,Helvetica,sans-serif;text-align:center;vertical-align:-3px;margin-right:5px">in</span>`;
 export const CONTACT = 'Thanks for subscribing! For analytics, consulting, planning and development work, or questions about this data, reach out to Ryan Weller.';
+// The footnote under every email: the other states' weekly emails, then Ryan's other public tools. Short on purpose.
+export const OTHER_WORK = [
+  ['Mowry PRB Explorer', 'https://mowry.ryweller.com', 'Powder River Basin Mowry, Niobrara and Turner permits, spuds and landing zones'],
+  ['Well(er) Logs', 'https://logs.ryweller.com', 'LAS well logs and petrophysics in the browser']
+];
+const otherStates = (list) => Object.values(LISTS).filter((L) => L.id !== list);
+function footnoteHtml(env, list, link) {
+  const states = otherStates(list).map((L) => link(siteUrl(env, L.id), `${esc(L.state)}`)).join(' and ');
+  const work = OTHER_WORK.map(([name, url, what]) => `${link(url, esc(name))} (${esc(what)})`).join('; ');
+  return `<p style="margin:0 0 10px;font:12px/1.55 ${FONT};color:${C.muted}">Other states: ${states} have their own weekly permit emails; sign up on each state's page.<br>
+Also by Ryan Weller: ${work}.</p>`;
+}
+function footnoteText(env, list) {
+  return [`Other states with their own weekly permit emails: ${otherStates(list).map((L) => `${L.state} ${siteUrl(env, L.id)}`).join(', ')}`,
+    `Also by Ryan Weller: ${OTHER_WORK.map(([name, url, what]) => `${name}, ${what}: ${url}`).join('; ')}`].join('\n');
+}
 
-export function emailHtml(env, { preheader = '', body, unsub = '', reason = '', contact = false }) {
+export function emailHtml(env, { preheader = '', body, unsub = '', reason = '', contact = false, list = 'ca' }) {
   const link = (href, label, color = C.link) => `<a href="${esc(href)}" style="color:${color};text-decoration:none">${label}</a>`;
-  const links = [link(env.SITE_URL, esc(host(env.SITE_URL))), link('https://ryweller.com', 'ryweller.com'), link(LINKEDIN, `${linkedinBadge}LinkedIn`)];
+  const site = siteUrl(env, list);
+  const links = [link(site, esc(host(site))), link('https://ryweller.com', 'ryweller.com'), link(LINKEDIN, `${linkedinBadge}LinkedIn`)];
   if (unsub) links.push(link(unsub, 'Unsubscribe', C.muted));
   const message = contact
     ? `Thanks for subscribing! For analytics, consulting, planning and development work, or questions about this data, reach out to ${link('https://ryweller.com', 'Ryan Weller')}.`
@@ -132,21 +154,23 @@ export function emailHtml(env, { preheader = '', body, unsub = '', reason = '', 
 <tr><td class="pad" style="background:${C.panel};border:1px solid ${C.line};border-radius:8px;padding:24px 28px 22px">${body}</td></tr>
 <tr><td style="padding:18px 8px 0">
 ${message ? `<p style="margin:0 0 10px;font:13px/1.55 ${FONT};color:${C.ink}">${message}</p>` : ''}
+${footnoteHtml(env, list, link)}
 <p style="margin:0 0 12px;font:13px/1.8 ${FONT};color:${C.muted}">${links.join(' &nbsp;·&nbsp; ')}</p>
 ${address ? `<p style="margin:0;font:11px/1.5 ${FONT};color:${C.faint}">${address}</p>` : ''}
 </td></tr>
 </table></td></tr></table></body></html>`;
 }
 
-export function emailFooterText(env, { unsub = '', reason = '', contact = false } = {}) {
-  return ['--', contact ? `${CONTACT} https://ryweller.com` : reason, `${env.SITE_URL}  ·  https://ryweller.com  ·  LinkedIn: ${LINKEDIN}`,
+export function emailFooterText(env, { unsub = '', reason = '', contact = false, list = 'ca' } = {}) {
+  return ['--', contact ? `${CONTACT} https://ryweller.com` : reason, footnoteText(env, list), `${siteUrl(env, list)}  ·  https://ryweller.com  ·  LinkedIn: ${LINKEDIN}`,
     unsub ? `Unsubscribe: ${unsub}` : '', (env.POSTAL_ADDRESS || '').replace(/\n/g, ', ')].filter(Boolean).join('\n');
 }
 
 /* ---------- Standalone pages (confirm, unsubscribe) ---------- */
-export function page(title, body, status = 200, env = { SITE_URL: 'https://permits.ryweller.com' }) {
+export function page(title, body, status = 200, env = { SITE_URL: 'https://permits.ryweller.com' }, list = 'ca') {
+  const site = siteUrl(env, list);
   return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex"><title>${esc(title)} · California well permit activity</title>
+<meta name="robots" content="noindex"><title>${esc(title)} · ${esc(listOf(list).state)} well permit activity</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
 <style>
 body{margin:0;background:${C.ground};color:${C.ink};font:15px/1.55 ${FONT}}
@@ -157,8 +181,8 @@ h1{font:700 22px/1.25 ${COND};margin:4px 0 10px}
 a{color:${C.link}}
 button{font:600 15px/1 ${FONT};background:${C.accent};color:#fff;border:0;border-radius:4px;padding:11px 20px;cursor:pointer}
 footer{margin:14px 8px 0;font-size:12px;color:${C.muted}}
-</style></head><body><main><div class="card">${masthead(env, null, 'Weekly email')}
+</style></head><body><main><div class="card">${masthead(env, null, 'Weekly email', list)}
 <h1>${esc(title)}</h1>${body}</div>
-<footer><a href="${esc(env.SITE_URL)}">${esc(host(env.SITE_URL))}</a> &nbsp;·&nbsp; <a href="https://ryweller.com">ryweller.com</a> &nbsp;·&nbsp; <a href="${LINKEDIN}">${linkedinBadge}LinkedIn</a></footer></main></body></html>`,
+<footer><a href="${esc(site)}">${esc(host(site))}</a> &nbsp;·&nbsp; <a href="https://ryweller.com">ryweller.com</a> &nbsp;·&nbsp; <a href="${LINKEDIN}">${linkedinBadge}LinkedIn</a></footer></main></body></html>`,
   { status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer' } });
 }

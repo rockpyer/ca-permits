@@ -4,6 +4,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildCoDigest } from './state-digest.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const dataDir = resolve(here, '../../data/co');
@@ -81,6 +82,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     await writeFile(resolve(outDir, 'spuds.json'), JSON.stringify(snapshot.spuds));
     await writeFile(resolve(outDir, 'undrilled.json'), JSON.stringify(snapshot.undrilled));
     await writeFile(resolve(outDir, 'meta.json'), JSON.stringify(snapshot.meta));
+    // Read by the weekly email Worker (worker/src/digest.mjs).
+    const digest = buildCoDigest(permits, spuds, undrilled, { checkedDate: snapshot.meta.checkedDate, generatedAt: snapshot.meta.generatedAt });
+    if (digest) await writeFile(resolve(outDir, 'digest.json'), JSON.stringify(digest));
     console.log(`snapshot co: ${permits.length} permits, ${spuds.length} spuds, ${undrilled.length} undrilled, through ${snapshot.meta.dateBounds.maxDate}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
