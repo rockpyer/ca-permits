@@ -1,9 +1,9 @@
 // The weekly emails, one per state. Each is its own list: a person subscribes to each state separately, confirms each,
 // and each email's unsubscribe link leaves only that state's list. The site serves each state's digest.json
-// (California at the root, the others under /co and /wy), written by the frontend snapshot.
+// (California's at the root, the others under /co and /wy), written by the frontend snapshot.
 export const LISTS = {
   ca: {
-    id: 'ca', state: 'California', agency: 'CalGEM', path: '', digest: '/data/digest.json',
+    id: 'ca', state: 'California', agency: 'CalGEM', path: '/ca', digest: '/data/digest.json',
     consent: 'Email me a weekly summary of California permit activity. Unsubscribe anytime.',
     covers: 'approved California well permits: New Drill, Existing and Abandonment counts, a map, the Kern SB 237 cap and the most active operators',
     after: 'the CalGEM data refresh'
@@ -23,7 +23,7 @@ export const LISTS = {
 };
 export const LIST_IDS = Object.keys(LISTS);
 export const listOf = (id) => LISTS[id] || LISTS.ca;
-// The state's page on the site, e.g. https://permits.ryweller.com/co
+// The state's page on the site, e.g. https://permits.ryweller.com/co (California is /ca; / lists the states)
 export const siteUrl = (env, list) => `${env.SITE_URL}${listOf(list).path}`;
 // "California Permits <updates@...>" becomes "Colorado Permits <updates@...>" for the Colorado list.
 export function mailFrom(env, list) {

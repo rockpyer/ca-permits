@@ -12,10 +12,13 @@ import { DAY, audit, iso, json } from './util.mjs';
 async function body(req) { try { return await req.json(); } catch { return {}; } }
 
 /* ---------- Visitors ---------- */
-// Which state page a path belongs to: /co and /wy are their states; everything else is the California app (it lives
-// at the root for now: /, /drilling, /prod, /about-methodology).
+// Which state page a path belongs to: /ca, /co and /wy are their states, and / and /about are the states page.
+// California lived at the root (/, /drilling, /prod, /about-methodology) until the states page took / on
+// SITE_MOVED_AT, so older root visits (and any other path) still count as California.
 const STATE_PREFIXES = [['co', 'Colorado'], ['wy', 'Wyoming']];
-const stateOf = (col) => `CASE ${STATE_PREFIXES.map(([p, name]) => `WHEN ${col} = '/${p}' OR ${col} LIKE '/${p}/%' THEN '${name}'`).join(' ')} ELSE 'California' END`;
+const SITE_MOVED_AT = '2026-11-09';
+const stateOf = (col, at = null) => `CASE ${STATE_PREFIXES.map(([p, name]) => `WHEN ${col} = '/${p}' OR ${col} LIKE '/${p}/%' THEN '${name}'`).join(' ')}
+  WHEN ${col} = '/about' OR ${col} LIKE '/about/%'${at ? ` OR (${col} = '/' AND ${at} >= '${SITE_MOVED_AT}')` : ''} THEN 'States page' ELSE 'California' END`;
 
 async function stats(req, env) {
   const p = new URL(req.url).searchParams, DB = env.DB;
@@ -29,7 +32,7 @@ async function stats(req, env) {
     q(`SELECT count(*) visits, count(DISTINCT vid) visitors, coalesce(sum(seconds), 0) seconds, coalesce(sum(mobile), 0) mobile,
        count(DISTINCT CASE WHEN nth > 1 THEN vid END) returners, coalesce(sum(seconds > 60), 0) engaged FROM v`),
     q(`SELECT substr(started_at, 1, 10) day, count(*) visits, count(DISTINCT vid) visitors FROM v GROUP BY day ORDER BY day`),
-    q(`SELECT ${stateOf('path')} site, count(*) visits,
+    q(`SELECT ${stateOf('path', 'started_at')} site, count(*) visits,
        count(DISTINCT vid) visitors, coalesce(sum(seconds), 0) seconds, coalesce(sum(seconds > 60), 0) engaged FROM v GROUP BY 1 ORDER BY visits DESC`),
     q(`SELECT path, count(*) visits, count(DISTINCT vid) visitors, sum(seconds) seconds FROM v GROUP BY path ORDER BY visits DESC LIMIT 30`),
     q(`SELECT coalesce(referrer, '(direct)') referrer, count(*) visits, count(DISTINCT vid) visitors FROM v GROUP BY 1 ORDER BY visits DESC LIMIT 30`),

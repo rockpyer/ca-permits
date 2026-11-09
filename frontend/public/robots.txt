@@ -1,28 +1,92 @@
-# Search and AI answers may index and cite these pages; model training may not.
+# permits.ryweller.com crawler policy
+#
+# Search engines and AI search/answer services may index, cite and link to these pages.
+# Model training, bulk scraping and copying the app (its code bundle, data snapshot or
+# design) are not permitted. Contact: https://ryweller.com/services/#contact
+#
+# Content Signals (https://contentsignals.org): search and AI answers yes, training no.
 Content-Signal: search=yes, ai-input=yes, ai-train=no
-User-agent: *
+
+# Search engines: full access. They need the JS bundle to render the pages they index.
+User-agent: Googlebot
+User-agent: Bingbot
+User-agent: Applebot
+User-agent: DuckDuckBot
 Allow: /
 
-# Training crawlers: pages, images and llms.txt only, not the app bundle or data snapshot.
+# AI search and user-requested fetches (ChatGPT, Claude, Perplexity, Gemini answers):
+# read and cite the pages, but not the app bundle or the data snapshot.
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: Google-CloudVertexBot
+User-agent: MistralAI-User
+User-agent: DuckAssistBot
+Disallow: /assets/
+Disallow: /data/
+Allow: /
+
+# Model-training crawlers from companies that also send search traffic:
+# page text, llms.txt and the preview image only.
 User-agent: GPTBot
 User-agent: ClaudeBot
 User-agent: anthropic-ai
-User-agent: CCBot
 User-agent: Google-Extended
 User-agent: Applebot-Extended
+Disallow: /
+Allow: /$
+Allow: /about/
+Allow: /ca/$
+Allow: /ca/about-methodology/
+Allow: /llms.txt
+Allow: /social-preview.png
+
+# Bulk dataset builders, scrapers and site-copying tools: no access.
+User-agent: CCBot
 User-agent: Bytespider
+User-agent: TikTokSpider
 User-agent: meta-externalagent
+User-agent: meta-externalfetcher
+User-agent: FacebookBot
 User-agent: Amazonbot
+User-agent: cohere-ai
 User-agent: cohere-training-data-crawler
 User-agent: Diffbot
 User-agent: omgili
+User-agent: omgilibot
+User-agent: Webzio-Extended
 User-agent: AI2Bot
+User-agent: Ai2Bot-Dolma
 User-agent: PanguBot
+User-agent: PetalBot
+User-agent: YouBot
+User-agent: Timpibot
+User-agent: ImagesiftBot
+User-agent: img2dataset
+User-agent: Kangaroo Bot
+User-agent: Novellum
+User-agent: QualifiedBot
+User-agent: Scrapy
+User-agent: FirecrawlAgent
+User-agent: Crawl4AI
+User-agent: Apify
+User-agent: HTTrack
+User-agent: SiteSucker
+User-agent: WebCopier
+User-agent: WebZIP
+User-agent: Offline Explorer
+User-agent: Teleport
+User-agent: wget
+Disallow: /
+
+# Everyone else (social link previews, SEO tools, unknown crawlers): pages yes, app bundle
+# and data snapshot no.
+User-agent: *
 Disallow: /assets/
 Disallow: /data/
-Allow: /$
-Allow: /about-methodology/
-Allow: /llms.txt
-Allow: /social-preview.png
+Allow: /
 
 Sitemap: https://permits.ryweller.com/sitemap.xml

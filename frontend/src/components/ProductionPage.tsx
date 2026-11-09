@@ -25,6 +25,7 @@ import {
 import { ACCENT, CHART, WORK_COLORS } from '../lib/palette';
 import type { Sb237DrillTrackerStats } from '../lib/sb237';
 import type { PermitActivity } from '../lib/types';
+import { caHref } from '../lib/routes';
 
 type ProductionPageProps = {
   rows: PermitActivity[];
@@ -61,7 +62,7 @@ export function ProductionPage({ rows, loading, error, sb237Stats, onNavigateHom
       <div className="mx-auto max-w-[1560px]">
         <a
           className="mb-5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 transition hover:text-accent"
-          href="/"
+          href={caHref('/')}
           onClick={(event) => {
             event.preventDefault();
             onNavigateHome();

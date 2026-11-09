@@ -120,7 +120,7 @@ function newDrillRows(d) {
 // Subject, HTML and text for one digest. unsub is the recipient's unsubscribe link; mapSrc the stored map's URL.
 export function renderDigest(d, env, unsub, mapSrc = null, list = 'ca') {
   if (list !== 'ca' || d.state) return renderStateDigest(d, env, unsub, d.state || list);
-  const site = env.SITE_URL, w = d.week, pr = d.prior;
+  const site = siteUrl(env, 'ca'), w = d.week, pr = d.prior;
   const opening = lead(d), subject = opening.subject;
   const summary = `All work: ${fmt(w.total)} approved permits for ${range(d)}, ${change(w.total, pr.total)} the prior week. ${d.ytd.year} to date: ${fmt(d.ytd.new_drills)} New Drill, ${fmt(d.ytd.total)} total.`;
   const body = [

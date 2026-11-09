@@ -68,7 +68,7 @@ ${list.map(([l, v, pr, c]) => cell(l, v, pr == null ? '' : `${signed(v - pr)} vs
 export function mapBlock(env, d, src) {
   if (!src) return '';
   const alt = `Map of ${fmt(d.week.total)} approved permits, ${range(d)}: ${fmt(d.week.new_drills)} New Drill, ${fmt(d.week.existing)} Existing, ${fmt(d.week.abandonment)} Abandonment.`;
-  return `<a href="${esc(env.SITE_URL)}" style="display:block;text-decoration:none;margin:18px 0 8px"><img src="${esc(src)}" width="556" alt="${esc(alt)}"
+  return `<a href="${esc(siteUrl(env, 'ca'))}" style="display:block;text-decoration:none;margin:18px 0 8px"><img src="${esc(src)}" width="556" alt="${esc(alt)}"
 style="display:block;width:100%;max-width:556px;height:auto;border:1px solid ${C.line};border-radius:6px"></a>
 ${legend()}${note('Rings group permits at nearby wells; the number is the total. Shaded areas are oil and gas fields.')}`;
 }

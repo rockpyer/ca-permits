@@ -2,11 +2,11 @@
   "name": "well-tracker-frontend",
   "private": true,
   "version": "0.1.0",
-  "license": "CC-BY-SA-4.0",
+  "license": "UNLICENSED",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "snapshot": "node scripts/snapshot-data.mjs && node scripts/snapshot-co.mjs && node scripts/snapshot-wy.mjs",
+    "snapshot": "node scripts/snapshot-data.mjs && node scripts/snapshot-co.mjs && node scripts/snapshot-wy.mjs && node scripts/snapshot-states.mjs",
     "build": "npm run snapshot && tsc -b && vite build && node scripts/route-pages.mjs",
     "preview": "vite preview --host 0.0.0.0",
     "lint": "eslint .",

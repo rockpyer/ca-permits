@@ -130,7 +130,8 @@ export function WyApp() {
       disclaimer="Independent project, not affiliated with or endorsed by the Wyoming Oil and Gas Conservation Commission. WOGCC records remain the system of record."
       contactSubject="Wyoming drilling permit activity"
       links={[
-        ['/', 'California'],
+        ['/', 'All states'],
+        ['/ca', 'California'],
         ['/co', 'Colorado']
       ]}
       drawer={selected && <WyDrawer row={selected} onClose={() => setSelected(null)} />}

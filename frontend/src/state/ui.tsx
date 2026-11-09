@@ -8,6 +8,8 @@ import { ACCENT, CHART, SURFACE } from '../lib/palette';
 import { longDate, monthLabel, shortDate, truncate } from './format';
 import type { ActivityRow } from './stats';
 import { sortRows, type ChartFilter, type Column, type SortState } from './table';
+import { siteHref } from '../lib/routes';
+import { SiteNav } from '../components/SiteNav';
 
 export type { ChartFilter, Column };
 
@@ -95,13 +97,13 @@ export function StatePage({
   drawer?: ReactNode;
   children: ReactNode;
 }) {
-  const preview = import.meta.env.VITE_PREVIEW === '1';
   return (
     <div className="min-h-screen bg-ink text-slate-100">
       <a className="skip-link" href={`#${contentId}`}>
         Skip to activity explorer
       </a>
-      <div className="min-h-screen lg:grid lg:h-screen lg:min-h-0 lg:grid-cols-[276px_1fr]">
+      <SiteNav current={contentId.startsWith('wy') ? 'wy' : 'co'} />
+      <div className="min-h-screen lg:grid lg:h-[calc(100vh-2.5rem)] lg:min-h-0 lg:grid-cols-[276px_1fr]">
         {rail}
         <main id={contentId} className="min-h-0 bg-ink lg:overflow-y-auto" aria-label={`${title[0]} permit activity explorer`}>
           <header className="border-b border-line bg-ink/95 px-3 py-2.5 sm:px-5 sm:py-4">
@@ -137,7 +139,7 @@ export function StatePage({
                   <span>{footerCount}</span>
                   <nav className="flex flex-wrap items-center gap-4" aria-label="More pages">
                     {links.map(([path, label]) => (
-                      <a key={path} className="text-slate-500 hover:text-accent" href={preview ? `#${path}` : path}>
+                      <a key={path} className="text-slate-500 hover:text-accent" href={siteHref(path)}>
                         {label}
                       </a>
                     ))}

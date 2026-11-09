@@ -431,7 +431,7 @@ test('each state is its own list: one address can join several, and unsubscribin
   assert.match(coMail.html, /698 approved permits are not yet drilled/);
   assert.doesNotMatch(coMail.html, /img\/map-/);
   // Footnote: the other states' emails and the other tools, in both versions.
-  assert.match(coMail.html, /Other states: <a href="https:\/\/permits\.ryweller\.com"[^>]*>California<\/a> and <a href="https:\/\/permits\.ryweller\.com\/wy"[^>]*>Wyoming<\/a>/);
+  assert.match(coMail.html, /Other states: <a href="https:\/\/permits\.ryweller\.com\/ca"[^>]*>California<\/a> and <a href="https:\/\/permits\.ryweller\.com\/wy"[^>]*>Wyoming<\/a>/);
   assert.match(coMail.html, /mowry\.ryweller\.com[\s\S]*logs\.ryweller\.com/);
   assert.match(coMail.text, /Wyoming https:\/\/permits\.ryweller\.com\/wy/);
   const caMail = state.mail.find((m) => m.from.startsWith('California'));
