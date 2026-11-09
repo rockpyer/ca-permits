@@ -18,6 +18,7 @@ import {
   type Column,
   type Stage
 } from '../state/ui';
+import { chartFilter } from '../state/table';
 import type { MapPoint } from '../state/StateMap';
 import { apdUrl, loadWyData, wellFileUrl } from './data';
 import {
@@ -57,6 +58,8 @@ import type { WyApd, WyFilters, WyMeta, WyRigWeek, WySpud } from './types';
 const StateMap = lazy(() => import('../state/StateMap').then((module) => ({ default: module.StateMap })));
 
 const STAGE_LIST: Stage[] = STAGES.map((key) => ({ key, label: STAGE_LABELS[key], color: STAGE_COLORS[key] }));
+// Statuses an approved APD can have (everything but waiting on approval), for the approved charts' legends.
+const APPROVED_STAGES = STAGE_LIST.filter((item) => item.key !== 'pending');
 const STAGE_LABEL_COLORS = Object.fromEntries(STAGE_LIST.map((item) => [item.label, item.color]));
 const MINERAL_LIST: Stage[] = MINERAL_CLASSES.map((key) => ({ key, label: key, color: MINERAL_COLORS[key] }));
 const APPLICATION_LIST: Stage[] = [...APPLICATION_TYPES, 'Unknown'].map((key) => ({ key, label: key, color: APPLICATION_COLORS[key] }));
@@ -106,6 +109,12 @@ export function WyApp() {
   const listed = listing === 'approved' ? approved : pending;
   const points = useMemo(() => mapPoints(listed, colorBy), [listed, colorBy]);
   const legend = colorBy === 'stage' ? STAGE_LIST : MINERAL_LIST;
+  // Clicking a status, type, operator, county, reservoir or mineral class in a chart toggles that page filter.
+  const byStatus = chartFilter(filters, setFilters, 'stages');
+  const byType = chartFilter(filters, setFilters, 'applicationTypes');
+  const byOperator = chartFilter(filters, setFilters, 'operators');
+  const byCounty = chartFilter(filters, setFilters, 'counties');
+  const byMineral = chartFilter(filters, setFilters, 'minerals');
 
   return (
     <StatePage
@@ -195,7 +204,8 @@ export function WyApp() {
             ariaLabel="Map of Wyoming APDs"
             bounds={WYOMING_BOUNDS}
             points={points}
-            legend={legend}
+            legend={colorBy === 'stage' && listing === 'approved' ? APPROVED_STAGES : legend}
+            legendFilter={colorBy === 'mineral' ? byMineral : listing === 'approved' ? byStatus : undefined}
             selectedKey={selected?.source_key ?? null}
             onSelect={(key) => setSelected(listed.find((row) => row.source_key === key) ?? null)}
           />
@@ -204,8 +214,10 @@ export function WyApp() {
           <CategoryPanel
             title={`Approved APDs by ${view === 'parent' ? 'parent company' : 'operator'} and status`}
             data={byStage(approved, (row) => operatorFor(row.operator_name, view), 10)}
-            stages={STAGE_LIST}
+            stages={APPROVED_STAGES}
             nameColor={(name) => NAMED_PARENT_COLORS[name]}
+            stageFilter={byStatus}
+            nameFilter={byOperator}
           />
         ) : (
           <CategoryPanel
@@ -213,6 +225,8 @@ export function WyApp() {
             data={byApplication(pending, (row) => operatorFor(row.operator_name, view), 10)}
             stages={APPLICATION_LIST}
             nameColor={(name) => NAMED_PARENT_COLORS[name]}
+            stageFilter={byType}
+            nameFilter={byOperator}
           />
         )}
       </section>
@@ -226,26 +240,49 @@ export function WyApp() {
           xFormat={(value) => monthLabel(value)}
           labelFormat={(value) => monthLabel(value, true)}
           height={240}
+          stageFilter={byType}
         />
-        <CategoryPanel title="Pending APDs by county and application type" data={byApplication(pending, (row) => row.county || 'Unknown', 8)} stages={APPLICATION_LIST} />
+        <CategoryPanel
+          title="Pending APDs by county and application type"
+          data={byApplication(pending, (row) => row.county || 'Unknown', 8)}
+          stages={APPLICATION_LIST}
+          stageFilter={byType}
+          nameFilter={byCounty}
+        />
       </section>
       <section className="grid grid-cols-1 gap-3 xl:grid-cols-2" aria-label="Mineral ownership">
         <CategoryPanel
           title="Approved APDs by mineral ownership and status"
           subtitle="From each APD's detail page. Federal and mixed-federal wells also need a BLM permit to drill."
           data={byStage(approved, mineralOf, 10)}
-          stages={STAGE_LIST}
+          stages={APPROVED_STAGES}
+          stageFilter={byStatus}
+          nameFilter={byMineral}
         />
         <CategoryPanel
           title="Pending APDs by mineral ownership and application type"
           data={byApplication(pending, mineralOf, 10)}
           stages={APPLICATION_LIST}
+          stageFilter={byType}
+          nameFilter={byMineral}
         />
       </section>
       <ScorecardPanel rows={scorecard} view={view} />
       <section className="grid grid-cols-1 gap-3 xl:grid-cols-2" aria-label="Reservoirs and counties">
-        <CategoryPanel title="Approved APDs by reservoir and status" data={byStage(approved, reservoirOf, 10)} stages={STAGE_LIST} />
-        <CategoryPanel title="Approved APDs by county and status" data={byStage(approved, (row) => row.county || 'Unknown', 8)} stages={STAGE_LIST} />
+        <CategoryPanel
+          title="Approved APDs by reservoir and status"
+          data={byStage(approved, reservoirOf, 10)}
+          stages={APPROVED_STAGES}
+          stageFilter={byStatus}
+          nameFilter={chartFilter(filters, setFilters, 'reservoirs')}
+        />
+        <CategoryPanel
+          title="Approved APDs by county and status"
+          data={byStage(approved, (row) => row.county || 'Unknown', 8)}
+          stages={APPROVED_STAGES}
+          stageFilter={byStatus}
+          nameFilter={byCounty}
+        />
       </section>
       <Panel
         title={listing === 'approved' ? 'Approved APD records' : 'Pending APD records'}
@@ -360,12 +397,12 @@ function pct(value: number | null) {
 function ScorecardPanel({ rows, view }: { rows: ScorecardRow[]; view: OperatorView }) {
   const columns: Column<ScorecardRow>[] = [
     { label: view === 'parent' ? 'Parent company' : 'Operator', value: (row) => row.name, color: (row) => NAMED_PARENT_COLORS[row.name] },
-    { label: 'New-well approvals', value: (row) => row.newApprovals || '–', numeric: true },
-    { label: 'Renewals and other', value: (row) => row.renewals || '–', numeric: true },
-    { label: 'Spuds', value: (row) => row.spuds || '–', numeric: true },
-    { label: 'Approved, not spudded', value: (row) => row.approvedNotSpudded || '–', numeric: true },
-    { label: 'Waiting on approval', value: (row) => row.pending || '–', numeric: true },
-    { label: 'Federal minerals', value: (row) => (row.federalShare === null ? '–' : pct(row.federalShare)), numeric: true }
+    { label: 'New-well approvals', value: (row) => row.newApprovals || '–', sortValue: (row) => row.newApprovals, numeric: true },
+    { label: 'Renewals and other', value: (row) => row.renewals || '–', sortValue: (row) => row.renewals, numeric: true },
+    { label: 'Spuds', value: (row) => row.spuds || '–', sortValue: (row) => row.spuds, numeric: true },
+    { label: 'Approved, not spudded', value: (row) => row.approvedNotSpudded || '–', sortValue: (row) => row.approvedNotSpudded, numeric: true },
+    { label: 'Waiting on approval', value: (row) => row.pending || '–', sortValue: (row) => row.pending, numeric: true },
+    { label: 'Federal minerals', value: (row) => (row.federalShare === null ? '–' : pct(row.federalShare)), sortValue: (row) => row.federalShare, numeric: true }
   ];
   return (
     <Panel
@@ -406,7 +443,7 @@ const TABLE_COLUMNS: Column<WyApd>[] = [
   { label: 'County', value: (row) => row.county },
   { label: 'Reservoir', value: (row) => row.reservoir },
   { label: 'Minerals', value: (row) => mineralOf(row) },
-  { label: 'Proposed MD', value: (row) => row.proposed_md?.toLocaleString() },
+  { label: 'Proposed MD', value: (row) => row.proposed_md?.toLocaleString(), sortValue: (row) => row.proposed_md, numeric: true },
   { label: 'Status', value: (row) => STAGE_LABELS[stage(row)] },
   { label: 'Spud', value: (row) => row.spud_date }
 ];
@@ -503,10 +540,11 @@ function Notes({ meta }: { meta: WyMeta | null }) {
         </div>
         <div className="space-y-2">
           <p>
-            Mineral ownership comes from each APD&apos;s detail page (&ldquo;Mineral: MM w FED / Surface: FEE&rdquo;; MM is mixed minerals). On federal or
+            Mineral ownership (&ldquo;Mineral: MM w FED / Surface: FEE&rdquo;; MM is mixed minerals) comes from the Standard APD report filtered by
+            ownership, refreshed monthly for the pending queue, and from each new approval&apos;s detail page. On federal or
             mixed-federal minerals, the operator also needs a BLM permit to drill, which is not in this data. Spuds without an APD detail use the well&apos;s lease
             number (WYW is federal).
-            {meta && meta.detailMissing > 0 ? ` ${meta.detailMissing.toLocaleString()} APDs, mostly in the pending queue, have no detail page loaded and show as "Detail not loaded". New approvals are loaded each week.` : ''}
+            {meta && meta.detailMissing > 0 ? ` ${meta.detailMissing.toLocaleString()} APDs have no ownership loaded yet and show as "Detail not loaded".` : ''}
           </p>
           <p>Draft parent-company table:</p>
           <ul className="list-disc space-y-1 pl-4">

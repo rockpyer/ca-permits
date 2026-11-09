@@ -1,0 +1,80 @@
+{
+  "updated": "2026-11-09",
+  "policy": "Go slowly. Weekly runs are deltas wherever the source allows it; full refreshes are spaced out. Detail-page backfills stay off until a few weeks of runs show how the sources respond. A run that hits a firewall rejection stops at once and skips detail pages the next week.",
+  "sources": [
+    {
+      "id": "calgem",
+      "state": "California",
+      "agency": "CalGEM",
+      "host": "gis.conservation.ca.gov",
+      "workflow": "weekly-ingest.yml",
+      "schedule": "Mondays 11:17 UTC",
+      "cron": "17 11 * * 1",
+      "runs_file": "data/etl_runs.jsonl",
+      "run_sources": [
+        "permits",
+        "wells",
+        "fields"
+      ],
+      "mode": "full",
+      "full_every_days": 7,
+      "fetches": [
+        "WellSTAR Notices layer: every permit (paged ArcGIS query, about 5 requests)",
+        "WellSTAR Wells layer: every well, keeps the ones permits reference (about 120 requests)",
+        "CalGEM field boundaries (1 to 2 requests)"
+      ],
+      "notes": "ArcGIS map service built for paged queries. Unchanged: full every week."
+    },
+    {
+      "id": "ecmc",
+      "state": "Colorado",
+      "agency": "ECMC",
+      "host": "ecmc.state.co.us",
+      "workflow": "weekly-co-ingest.yml",
+      "schedule": "Mondays 11:47 UTC",
+      "cron": "47 11 * * 1",
+      "runs_file": "data/co/etl_runs.jsonl",
+      "run_sources": [
+        "ecmc_approved_form2"
+      ],
+      "mode": "full",
+      "full_every_days": 7,
+      "fetches": [
+        "Approved Form 2 list, last 12 months (2 requests: page and postback)",
+        "WELLS_SHP.ZIP statewide well file (1 download)",
+        "PERMITS_SHP.ZIP undrilled permit file (1 download)"
+      ],
+      "notes": "4 requests a week, all published files. No detail pages or scout cards are fetched."
+    },
+    {
+      "id": "wogcc",
+      "state": "Wyoming",
+      "agency": "WOGCC",
+      "host": "dataexplorer.wogcc.wyo.gov",
+      "workflow": "weekly-wy-ingest.yml",
+      "schedule": "Mondays 12:13 UTC",
+      "cron": "13 12 * * 1",
+      "runs_file": "data/wy/etl_runs.jsonl",
+      "run_sources": [
+        "wogcc_data_explorer"
+      ],
+      "mode": "auto",
+      "full_every_days": 28,
+      "limits": {
+        "detail_pages_delta": 15,
+        "detail_pages_full": 30,
+        "pending_rotation_weeks": 4,
+        "detail_pending_backfill": false
+      },
+      "fetches": [
+        "APD map layers with each key's status code (2 requests)",
+        "APD report only for keys that are new or whose status code changed: a handful of requests most weeks. The first run has no saved codes, so it reads new keys plus active permits and a quarter of the pending queue (about 6 requests)",
+        "Statewide well map layer for well status codes (1 request, about 24 MB)",
+        "Well report only for new or changed wells (all about 1,500 matched wells on the first run: about 4 requests)",
+        "Up to 15 APD detail pages for newly approved APDs",
+        "Full (every 28 days): the APD and well reports for every key, and up to 30 detail pages (about 60 requests)"
+      ],
+      "notes": "The Data Explorer firewall blocked this site on 2026-11-07 after about 1,600 detail pages in two hours. Saved status codes: data/wy/source_codes.jsonl."
+    }
+  ]
+}

@@ -21,6 +21,7 @@ import {
   type Column,
   type Stage
 } from '../state/ui';
+import { chartFilter } from '../state/table';
 import type { MapPoint } from '../state/StateMap';
 import { loadCoData, locationUrl, scoutCardUrl } from './data';
 import { LIFECYCLE_COLORS, LIFECYCLE_LABELS, LIFECYCLES, approvalToSpudDays, lifecycle, wellStatusLabel } from './lifecycle';
@@ -93,6 +94,9 @@ export function CoApp() {
   const operatorNames = useMemo(() => [...spuds, ...undrilled].map((row) => operatorFor(row.operator_name, view)), [spuds, undrilled, view]);
   const points = useMemo(() => mapPoints(filtered, asOf), [filtered, asOf]);
   const historyStart = meta?.historyStart || meta?.dateBounds.minDate || '';
+  // Clicking a status, operator, county or formation in a chart toggles that page filter.
+  const byStatus = chartFilter(filters, setFilters, 'lifecycles');
+  const byOperator = chartFilter(filters, setFilters, 'operators');
 
   return (
     <StatePage
@@ -139,6 +143,7 @@ export function CoApp() {
             bounds={COLORADO_BOUNDS}
             points={points}
             legend={STAGES}
+            legendFilter={byStatus}
             selectedKey={selected?.source_key ?? null}
             onSelect={(key) => setSelected(filtered.find((row) => row.source_key === key) ?? null)}
           />
@@ -149,6 +154,8 @@ export function CoApp() {
           data={categoryByLifecycle(filtered, asOf, (row) => operatorFor(row.operator_name, view), 10)}
           stages={STAGES}
           nameColor={(name) => NAMED_PARENT_COLORS[name]}
+          stageFilter={byStatus}
+          nameFilter={byOperator}
         />
       </section>
       <section className="grid grid-cols-1 gap-3 xl:grid-cols-2" aria-label="Undrilled inventory">
@@ -167,14 +174,27 @@ export function CoApp() {
       </section>
       <ScorecardPanel rows={scorecard} view={view} months={months} />
       <section className="grid grid-cols-1 gap-3 xl:grid-cols-2" aria-label="Counties and formations">
-        <CategoryPanel title="Approved permits by county and status" data={categoryByLifecycle(filtered, asOf, (row) => row.county || 'Unknown', 8)} stages={STAGES} />
-        <CategoryPanel title="Approved permits by objective formation and status" data={categoryByLifecycle(filtered, asOf, formationOf, 8)} stages={STAGES} />
+        <CategoryPanel
+          title="Approved permits by county and status"
+          data={categoryByLifecycle(filtered, asOf, (row) => row.county || 'Unknown', 8)}
+          stages={STAGES}
+          stageFilter={byStatus}
+          nameFilter={chartFilter(filters, setFilters, 'counties')}
+        />
+        <CategoryPanel
+          title="Approved permits by objective formation and status"
+          data={categoryByLifecycle(filtered, asOf, formationOf, 8)}
+          stages={STAGES}
+          stageFilter={byStatus}
+          nameFilter={chartFilter(filters, setFilters, 'formations')}
+        />
       </section>
       <StackedColumnsPanel
         title="Weekly approved Form 2 permits by current status"
         subtitle="Weeks start Monday. Status is today's, so older weeks show more drilling."
         data={weeklyByLifecycle(filtered, asOf, filters.startDate, filters.endDate)}
         stages={STAGES}
+        stageFilter={byStatus}
         xKey="week"
         xFormat={shortDate}
         labelFormat={(value) => `Week of ${longDate(value)}`}
@@ -298,11 +318,16 @@ function PipelineStrip({
 function ScorecardPanel({ rows, view, months }: { rows: ScorecardRow[]; view: OperatorView; months: number }) {
   const columns: Column<ScorecardRow>[] = [
     { label: view === 'parent' ? 'Parent company' : 'Operator', value: (row) => row.name, color: (row) => NAMED_PARENT_COLORS[row.name] },
-    { label: 'Approved', value: (row) => row.approvals || '–', numeric: true },
-    { label: 'Spuds', value: (row) => row.spuds || '–', numeric: true },
-    { label: 'Spuds / month', value: (row) => (row.spuds ? row.spudsPerMonth.toFixed(1) : '–'), numeric: true },
-    { label: 'Undrilled inventory', value: (row) => row.inventory || '–', numeric: true },
-    { label: 'Months of inventory', value: (row) => (row.monthsOfInventory === null ? (row.inventory ? 'No spuds' : '–') : row.monthsOfInventory.toFixed(1)), numeric: true }
+    { label: 'Approved', value: (row) => row.approvals || '–', sortValue: (row) => row.approvals, numeric: true },
+    { label: 'Spuds', value: (row) => row.spuds || '–', sortValue: (row) => row.spuds, numeric: true },
+    { label: 'Spuds / month', value: (row) => (row.spuds ? row.spudsPerMonth.toFixed(1) : '–'), sortValue: (row) => row.spudsPerMonth, numeric: true },
+    { label: 'Undrilled inventory', value: (row) => row.inventory || '–', sortValue: (row) => row.inventory, numeric: true },
+    {
+      label: 'Months of inventory',
+      value: (row) => (row.monthsOfInventory === null ? (row.inventory ? 'No spuds' : '–') : row.monthsOfInventory.toFixed(1)),
+      sortValue: (row) => row.monthsOfInventory,
+      numeric: true
+    }
   ];
   return (
     <Panel
@@ -367,7 +392,7 @@ function tableColumns(asOf: string): Column<CoPermit>[] {
     { label: 'API', value: (row) => row.api_display },
     { label: 'County', value: (row) => row.county },
     { label: 'Formation', value: (row) => row.objective_formation },
-    { label: 'Proposed TD', value: (row) => row.proposed_td },
+    { label: 'Proposed TD', value: (row) => row.proposed_td, numeric: true },
     { label: 'Status', value: (row) => LIFECYCLE_LABELS[lifecycle(row, asOf)] },
     { label: 'Spud', value: (row) => row.spud_date },
     { label: 'Expires', value: (row) => row.permit_expiration_date }
