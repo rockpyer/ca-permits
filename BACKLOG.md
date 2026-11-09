@@ -20,7 +20,7 @@ re-rank work. The sections below keep the longer design notes the items point to
   - The public Submitted NOI layer (Notices/0) currently exposes only `Submitted` (110 on 2026-09-25), with `SubmittedDate`, `NoticeType`, `Operator`, `Field`, and `Pool_`.
   - On-hold and returned statuses aren't public in that layer. Check WellSTAR's `ReadAllPermits` or ask CalGEM.
   - Snapshotting Notices/0 each ingest would still show time-in-queue and which submissions become approvals.
-- **Match CalGEM's dashboard counts.** Year-to-date by filed date (`NoticeDated`) gives exactly 419 New Drill, the same as the [WellSTAR dashboard](https://wellstar-dashboard.conservation.ca.gov/). This site counts by approval date and shows 427. Consider a "Filed / Approved" date toggle, or a note next to the KPI.
+- **Match CalGEM's dashboard counts.** Year-to-date by filed date (`NoticeDated`) gives exactly 419 New Drill, the same as the [WellSTAR dashboard](https://wellstar-dashboard.conservation.ca.gov/). This site counts by approval date and shows 427. Owner decision (Nov 9): keep approval date, labeled on the page; no toggle.
 
 ## Permits vs actual drilling
 
@@ -64,7 +64,7 @@ Goal: show how much approved permitting turns into rigs, spuds, and production, 
 
 ## Wyoming data fetch
 
-The WOGCC Data Explorer's firewall began rejecting every request after about 1,600 APD detail pages over two hours (2026-11-07). The weekly ingest now runs about 40 report and map requests plus up to 50 detail pages for new approvals, and stops at the first rejection. Ideas for getting more without heavier fetching, cheapest first:
+The WOGCC Data Explorer's firewall began rejecting every request after about 1,600 APD detail pages over two hours (2026-11-07). The weekly ingest now runs about 40 report and map requests plus up to 50 detail pages for new approvals, and stops at the first rejection. Since 2026-11-09 the weekly WOGCC run reads only keys that are new or whose status code changed (see below), with up to 15 detail pages and a full refresh every 28 days. Each run records its request count, bytes, and new/changed rows, shown on the admin **Ingest** tab; the plan is `data/ingest_plan.json`. Ideas for getting more without heavier fetching, cheapest first:
 
 - [x] **Federal vs fee without detail pages** (Nov 9): the Standard APD report takes a `MineralOwnership` filter, so about 25 requests on the monthly full refresh cover the pending queue. The BLM layer idea below is no longer needed for this.
 - ~~**Federal vs fee from a map layer, not detail pages.**~~ Intersect each APD's surface and bottom-hole location with BLM's federal mineral estate (subsurface management) layer. That covers the 6,560 pending APDs with no detail page, with zero WOGCC requests. Find the layer on [BLM Navigator](https://navigator.blm.gov/); confirm it separates split estate from full federal.
@@ -77,4 +77,4 @@ The WOGCC Data Explorer's firewall began rejecting every request after about 1,6
 
 ## UI
 
-- Label the date basis ("by approval date") next to the KPI row.
+- Done (Nov 9): the California header says counts are by approval date, and the date filter is titled "Approval date".

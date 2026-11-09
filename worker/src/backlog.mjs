@@ -3,7 +3,7 @@
 // notes are kept in D1 (table backlog_state) and laid over these defaults. Longer design notes stay in BACKLOG.md and
 // docs/colorado_plan.md.
 
-export const UPDATED = '2026-11-08';
+export const UPDATED = '2026-11-09';
 
 export const PRIORITIES = [
   { id: 'p1', name: 'Now', goal: 'Needed before /co comes out of draft, or to keep the weekly runs healthy.' },
@@ -78,10 +78,10 @@ export const ITEMS = [
     what: 'In frontend/scripts/route-pages.mjs drop draft: true for co. Add a Colorado methodology section (sources, status groups, history start, expiration notes). Make a Colorado social preview image. Add a non-affiliation line for ECMC (already in the footer).',
     why: 'It is live but hidden from search and unlinked.' },
   { id: 'ops-wy-first-run', priority: 'p1', theme: 'ops', size: 'S', src: 'Wyoming build, Nov 8',
-    title: 'Check the first scheduled WOGCC ingest',
-    sum: 'Confirm Monday\'s "Weekly WOGCC ingest" ran without tripping the Data Explorer firewall, committed data/wy, and redeployed.',
-    what: 'The job runs Mondays at 12:13 UTC, after the CalGEM and ECMC jobs. In data/wy/etl_runs.jsonl check details_fetched and details_stopped. A firewall rejection on the reports fails the run without changing data; if that happens, skip a week before retrying. Extend keepalive.yml so a stale WOGCC run raises the same alert as CalGEM.',
-    why: 'On Nov 7 a one-time backfill of APD detail pages tripped the firewall for over an hour. The weekly run is now light (about 40 report requests and up to 50 detail pages), but it has not run on schedule yet.',
+    title: 'Check the first scheduled ECMC and WOGCC ingests',
+    sum: 'Confirm Monday\'s first scheduled ECMC and WOGCC runs finished without a firewall rejection, committed data, and redeployed. The admin Ingest tab shows each run.',
+    what: 'WOGCC runs Mondays at 12:13 UTC, changes only. With no status codes saved yet, the first run reads new APDs, active permits and a quarter of the pending queue, every matched well, and up to 15 detail pages (about 30 requests); later weeks read only keys whose code changed. On the Ingest tab check requests, new and changed records, new spuds, and any blocked flag. A run that meets the firewall stops, records the block, and the next run skips detail pages. Extend keepalive.yml so a stale WOGCC or ECMC run raises the same alert as CalGEM.',
+    why: 'On Nov 7 a one-time backfill of APD detail pages tripped the firewall for over an hour. Neither weekly job has run on schedule yet.',
     links: [WOGCC_DE] },
   { id: 'map-tiles', priority: 'p1', theme: 'map', size: 'S', src: 'BACKLOG.md',
     title: 'Move the basemap off tile.openstreetmap.org',
@@ -125,7 +125,7 @@ export const ITEMS = [
   { id: 'ops-polite-fetch', priority: 'p2', theme: 'ops', size: 'M', src: 'Owner, Nov 8',
     title: 'One polite fetch client for every state ingest',
     sum: 'Shared session with a contact User-Agent, per-host rate limit with jitter, backoff on 429/503 and firewall pages, and a request count per run.',
-    what: 'Move the pieces now in ingest_wyoming.py (rejection check, consecutive-failure stop, delays) into backend/fetch.py and use it from the CalGEM, ECMC and WOGCC ingests. Record requests per host in each etl_runs entry and show them, with any stop reason, on the admin page. After a block, skip that host\'s optional requests the next week instead of retrying.',
+    what: 'Nov 9: request counts per host (backend/fetchlog.py), the admin Ingest tab, and skipping WOGCC detail pages after a block are done. Left: per-host rate limit with jitter and backoff on 429/503. Move the pieces now in ingest_wyoming.py (rejection check, consecutive-failure stop, delays) into backend/fetch.py and use it from the CalGEM, ECMC and WOGCC ingests. Record requests per host in each etl_runs entry and show them, with any stop reason, on the admin page. After a block, skip that host\'s optional requests the next week instead of retrying.',
     why: 'The owner does not want high-intensity scraping. Request counts make the load visible and keep it from creeping up as states are added.' },
   { id: 'wy-well-lookup', priority: 'p2', theme: 'wy', size: 'S', src: 'Wyoming build, Nov 8',
     title: 'Smaller weekly well lookup for Wyoming',
@@ -162,19 +162,19 @@ export const ITEMS = [
     why: 'Signing in with a password has been a pain: no reset flow, a 15-minute lockout after typos, and one more secret to keep. Access adds two-factor-grade sign-in with no code to maintain.',
     links: [['Cloudflare Access: self-hosted applications', 'https://developers.cloudflare.com/cloudflare-one/applications/configure-apps/self-hosted-apps/'],
       ['Validate the Access JWT in a Worker', 'https://developers.cloudflare.com/cloudflare-one/identity/authorization-cookie/validating-json/']] },
-  { id: 'admin-by-state', priority: 'p2', theme: 'admin', size: 'S', src: 'Owner, Nov 8',
+  { id: 'admin-by-state', priority: 'p2', theme: 'admin', size: 'S', status: 'done', src: 'Owner, Nov 8; done Nov 9',
     title: 'Usage split by state',
-    sum: 'Show visits, visitors and time on page for California vs Colorado pages, and sign-ups by page.',
+    sum: 'Visits, visitors and time on page for California, Colorado and Wyoming pages, with sign-ups by page (Visitors tab).',
     why: 'Tells which state page is getting used before investing in WY and UT.' },
   { id: 'ui-data-dates', priority: 'p2', theme: 'ui', size: 'S', src: 'BACKLOG.md',
     title: 'Show the ingest date next to the latest permit date',
     sum: 'On both state pages, so a stalled ingest is visible.' },
-  { id: 'ca-date-basis', priority: 'p2', theme: 'ca', size: 'S', src: 'BACKLOG.md',
+  { id: 'ca-date-basis', priority: 'p2', theme: 'ca', size: 'S', status: 'done', src: 'BACKLOG.md; done Nov 9',
     title: 'Say which date California counts use',
-    sum: 'A "Filed / Approved" toggle or a "by approval date" label; explains the gap with CalGEM\'s dashboard (419 vs 427 New Drill).' },
-  { id: 'ca-parent-filter', priority: 'p2', theme: 'ca', size: 'S', src: 'BACKLOG.md',
+    sum: 'Owner chose approval date, no toggle. The header says counts are by approval date and why CalGEM\'s dashboard differs; the date filter is titled "Approval date".' },
+  { id: 'ca-parent-filter', priority: 'p2', theme: 'ca', size: 'S', status: 'done', src: 'PR #12',
     title: 'Parent rollup in the California operator filter',
-    sum: 'CRC appears under several names; offer the parent in the filter, not only in Operator Analysis.' },
+    sum: 'Already shipped: the filter rail\'s Parent / Operator toggle (default Parent) lists California Resources Corp., and selecting it matches all eight CRC operators of record.' },
 
   /* ---------- Later ---------- */
   { id: 'wy-blm-apd', priority: 'p3', theme: 'wy', size: 'M', src: 'Wyoming build, Nov 8',

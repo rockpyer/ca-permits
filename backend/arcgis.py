@@ -3,9 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
-import requests
-
+import fetchlog
 from config import DEFAULT_PAGE_SIZE
+
+SESSION = fetchlog.session()
 
 
 @dataclass(frozen=True)
@@ -16,7 +17,7 @@ class ArcGISLayer:
 
 
 def fetch_layer_fields(layer_url: str) -> set[str]:
-    response = requests.get(layer_url, params={"f": "json"}, timeout=60)
+    response = SESSION.get(layer_url, params={"f": "json"}, timeout=60)
     response.raise_for_status()
     payload = response.json()
     if "error" in payload:
@@ -52,7 +53,7 @@ def query_features(
             "resultRecordCount": page_size,
             "orderByFields": "OBJECTID",
         }
-        response = requests.get(f"{layer.url}/query", params=params, timeout=90)
+        response = SESSION.get(f"{layer.url}/query", params=params, timeout=90)
         response.raise_for_status()
         payload = response.json()
         if "error" in payload:
