@@ -297,9 +297,17 @@ def test_second_run_requests_only_changed_keys(tmp_path, monkeypatch):
     monkeypatch.setattr(wy, "wfs_features", wfs)
     monkeypatch.setattr(wy, "report", report)
     monkeypatch.setattr(wy, "fetch_detail", lambda client, pkey: parse_detail_page(DETAIL_PAGE))
+    ownership_calls = []
+    monkeypatch.setattr(
+        wy,
+        "fetch_ownership",
+        lambda client, checked: ownership_calls.append(checked)
+        or [{"source_key": "340001", "ownership": "Mineral: FED / Surface: FEE", "mineral_class": "Federal", "surface_owner": "FEE"}],
+    )
 
     wy.run()
     assert requested == [("StandardAPD.xml", ["340001", "340002"]), ("StandardWell.xml", ["4900001"])]
+    assert len(ownership_calls) == 1  # full refresh fetches ownership
 
     requested.clear()
     codes["340001"] = "AP"  # approved since the last run
@@ -310,3 +318,16 @@ def test_second_run_requests_only_changed_keys(tmp_path, monkeypatch):
     assert apds["340002"]["spud_date"] == "2026-04-01"  # still joined to the stored well
     run = store.read_jsonl("wy/etl_runs.jsonl")[0]["details"]
     assert (run["full_refresh"], run["apd_keys_requested"], run["well_keys_requested"]) == (False, 1, 0)
+    assert len(ownership_calls) == 1  # not again on a changes-only run
+    assert store.read_jsonl("wy/ownership.jsonl")[0]["mineral_class"] == "Federal"
+
+
+def test_ownership_records_map_codes_to_classes():
+    from ingest_wyoming import ownership_records
+
+    options = [("93", "Mineral: MM w FED / Surface: FEE"), ("23", "Mineral: FEE / Surface: FEE")]
+    rows = ownership_records(options, {"93": [{"PKey": "1"}], "23": [{"PKey": "2"}, {"PKey": "3"}]}, "2026-11-09")
+    by_key = {row["source_key"]: row for row in rows}
+    assert by_key["1"]["mineral_class"] == "Mixed with federal"
+    assert by_key["1"]["surface_owner"] == "FEE"
+    assert {by_key["2"]["mineral_class"], by_key["3"]["mineral_class"]} == {"Fee"}

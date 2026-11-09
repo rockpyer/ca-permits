@@ -540,10 +540,11 @@ function Notes({ meta }: { meta: WyMeta | null }) {
         </div>
         <div className="space-y-2">
           <p>
-            Mineral ownership comes from each APD&apos;s detail page (&ldquo;Mineral: MM w FED / Surface: FEE&rdquo;; MM is mixed minerals). On federal or
+            Mineral ownership (&ldquo;Mineral: MM w FED / Surface: FEE&rdquo;; MM is mixed minerals) comes from the Standard APD report filtered by
+            ownership, refreshed monthly for the pending queue, and from each new approval&apos;s detail page. On federal or
             mixed-federal minerals, the operator also needs a BLM permit to drill, which is not in this data. Spuds without an APD detail use the well&apos;s lease
             number (WYW is federal).
-            {meta && meta.detailMissing > 0 ? ` ${meta.detailMissing.toLocaleString()} APDs, mostly in the pending queue, have no detail page loaded and show as "Detail not loaded". New approvals are loaded each week.` : ''}
+            {meta && meta.detailMissing > 0 ? ` ${meta.detailMissing.toLocaleString()} APDs have no ownership loaded yet and show as "Detail not loaded".` : ''}
           </p>
           <p>Draft parent-company table:</p>
           <ul className="list-disc space-y-1 pl-4">
