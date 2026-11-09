@@ -138,6 +138,7 @@ export function WyApp() {
     >
       <SummaryTiles
         label="Permit and drilling summary"
+        period={{ start: filters.startDate, end: filters.endDate }}
         tiles={[
           [
             'New-well approvals',
@@ -147,9 +148,9 @@ export function WyApp() {
           [
             'Waiting on approval',
             queue.count.toLocaleString(),
-            queue.medianAgeDays === null ? 'Current queue' : `Median age ${queue.medianAgeDays} days; ${pct(queue.renewalShare)} renewals`
+            queue.medianAgeDays === null ? `As of ${shortDate(asOf)}` : `As of ${shortDate(asOf)}; median age ${queue.medianAgeDays} days, ${pct(queue.renewalShare)} renewals`
           ],
-          ['Spuds', filteredSpuds.length.toLocaleString(), 'Statewide, operator-reported'],
+          ['Spuds', filteredSpuds.length.toLocaleString(), 'Statewide, operator-reported, in the date range'],
           latestRig(rigWeeks),
           [
             'Federal minerals',
@@ -159,7 +160,7 @@ export function WyApp() {
           [
             'Median days to approve',
             summary.medianReceivedToApproved === null ? '–' : String(summary.medianReceivedToApproved),
-            summary.medianApprovalToSpud === null ? 'New-well APDs' : `Approval to spud: ${summary.medianApprovalToSpud} days (${summary.spuddedNew} spudded)`
+            summary.medianApprovalToSpud === null ? 'New-well APDs approved in the date range' : `Received to approved, new wells. Approval to spud: ${summary.medianApprovalToSpud} days (${summary.spuddedNew} spudded)`
           ]
         ]}
       />
@@ -390,7 +391,7 @@ function WyFilterRail({
 function latestRig(rigWeeks: WyRigWeek[] | null): [string, string, string] {
   const rigs = rigWeeks?.filter((week) => typeof week.wyoming === 'number') ?? [];
   const latest = rigs[rigs.length - 1];
-  return ['Wyoming rigs', latest ? String(latest.wyoming) : '–', latest ? `Baker Hughes, week of ${shortDate(latest.date)}` : 'Rig count unavailable'];
+  return ['Wyoming rigs', latest ? String(latest.wyoming) : '–', latest ? `As of week of ${shortDate(latest.date)} (Baker Hughes)` : 'Rig count unavailable'];
 }
 
 function pct(value: number | null) {

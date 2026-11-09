@@ -118,7 +118,7 @@ export function CoApp() {
       ]}
       drawer={selected && <CoDrawer row={selected} asOf={asOf} onClose={() => setSelected(null)} />}
     >
-      <PipelineStrip summary={summary} spuds={filteredSpuds} permitApis={permitApis} undrilled={filteredUndrilled} asOf={asOf} historyStart={historyStart} rigWeeks={rigWeeks} />
+      <PipelineStrip period={{ start: filters.startDate, end: filters.endDate }} summary={summary} spuds={filteredSpuds} permitApis={permitApis} undrilled={filteredUndrilled} asOf={asOf} historyStart={historyStart} rigWeeks={rigWeeks} />
       <ActivityPanel
         title={(label) => `${label} approved permits, spuds, and Colorado rig count`}
         subtitle={(period) =>
@@ -282,6 +282,7 @@ function CoFilterRail({
 }
 
 function PipelineStrip({
+  period,
   summary,
   spuds,
   permitApis,
@@ -290,6 +291,7 @@ function PipelineStrip({
   historyStart,
   rigWeeks
 }: {
+  period: { start: string; end: string };
   summary: ReturnType<typeof summarize>;
   spuds: CoSpud[];
   permitApis: Set<string | null>;
@@ -306,12 +308,13 @@ function PipelineStrip({
   return (
     <SummaryTiles
       label="Permit and drilling summary"
+      period={period}
       tiles={[
         ['Approved permits', summary.total.toLocaleString(), `${summary.newWells} New Well, ${summary.recompletes} Recomplete`],
-        ['Spuds', spuds.length.toLocaleString(), `${matched} on permits approved since ${since}`],
-        ['Colorado rigs', latestRig ? String(latestRig.colorado) : '–', latestRig ? `Baker Hughes, week of ${shortDate(latestRig.date)}` : 'Rig count unavailable'],
-        ['Undrilled inventory', undrilled.length.toLocaleString(), pastExpiration ? `All approval dates; ${pastExpiration} past expiration` : 'All approval dates'],
-        ['Expiring within 90 days', expiringWithin(undrilled, asOf, 90).toLocaleString(), 'Undrilled permits'],
+        ['Spuds', spuds.length.toLocaleString(), `Statewide in the date range; ${matched} on permits approved since ${since}`],
+        ['Colorado rigs', latestRig ? String(latestRig.colorado) : '–', latestRig ? `As of week of ${shortDate(latestRig.date)} (Baker Hughes)` : 'Rig count unavailable'],
+        ['Undrilled inventory', undrilled.length.toLocaleString(), pastExpiration ? `As of ${shortDate(asOf)}, any approval date; ${pastExpiration} past expiration` : `As of ${shortDate(asOf)}, any approval date`],
+        ['Expiring within 90 days', expiringWithin(undrilled, asOf, 90).toLocaleString(), `Undrilled permits, as of ${shortDate(asOf)}`],
         ['Median days to spud', summary.medianDaysToSpud === null ? '–' : String(summary.medianDaysToSpud), `Permits approved since ${since}`]
       ]}
     />

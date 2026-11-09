@@ -221,9 +221,16 @@ export function FilterRail({
   );
 }
 
-export function SummaryTiles({ tiles, label }: { tiles: Array<[string, string, string?]>; label: string }) {
+// `period` names the time span the counts cover (the filter dates); tiles that are a snapshot say "as of" in their note.
+export function SummaryTiles({ tiles, label, period }: { tiles: Array<[string, string, string?]>; label: string; period?: { start: string; end: string } }) {
   return (
     <section className="grid grid-cols-2 gap-px border border-line bg-line sm:grid-cols-3 xl:grid-cols-6" aria-label={label}>
+      {period?.start && period.end && (
+        <div className="col-span-full bg-panel px-3 py-1.5 text-xs text-slate-500">
+          Counts for <span className="font-semibold text-slate-200">{longDate(period.start)} – {longDate(period.end)}</span>, the date range in Filters. Tiles marked
+          &ldquo;as of&rdquo; are current totals.
+        </div>
+      )}
       {tiles.map(([title, value, note]) => (
         <div key={title} className="bg-panel px-3 py-2.5">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{title}</div>
