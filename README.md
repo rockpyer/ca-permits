@@ -159,4 +159,4 @@ After GitHub Pages shows the DNS check passing and the certificate is issued, en
 
 ## License
 
-This project is licensed under [CC BY-SA 4.0](LICENSE.md).
+Copyright © 2025–2026 Ryan Weller. All rights reserved; see [LICENSE.md](LICENSE.md). Versions before November 9, 2026 were released under CC BY-SA 4.0.

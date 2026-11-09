@@ -37,4 +37,4 @@ Counts are approved permits, not wells drilled. CalGEM is the authoritative sour
 
 ## License
 
-CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/). Cite "California well permit activity, permits.ryweller.com" when quoting these numbers.
+All rights reserved (https://github.com/rockpyer/ca-permits/blob/main/LICENSE.md). Search engines and AI answer services may index and cite these pages with a link. Copying the code, design or datasets, scraping, and model training are not permitted without permission. Cite "California well permit activity, permits.ryweller.com" when quoting these numbers.
