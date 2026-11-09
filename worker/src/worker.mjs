@@ -5,10 +5,10 @@
 //   /confirm, /unsubscribe       links in emails
 //   /img/map-<week>.png          each week's email map
 //   /api/login, /api/admin/*     the admin page (public/admin.html), signed in as ADMIN_USER
-// The cron trigger sends the weekly digest (src/digest.mjs).
+// The cron trigger sends each state's weekly digest (src/digest.mjs).
 import { handleAdmin } from './admin.mjs';
 import { login, logout, renewCookie, sessionUser } from './auth.mjs';
-import { runWeekly, serveImage } from './digest.mjs';
+import { runAll, serveImage } from './digest.mjs';
 import { confirm, subscribe, unsubscribe } from './subscribe.mjs';
 import { recordVisit } from './visits.mjs';
 import { corsHeaders, json } from './util.mjs';
@@ -53,6 +53,6 @@ export default {
     catch (e) { console.error(e); return json({ error: 'Server error' }, 500); }
   },
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runWeekly(env).then((r) => console.log('weekly digest', JSON.stringify(r))));
+    ctx.waitUntil(runAll(env).then((r) => console.log('weekly digests', JSON.stringify(r))));
   }
 };

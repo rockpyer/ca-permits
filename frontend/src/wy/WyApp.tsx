@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { MultiSelect } from '../components/MultiSelect';
+import { NewsletterSignup } from '../components/NewsletterSignup';
 import { downloadCsv, longDate, monthLabel, shortDate } from '../state/format';
 import { countBy, withNames } from '../state/stats';
 import {
@@ -380,6 +381,7 @@ function WyFilterRail({
         onChange={(stages) => set({ stages })}
         colorFor={(value) => STAGE_LABEL_COLORS[value]}
       />
+      <NewsletterSignup list="wy" />
     </FilterRail>
   );
 }
