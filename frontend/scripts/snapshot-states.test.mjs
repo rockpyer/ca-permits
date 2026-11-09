@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lastFullWeek, statesSummary } from './snapshot-states.mjs';
+import { lastFullWeek, mapPoints, statesSummary, weeklySeries } from './snapshot-states.mjs';
 
 describe('states snapshot', () => {
   it('finds the last full Monday–Sunday week', () => {
@@ -31,5 +31,27 @@ describe('states snapshot', () => {
     const [ca, co] = summary.states;
     expect(ca).toMatchObject({ approvals: 114, newDrills: 5, ytdNewDrills: 471, rigs: { date: '2026-10-30', count: 3 } });
     expect(co).toMatchObject({ draft: true, week: { start: '2026-10-26', end: '2026-11-01' }, approvals: 2, spuds: 1, ytdApprovals: 3, ytdSpuds: 1, rigs: { count: 11 } });
+  });
+
+  it('counts weeks and marks this week\'s map points', () => {
+    const week = { start: '2026-10-26', end: '2026-11-01' };
+    const series = weeklySeries(['2026-11-01', '2026-10-26', '2026-10-25', '2026-08-01', '2026-11-02', null], week, 3);
+    expect(series).toEqual([
+      { end: '2026-10-18', count: 0 },
+      { end: '2026-10-25', count: 1 },
+      { end: '2026-11-01', count: 2 }
+    ]);
+    const points = mapPoints(
+      [
+        { d: '2026-10-27', latitude: 35.001, longitude: -119.004 },
+        { d: '2026-03-01', latitude: 35.004, longitude: -119.001 },
+        { d: '2026-03-01', latitude: 36, longitude: -120 },
+        { d: '2025-12-31', latitude: 37, longitude: -121 },
+        { d: '2026-03-01', latitude: null, longitude: null }
+      ],
+      'd',
+      week
+    );
+    expect(points).toEqual([[-119, 35, 1], [-120, 36, 0]]);
   });
 });

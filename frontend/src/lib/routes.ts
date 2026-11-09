@@ -3,7 +3,7 @@
 // /about-methodology) are sent to the same view under /ca with the query and hash kept.
 // Preview builds route by hash (#/ca/drilling) because their host can't serve custom paths.
 
-export type Page = 'home' | 'ca' | 'co' | 'wy';
+export type Page = 'home' | 'ca' | 'co' | 'wy' | 'about';
 
 export const CA_BASE = '/ca';
 const CA_VIEWS = ['/drilling', '/prod', '/about-methodology'];
@@ -27,6 +27,7 @@ export function pageFor(path: string): Page {
   if (/^\/co(\/|$)/.test(path)) return 'co';
   if (/^\/wy(\/|$)/.test(path)) return 'wy';
   if (/^\/ca(\/|$)/.test(path)) return 'ca';
+  if (/^\/about(\/|$)/.test(path)) return 'about';
   return 'home';
 }
 

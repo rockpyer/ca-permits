@@ -13,6 +13,8 @@ describe('site routes', () => {
     expect(pageFor(routePath(at('/artifact/x', '', '#/co')))).toBe('co');
     expect(pageFor(routePath(at('/artifact/x', '', '#/')))).toBe('home');
     expect(pageFor(routePath(at('/cash')))).toBe('home');
+    expect(pageFor(routePath(at('/about/')))).toBe('about');
+    expect(legacyRedirect(at('/about/'))).toBeNull();
   });
 
   it('sends old California links to /ca with the query and hash kept', () => {

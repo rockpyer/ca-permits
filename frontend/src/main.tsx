@@ -8,11 +8,12 @@ import { startVisitBeacon } from './lib/visits';
 
 // / lists the states; /ca, /co and /wy are separate apps with their own data, loaded on demand.
 const StatesPage = lazy(() => import('./home/StatesPage').then((module) => ({ default: module.StatesPage })));
+const AboutPage = lazy(() => import('./home/AboutPage').then((module) => ({ default: module.AboutPage })));
 const CaApp = lazy(() => import('./App').then((module) => ({ default: module.App })));
 const CoApp = lazy(() => import('./co/CoApp').then((module) => ({ default: module.CoApp })));
 const WyApp = lazy(() => import('./wy/WyApp').then((module) => ({ default: module.WyApp })));
 
-const APPS = { home: StatesPage, ca: CaApp, co: CoApp, wy: WyApp };
+const APPS = { home: StatesPage, about: AboutPage, ca: CaApp, co: CoApp, wy: WyApp };
 
 // Old California links: rewrite the address in place and render the /ca view, no extra page load.
 const redirect = legacyRedirect();

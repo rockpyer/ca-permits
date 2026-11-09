@@ -21,6 +21,7 @@ import { loadSb237DrillTrackerStats, SB237_DRILL_TRACKER_URL, SB237_PAGE_URL, sb
 import { operatorColorMap } from './lib/operatorColors';
 import { CRC_PARENT_MEMBERS, CRC_PARENT_NAME, operatorAnalysisRows, rowOperatorDisplayName, type OperatorView } from './lib/operators';
 import { caHref, routePath, siteHref } from './lib/routes';
+import { SiteNav } from './components/SiteNav';
 import { countByValue, shiftDate } from './lib/summary';
 import { ACCENT, BRAND, CHART, CRC_MEMBER_SHADES, FUNCTIONAL_TYPE_COLORS, FIELD_COLORS, NOTICE_TYPE_COLORS, OPERATOR_SLOTS, SOURCE_TYPE_COLORS, SURFACE, WORK_COLORS } from './lib/palette';
 import type { DrillTracker, EtlRun, FieldBoundary, Filters, PermitActivity, RigCount } from './lib/types';
@@ -158,7 +159,7 @@ export function App() {
 
   return (
     <Shell>
-      <div className={`min-h-screen lg:grid lg:h-screen lg:min-h-0 ${filtersCollapsed ? 'lg:grid-cols-[56px_1fr]' : 'lg:grid-cols-[276px_1fr]'}`}>
+      <div className={`min-h-screen lg:grid lg:h-[calc(100vh-2.5rem)] lg:min-h-0 ${filtersCollapsed ? 'lg:grid-cols-[56px_1fr]' : 'lg:grid-cols-[276px_1fr]'}`}>
         <FilterRail
           rows={rows}
           filters={filters}
@@ -507,6 +508,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <a className="skip-link" href="#activity-content">
         Skip to activity explorer
       </a>
+      <SiteNav current="ca" />
       {children}
       {import.meta.env.VITE_PREVIEW === '1' && <PreviewNav />}
     </div>

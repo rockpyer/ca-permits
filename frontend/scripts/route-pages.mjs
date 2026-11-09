@@ -64,6 +64,14 @@ export const LEGACY_REDIRECTS = [
   ['about-methodology', 'ca/about-methodology']
 ];
 
+// /about/ is built from the states page's HTML (site-level JSON-LD and noscript).
+export const ABOUT = {
+  path: 'about',
+  title: 'About · Well permit activity by state',
+  description:
+    'Sources, terms and limitations for the well permit activity pages: CalGEM, ECMC and WOGCC permit and spud data and Baker Hughes rig counts, updated weekly.'
+};
+
 export const HOME = {
   title: 'Oil and gas well permit activity by state',
   description:
@@ -150,7 +158,7 @@ export function draftHtml(html, route) {
 }
 
 export function sitemapXml(lastmod) {
-  const paths = ['', ...ROUTES.filter((route) => route.sitemap).map((route) => `${route.path}/`)];
+  const paths = ['', `${ABOUT.path}/`, ...ROUTES.filter((route) => route.sitemap).map((route) => `${route.path}/`)];
   const urls = paths.map((path) => `  <url><loc>${SITE}/${path}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ''}</url>`);
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
 }
@@ -266,6 +274,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   for (const route of ROUTES) {
     await write(route.path, route.draft ? draftHtml(routeHtml(original, route), route) : routeHtml(california, route));
   }
+  await write(ABOUT.path, routeHtml(home, ABOUT));
   for (const [from, to] of LEGACY_REDIRECTS) await write(from, redirectHtml(to));
-  console.log(`route pages: /, ${ROUTES.map((route) => `/${route.path}/`).join(', ')}; redirects: ${LEGACY_REDIRECTS.map(([from]) => `/${from}/`).join(', ')}`);
+  console.log(`route pages: /, /about/, ${ROUTES.map((route) => `/${route.path}/`).join(', ')}; redirects: ${LEGACY_REDIRECTS.map(([from]) => `/${from}/`).join(', ')}`);
 }

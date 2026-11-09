@@ -24,7 +24,7 @@ The owner reviews changes by clicking a preview, not by reading diffs. Give one 
 - The "Deploying Preview to Cloudflare" comment on PRs is the **API Worker** (`worker/`), not the site. Its URL redirects to the live permits.ryweller.com, so never offer it as a preview of a page change.
 - The site is on GitHub Pages, which has no per-branch previews. Build a hash-routed preview and publish it as a private claude.ai artifact:
   `cd frontend && npm run snapshot && VITE_PREVIEW=1 npx vite build --base ./ --outDir <scratch dir>`, then publish its `index.html` with the other files (skip `CNAME`, `admin/`, `social-*.png`).
-- Link the page that changed: `<artifact url>` (states page), `#/ca`, `#/ca/drilling`, `#/co`, `#/wy`. Republish the same file path to keep the URL across pushes.
+- Link the page that changed: `<artifact url>` (states page), `#/about`, `#/ca`, `#/ca/drilling`, `#/co`, `#/wy`. Republish the same file path to keep the URL across pushes.
 
 ## Backlog (admin Backlog tab)
 

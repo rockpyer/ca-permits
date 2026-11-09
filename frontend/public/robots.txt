@@ -38,6 +38,7 @@ User-agent: Google-Extended
 User-agent: Applebot-Extended
 Disallow: /
 Allow: /$
+Allow: /about/
 Allow: /ca/$
 Allow: /ca/about-methodology/
 Allow: /llms.txt

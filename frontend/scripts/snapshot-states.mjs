@@ -31,6 +31,37 @@ function latestRigs(rigWeeks, key, end) {
   return week ? { date: week.date, count: week[key] } : null;
 }
 
+const WEEKS = 12;
+
+// Counts per Monday–Sunday week for the WEEKS weeks ending at week.end, oldest first.
+export function weeklySeries(dates, week, weeks = WEEKS) {
+  const end = Date.parse(`${week.end}T00:00:00Z`);
+  const counts = Array.from({ length: weeks }, (_, index) => ({ end: iso(end - (weeks - 1 - index) * 7 * DAY), count: 0 }));
+  const first = iso(end - (weeks * 7 - 1) * DAY);
+  for (const date of dates) {
+    if (!inRange(date, first, week.end)) continue;
+    const back = Math.floor((end - Date.parse(`${date}T00:00:00Z`)) / (7 * DAY));
+    counts[weeks - 1 - back].count += 1;
+  }
+  return counts;
+}
+
+// Locations for the card map: this year's rows through week.end, rounded to 0.01° and de-duplicated.
+// `latest` marks a point with a row in the latest week.
+export function mapPoints(rows, dateKey, week) {
+  const yearStart = `${week.end.slice(0, 4)}-01-01`;
+  const points = new Map();
+  for (const row of rows) {
+    const date = row[dateKey];
+    const lat = Number(row.latitude), lon = Number(row.longitude);
+    if (!inRange(date, yearStart, week.end) || !Number.isFinite(lat) || !Number.isFinite(lon) || !lat || !lon) continue;
+    const key = `${lon.toFixed(2)},${lat.toFixed(2)}`;
+    const latest = inRange(date, week.start, week.end);
+    points.set(key, (points.get(key) ?? 0) | (latest ? 1 : 0));
+  }
+  return [...points].map(([key, latest]) => [...key.split(',').map(Number), latest]);
+}
+
 // Weekly and year-to-date counts for a state with approval and spud dates (Colorado, Wyoming).
 function approvalsAndSpuds(approvedDates, spudDates, week) {
   const yearStart = `${week.end.slice(0, 4)}-01-01`;
@@ -40,6 +71,15 @@ function approvalsAndSpuds(approvedDates, spudDates, week) {
     ytdApprovals: approvedDates.filter((date) => inRange(date, yearStart, week.end)).length,
     ytdSpuds: spudDates.filter((date) => inRange(date, yearStart, week.end)).length
   };
+}
+
+// California's chart and map use New Drill permits (CalGEM notice type), as in scripts/digest.mjs.
+function caExtras(permits, week) {
+  const rows = rowsOf(permits)
+    .filter((row) => String(row.notice_type || row.notice_type_label || '').includes('New Drill'))
+    .map((row) => ({ ...row, date: row.notice_date_determination || row.notice_dated || '' }));
+  if (!rows.length) return {};
+  return { series: weeklySeries(rows.map((row) => row.date), week), points: mapPoints(rows, 'date', week) };
 }
 
 export function statesSummary({ ca, co, wy, rigWeeks, generatedAt = new Date().toISOString() }) {
@@ -58,7 +98,8 @@ export function statesSummary({ ca, co, wy, rigWeeks, generatedAt = new Date().t
       approvals: digest.week.total,
       ytdNewDrills: digest.ytd?.new_drills ?? null,
       ytdApprovals: digest.ytd?.total ?? null,
-      rigs: latestRigs(rigWeeks, 'california', week.end)
+      rigs: latestRigs(rigWeeks, 'california', week.end),
+      ...caExtras(ca.permits, week)
     });
   }
   if (co?.meta) {
@@ -69,9 +110,12 @@ export function statesSummary({ ca, co, wy, rigWeeks, generatedAt = new Date().t
       rowsOf(co.spuds).map((row) => row.spud_date),
       week
     );
+    const permits = rowsOf(co.permits);
     states.push({
       code: 'co', name: 'Colorado', draft: true, source: 'ECMC', dataThrough: through, week, ...counts,
-      rigs: latestRigs(rigWeeks, 'colorado', week.end)
+      rigs: latestRigs(rigWeeks, 'colorado', week.end),
+      series: weeklySeries(permits.map((row) => row.approved_date), week),
+      points: mapPoints(permits, 'approved_date', week)
     });
   }
   if (wy?.meta) {
@@ -82,9 +126,12 @@ export function statesSummary({ ca, co, wy, rigWeeks, generatedAt = new Date().t
       rowsOf(wy.spuds).map((row) => row.spud_date),
       week
     );
+    const apds = rowsOf(wy.apds);
     states.push({
       code: 'wy', name: 'Wyoming', draft: true, source: 'WOGCC', dataThrough: through, week, ...counts,
-      rigs: latestRigs(rigWeeks, 'wyoming', week.end)
+      rigs: latestRigs(rigWeeks, 'wyoming', week.end),
+      series: weeklySeries(apds.map((row) => row.approved_date), week),
+      points: mapPoints(apds, 'approved_date', week)
     });
   }
   return { generatedAt, states };
@@ -99,11 +146,11 @@ async function readJson(path) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const [caMeta, digest, rigs, coMeta, coPermits, coSpuds, wyMeta, wyApds, wySpuds] = await Promise.all(
-    ['meta.json', 'digest.json', 'rig-count.json', 'co/meta.json', 'co/permits.json', 'co/spuds.json', 'wy/meta.json', 'wy/apds.json', 'wy/spuds.json'].map(readJson)
+  const [caMeta, digest, caPermits, rigs, coMeta, coPermits, coSpuds, wyMeta, wyApds, wySpuds] = await Promise.all(
+    ['meta.json', 'digest.json', 'permits.json', 'rig-count.json', 'co/meta.json', 'co/permits.json', 'co/spuds.json', 'wy/meta.json', 'wy/apds.json', 'wy/spuds.json'].map(readJson)
   );
   const summary = statesSummary({
-    ca: digest ? { meta: caMeta, digest } : null,
+    ca: digest ? { meta: caMeta, digest, permits: caPermits } : null,
     co: coMeta ? { meta: coMeta, permits: coPermits, spuds: coSpuds } : null,
     wy: wyMeta ? { meta: wyMeta, apds: wyApds, spuds: wySpuds } : null,
     rigWeeks: rigs?.weeks

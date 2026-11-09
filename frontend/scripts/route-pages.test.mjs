@@ -56,6 +56,7 @@ describe('build-time SEO files', () => {
     const xml = sitemapXml('2026-10-24');
     expect(xml).toContain('<loc>https://permits.ryweller.com/</loc><lastmod>2026-10-24</lastmod>');
     expect(xml).toContain('<loc>https://permits.ryweller.com/ca/</loc>');
+    expect(xml).toContain('<loc>https://permits.ryweller.com/about/</loc>');
     expect(xml).toContain('https://permits.ryweller.com/ca/about-methodology/');
     expect(xml).not.toContain('/prod/');
   });
