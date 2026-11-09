@@ -43,15 +43,17 @@ export const ROUTES = [
     title: 'Colorado well permit activity (draft) | WellerTracker',
     description:
       'Draft: approved Colorado ECMC drilling permits (Form 2) by operator, county and formation, with each permit\'s current well status, spud date and expiration.',
-    // Draft page: kept out of search and the sitemap, and given no California summary.
-    draft: true
+    // Draft page: indexed and in the sitemap, with its own noscript text and no California summary.
+    draft: true,
+    sitemap: true
   },
   {
     path: 'wy',
     title: 'Wyoming drilling permits and spuds (draft) | WellerTracker',
     description:
       'Draft: Wyoming WOGCC applications for permit to drill (APDs) by operator, county, reservoir and mineral ownership, with the pending queue, spuds and rig count.',
-    draft: true
+    draft: true,
+    sitemap: true
   }
 ];
 // /ca/drilling and /ca/prod are hidden from navigation while in development; add `sitemap: true` when they launch.
@@ -146,11 +148,10 @@ export function stampHtml(html, meta, digest) {
   return page;
 }
 
-// Draft routes: noindex, no California JSON-LD dataset, and their own noscript text.
+// Draft routes: no California JSON-LD dataset, and their own noscript text.
 export function draftHtml(html, route) {
   const escape = (value) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   return html
-    .replace(/<meta name="robots" content="[^"]*" \/>/, '<meta name="robots" content="noindex" />')
     .replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>\s*/, '')
     .replace(
       /<noscript>[\s\S]*?<\/noscript>/,
