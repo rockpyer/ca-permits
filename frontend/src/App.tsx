@@ -181,7 +181,7 @@ export function App() {
                   <span> well permit activity</span>
                 </h1>
                 <p className="mt-1 max-w-3xl text-sm leading-5 text-slate-400 sm:mt-2 sm:text-base sm:leading-6">
-                  Approved CalGEM permit activity and analysis.
+                  Approved CalGEM permits, counted by approval date. CalGEM&apos;s dashboard counts by filed date, so its totals can differ by a few permits.
                 </p>
               </div>
               <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 border-l-0 border-line text-xs text-slate-400 sm:text-sm xl:block xl:min-w-[260px] xl:border-l xl:pl-5">

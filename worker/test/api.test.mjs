@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import worker from '../src/worker.mjs';
 import { hashPassword } from '../src/auth.mjs';
-import { lead, runWeekly } from '../src/digest.mjs';
+import { lead, runAll, runWeekly } from '../src/digest.mjs';
 
 // D1 stand-in on SQLite with the real migrations.
 function d1() {
@@ -36,11 +36,32 @@ const DIGEST = (generatedAt = new Date().toISOString()) => ({
   newDrills: [{ date: '2026-10-19', api: '04-030-12345', well: 'X 1', operator: 'Aera <Energy>', field: 'Belridge', county: 'Kern', url: 'https://wellstar/x' }], newDrillsMore: 0
 });
 
+// Shape written by frontend/scripts/state-digest.mjs (buildCoDigest).
+const CO_DIGEST = (generatedAt = new Date().toISOString()) => ({
+  state: 'co', generatedAt, checkedDate: '2026-10-20', weekStart: '2026-10-13', weekEnd: '2026-10-19',
+  headline: 'approved', headlineVerb: 'approved', headlineNoun: 'drilling permits',
+  kpis: [{ key: 'approved', label: 'Approved', week: 12, prior: 9, tone: 'ink' }, { key: 'new', label: 'New Well', week: 11, prior: 9, tone: 'new' },
+    { key: 'other', label: 'Recomplete', week: 1, prior: 0, tone: 'existing' }, { key: 'spuds', label: 'Spuds', week: 7, prior: 5, tone: 'spud' }],
+  series: [{ key: 'new', label: 'New Well', tone: 'new' }, { key: 'other', label: 'Recomplete', tone: 'existing' }],
+  chartTitle: 'Weekly approved Form 2 permits by permit type',
+  weeks: [{ weekEnd: '2026-10-12', total: 9, new: 9, other: 0 }, { weekEnd: '2026-10-19', total: 12, new: 11, other: 1 }],
+  groupsTitle: 'Approved permits by operator and county', groups: [{ operator: 'Civitas <Resources>', place: 'Weld County', count: 6, wells: [{ api: '05-123-1', url: 'https://ecmc/1' }] }],
+  operators: [{ name: 'Civitas Resources', total: 6, new: 6, other: 0 }],
+  facts: ['2026 to date: 706 approved permits and 565 spuds statewide.', '698 approved permits are not yet drilled statewide; 36 expire in the next 90 days.'],
+  source: 'ECMC approved Form 2 permits'
+});
+
 // Stubs the network: DNS-over-HTTPS (every domain takes mail), the site's digest.json and Resend, which records mail.
 function network(state) {
   globalThis.fetch = async (url, init = {}) => {
     url = String(url);
     if (url.startsWith('https://cloudflare-dns.com/')) return Response.json({ Status: 0, Answer: [{ type: 15, data: '10 mx.example.net.' }] });
+    if (url.startsWith('https://raw.githubusercontent.com/rockpyer/ca-permits/main/')) {
+      if (state.raw && url in state.raw) return new Response(state.raw[url], { status: state.raw[url] == null ? 404 : 200 });
+      return new Response(fs.readFileSync(new URL(`../../${url.split('/main/')[1]}`, import.meta.url), 'utf8'));
+    }
+    if (url.endsWith('/data/co/digest.json')) return Response.json(state.co);
+    if (url.endsWith('/data/wy/digest.json')) return Response.json(state.wy);
     if (url.endsWith('/data/digest.json')) return Response.json(state.digest);
     if (url.endsWith('/data/digest-map.png')) { state.mapFetches = (state.mapFetches || 0) + 1; return new Response(PNG, { headers: { 'content-type': 'image/png' } }); }
     if (url === 'https://api.resend.com/emails/batch') {
@@ -52,7 +73,7 @@ function network(state) {
 }
 
 async function setup() {
-  const state = { mail: [], digest: DIGEST() };
+  const state = { mail: [], digest: DIGEST(), co: CO_DIGEST(), wy: { ...CO_DIGEST(), state: 'wy', headlineNoun: 'APDs' } };
   network(state);
   const env = {
     DB: d1(), ADMIN_USER: 'Neptune', ADMIN_PW: await hashPassword(PW), SIGNING_KEY: 'test-signing-key', RESEND_API_KEY: 're_test',
@@ -157,7 +178,7 @@ test('weekly digest reaches active subscribers once per week and skips stale dat
   for (const e of ['a1@operator.com', 'b2@operator.com', 'c3@operator.com']) await signup(c, e);
   for (const m of state.mail.slice(0, 2)) await c('POST', `/confirm?t=${tokenFrom(m)}`); // the third stays pending
   state.mail.length = 0;
-  assert.deepEqual(await runWeekly(env), { week: '2026-10-19', recipients: 2, sent: 2, failed: 0, dryRun: false });
+  assert.deepEqual(await runWeekly(env), { list: 'ca', week: '2026-10-19', recipients: 2, sent: 2, failed: 0, dryRun: false });
   assert.equal(state.mail[0].subject, 'Weekly permit tracker update, Oct 13–Oct 19: development permits up 4 to 29');
   assert.match(state.mail[0].html, /permits, (up 4 from 25|4 more than the 25) the week before\. 14 were New Drill, led by Aera &lt;Energy&gt; LLC at Belridge, South \(2\)\./);
   assert.match(state.mail[0].html, /not produced, reviewed or endorsed by CalGEM/);
@@ -208,6 +229,22 @@ test('visits are recorded without addresses, and the owner network is left out',
   assert.deepEqual(s.sites.map((x) => [x.site, x.visits]), [['California', 1]]);
   await beacon(owner, 'pageload0002');
   assert.equal(env.DB.db.prepare('SELECT count(*) n FROM visits').get().n, 1);
+});
+
+test('usage splits by state page, with sign-ups by the page the form was on', async () => {
+  const { env } = await setup(), visitor = client(env, '2.2.2.2'), admin = client(env, '9.9.9.9');
+  const beacon = (id, path) => visitor('POST', '/api/visit', JSON.stringify({ id, vid: 'visitor0001', path, seconds: 90 }), { 'content-type': 'text/plain', origin: 'https://permits.ryweller.com' });
+  for (const [id, path] of [['pageload0001', '/'], ['pageload0002', '/wy'], ['pageload0003', '/co'], ['pageload0004', '/drilling'], ['pageload0005', '/wyx']]) {
+    assert.equal((await beacon(id, path)).status, 204);
+  }
+  await signup(visitor, 'pat@operator.com', { source: '/drilling' });
+  await signup(visitor, 'lee@operator.com', { source: '/wy' });
+
+  await admin('POST', '/api/login', { username: 'Neptune', password: PW });
+  const s = (await admin('GET', '/api/admin/stats?days=7')).j;
+  const sites = Object.fromEntries(s.sites.map((x) => [x.site, [x.visits, x.signups, x.confirmed]]));
+  assert.deepEqual(sites, { California: [3, 1, 0], Colorado: [1, 0, 0], Wyoming: [1, 1, 0] });
+  assert.deepEqual(s.signupPages.map((x) => [x.site, x.path, x.requested]).sort(), [['California', '/drilling', 1], ['Wyoming', '/wy', 1]]);
 });
 
 test('admin can unsubscribe, export and erase, but never activate someone', async () => {
@@ -338,4 +375,114 @@ test('sessions last 30 days and renew when used in their last week', async () =>
   assert.match(s.headers.get('set-cookie') || '', /Max-Age=2592000/);
   const left = Date.parse(env.DB.db.prepare('SELECT expires_at FROM sessions').get().expires_at) - Date.now();
   assert.ok(left > 29 * 86400e3);
+});
+
+test('ingest tab shows the plan, the next mode and weekly totals from the repository', async () => {
+  const { env, state } = await setup(), c = client(env);
+  const base = 'https://raw.githubusercontent.com/rockpyer/ca-permits/main/data/';
+  const wy = [
+    { source: 'wogcc_data_explorer', status: 'failed', mode: 'delta', source_count: 0, fetch: { requests: 3, bytes: 900, errors: 1, seconds: 4 },
+      details: { blocked: true }, error: 'Blocked: firewall', finished_at: '2026-10-19T12:40:00+00:00' },
+    { source: 'wogcc_data_explorer', status: 'success', mode: 'delta', source_count: 2400, rows: { new: 12, changed: 40, unchanged: 2348 },
+      fetch: { requests: 14, bytes: 5e6, errors: 0, seconds: 60 }, details: { spuds_new: 6 }, finished_at: '2026-10-19T12:30:00+00:00' },
+    { source: 'wogcc_data_explorer', status: 'success', source_count: 13629, details: {}, finished_at: '2026-09-28T12:30:00+00:00' }
+  ];
+  state.raw = { [`${base}wy/etl_runs.jsonl`]: wy.map((r) => JSON.stringify(r)).join('\n') + '\n', [`${base}co/etl_runs.jsonl`]: null };
+  await c('POST', '/api/login', { username: 'Neptune', password: PW });
+  const r = await c('GET', '/api/admin/ingest');
+  assert.equal(r.status, 200);
+  assert.equal(r.j.week_start, '2026-10-19');
+  const [ca, co, w] = r.j.sources;
+  assert.equal(ca.next_mode, 'full');
+  assert.match(co.error, /HTTP 404/);
+  // Last full run Sep 28; full every 28 days, so the Oct 26 run is full.
+  assert.equal(w.next_run, '2026-10-26T12:13:00.000Z');
+  assert.equal(w.next_mode, 'full');
+  assert.equal(w.next_full, '2026-10-26T12:13:00.000Z');
+  assert.deepEqual(w.weeks[0], { week: '2026-10-19', runs: 2, failed: 1, blocked: true, requests: 17, bytes: 5000900, new: 12, changed: 40, spuds_new: 6 });
+  assert.equal(w.runs[0].notes[0], 'Blocked: firewall');
+  assert.equal(w.weeks[3].requests, null); // runs before request counting
+});
+
+test('each state is its own list: one address can join several, and unsubscribing leaves the others', async () => {
+  const { env, state } = await setup(), c = client(env);
+  await signup(c, 'pat@operator.com');
+  await signup(c, 'pat@operator.com', { list: 'co', source: '/co' });
+  assert.equal((await signup(c, 'pat@operator.com', { list: 'tx' })).j.field, 'list');
+  const rows = env.DB.db.prepare('SELECT list, consent_version, status FROM subscribers ORDER BY list').all().map((r) => ({ ...r }));
+  assert.deepEqual(rows, [{ list: 'ca', consent_version: '2026-10-v1', status: 'pending' }, { list: 'co', consent_version: 'co-2026-11-v1', status: 'pending' }]);
+  const [ca, co] = state.mail;
+  assert.equal(co.subject, 'Confirm your Colorado permit summary');
+  assert.equal(co.from, 'Colorado Permits <u@permits.ryweller.com>');
+  assert.equal(ca.from, 'California Permits <u@permits.ryweller.com>');
+  assert.match(co.html, /approved Colorado ECMC drilling permits[\s\S]*Weekly approved Form 2 permits by permit type/);
+  assert.match((await c('POST', `/confirm?t=${tokenFrom(co)}`)).text, /weekly Colorado summary goes out each Monday after the ECMC data refresh/);
+  await c('POST', `/confirm?t=${tokenFrom(ca)}`);
+
+  state.mail.length = 0;
+  const all = await runAll(env);
+  assert.deepEqual(all.map((r) => [r.list, r.sent]), [['ca', 1], ['co', 1], ['wy', 0]]);
+  const coMail = state.mail.find((m) => m.from.startsWith('Colorado'));
+  assert.equal(coMail.subject, 'Colorado weekly permit update, Oct 13–Oct 19: 12 drilling permits approved');
+  assert.match(coMail.html, /ECMC approved 12 drilling permits this week, up 3 from 9 the week before\. The most went to Civitas &lt;Resources&gt; in Weld County \(6\)\. 7 wells were spudded statewide\./);
+  assert.match(coMail.html, /<span style="color:#2b6cb0">Colorado<\/span>/);
+  assert.match(coMail.html, /href="https:\/\/permits\.ryweller\.com\/co"/);
+  assert.match(coMail.html, /not produced, reviewed or endorsed by ECMC/);
+  assert.match(coMail.html, /698 approved permits are not yet drilled/);
+  assert.doesNotMatch(coMail.html, /img\/map-/);
+  // Footnote: the other states' emails and the other tools, in both versions.
+  assert.match(coMail.html, /Other states: <a href="https:\/\/permits\.ryweller\.com\/ca"[^>]*>California<\/a> and <a href="https:\/\/permits\.ryweller\.com\/wy"[^>]*>Wyoming<\/a>/);
+  assert.match(coMail.html, /mowry\.ryweller\.com[\s\S]*logs\.ryweller\.com/);
+  assert.match(coMail.text, /Wyoming https:\/\/permits\.ryweller\.com\/wy/);
+  const caMail = state.mail.find((m) => m.from.startsWith('California'));
+  assert.match(caMail.html, /Other states: <a[^>]*\/co"[^>]*>Colorado<\/a> and <a[^>]*\/wy"[^>]*>Wyoming<\/a>/);
+  assert.deepEqual(env.DB.db.prepare('SELECT list, week, sent FROM digests ORDER BY list').all().map((r) => ({ ...r })),
+    [{ list: 'ca', week: '2026-10-19', sent: 1 }, { list: 'co', week: '2026-10-19', sent: 1 }]);
+
+  // Unsubscribing from Colorado leaves California.
+  const link = /<(.+)>/.exec(coMail.headers['List-Unsubscribe'])[1].replace('https://permits-api.ryweller.com', '');
+  assert.match((await c('GET', link)).text, /Stop the weekly Colorado permit summary\? Other states' emails are not affected/);
+  await c('POST', link);
+  assert.deepEqual(env.DB.db.prepare('SELECT list, status FROM subscribers ORDER BY list').all().map((r) => ({ ...r })), [{ list: 'ca', status: 'active' }, { list: 'co', status: 'unsubscribed' }]);
+});
+
+test('one state\'s stale or missing data does not stop the others', async () => {
+  const { env, state } = await setup(), c = client(env);
+  await signup(c, 'pat@operator.com', { list: 'wy' });
+  await c('POST', `/confirm?t=${tokenFrom(state.mail[0])}`);
+  state.co = CO_DIGEST(new Date(Date.now() - 6 * 864e5).toISOString());
+  const ok = globalThis.fetch;
+  globalThis.fetch = async (url, init) => (String(url).endsWith('/data/digest.json') ? new Response('', { status: 404 }) : ok(url, init));
+  const all = await runAll(env);
+  globalThis.fetch = ok;
+  assert.match(all[0].error, /HTTP 404/);
+  assert.equal(all[1].skipped, 'stale data');
+  assert.equal(all[2].sent, 1);
+});
+
+test('admin previews, tests and sends a chosen state, and filters subscribers by state', async () => {
+  const { env, state } = await setup(), c = client(env);
+  await signup(c, 'pat@operator.com', { list: 'wy' });
+  await c('POST', '/api/login', { username: 'Neptune', password: PW });
+  assert.match((await c('GET', '/api/admin/digest/preview?list=wy')).text, /Wyoming<\/span>/);
+  state.mail.length = 0;
+  await c('POST', '/api/admin/digest/test', { to: 'owner@operator.com', list: 'wy' });
+  assert.equal(state.mail[0].from, 'Wyoming Permits <u@permits.ryweller.com>');
+  assert.match(state.mail[0].subject, /^\[Test\] Wyoming weekly permit update/);
+  assert.equal((await c('GET', '/api/admin/subscribers?list=wy')).j.subscribers.length, 1);
+  assert.equal((await c('GET', '/api/admin/subscribers?list=co')).j.subscribers.length, 0);
+  assert.equal((await c('GET', '/api/admin/digest/history')).j.lists.length, 3);
+});
+
+test('migration 0004 keeps existing subscribers and digests on the California list', () => {
+  const db = new DatabaseSync(':memory:'), dir = new URL('../migrations/', import.meta.url);
+  const files = fs.readdirSync(dir).sort(), run = (f) => db.exec(fs.readFileSync(new URL(f, dir), 'utf8'));
+  files.filter((f) => f < '0004').forEach(run);
+  db.exec(`INSERT INTO subscribers (id, email, email_hash, status, created_at, consent_at, consent_version) VALUES ('a', 'pat@operator.com', 'h', 'active', 't', 't', '2026-10-v1');
+    INSERT INTO digests (week, data_generated_at, started_at, sent) VALUES ('2026-10-19', 'g', 's', 4);`);
+  files.filter((f) => f >= '0004').forEach(run);
+  assert.deepEqual({ ...db.prepare('SELECT id, list, email, status FROM subscribers').get() }, { id: 'a', list: 'ca', email: 'pat@operator.com', status: 'active' });
+  assert.deepEqual({ ...db.prepare('SELECT list, week, sent FROM digests').get() }, { list: 'ca', week: '2026-10-19', sent: 4 });
+  db.exec(`INSERT INTO subscribers (id, list, email, email_hash, created_at, consent_at, consent_version) VALUES ('b', 'co', 'PAT@operator.com', 'h', 't', 't', 'v')`);
+  assert.throws(() => db.exec(`INSERT INTO subscribers (id, list, email, email_hash, created_at, consent_at, consent_version) VALUES ('c', 'co', 'pat@operator.com', 'h', 't', 't', 'v')`), /UNIQUE/);
 });

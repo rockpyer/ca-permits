@@ -4,7 +4,7 @@
 export const transport = { fetch: (...a) => fetch(...a) };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// msgs: [{ to, subject, html, text, headers? }]. Returns one { ok, id?, error? } per message, in order.
+// msgs: [{ to, subject, html, text, from?, headers? }]. Returns one { ok, id?, error? } per message, in order.
 export async function sendMail(env, msgs) {
   if (!msgs.length) return [];
   if (!env.RESEND_API_KEY) {
@@ -14,7 +14,7 @@ export async function sendMail(env, msgs) {
   const out = [];
   for (let i = 0; i < msgs.length; i += 100) {
     const chunk = msgs.slice(i, i + 100).map((m) => ({
-      from: env.MAIL_FROM, to: [m.to], subject: m.subject, html: m.html, text: m.text,
+      from: m.from || env.MAIL_FROM, to: [m.to], subject: m.subject, html: m.html, text: m.text,
       ...(env.MAIL_REPLY_TO && { reply_to: env.MAIL_REPLY_TO }), ...(m.headers && { headers: m.headers })
     }));
     try {

@@ -1,8 +1,10 @@
-// Admin API behind the Neptune sign-in: visitor analytics, the subscriber list, digest preview and sending, and the
-// audit log. Every change and every export is written to audit_log.
+// Admin API behind the Neptune sign-in: visitor analytics, the subscriber list, digest preview and sending, the
+// backlog, ingest status, and the audit log. Every change and every export is written to audit_log.
 import { ITEMS, PRIORITIES, STATUSES as BSTATUSES, THEMES, UPDATED } from './backlog.mjs';
 import { ensureMap, loadDigest, renderDigest, runWeekly } from './digest.mjs';
+import { ingestStatus } from './ingest.mjs';
 import { sendMail } from './mail.mjs';
+import { LISTS, mailFrom } from './lists.mjs';
 import { checkEmailShape } from './subscribe.mjs';
 import { markOwner } from './visits.mjs';
 import { DAY, audit, iso, json } from './util.mjs';
@@ -10,6 +12,14 @@ import { DAY, audit, iso, json } from './util.mjs';
 async function body(req) { try { return await req.json(); } catch { return {}; } }
 
 /* ---------- Visitors ---------- */
+// Which state page a path belongs to: /ca, /co and /wy are their states, and / and /about are the states page.
+// California lived at the root (/, /drilling, /prod, /about-methodology) until the states page took / on
+// SITE_MOVED_AT, so older root visits (and any other path) still count as California.
+const STATE_PREFIXES = [['co', 'Colorado'], ['wy', 'Wyoming']];
+const SITE_MOVED_AT = '2026-11-09';
+const stateOf = (col, at = null) => `CASE ${STATE_PREFIXES.map(([p, name]) => `WHEN ${col} = '/${p}' OR ${col} LIKE '/${p}/%' THEN '${name}'`).join(' ')}
+  WHEN ${col} = '/about' OR ${col} LIKE '/about/%'${at ? ` OR (${col} = '/' AND ${at} >= '${SITE_MOVED_AT}')` : ''} THEN 'States page' ELSE 'California' END`;
+
 async function stats(req, env) {
   const p = new URL(req.url).searchParams, DB = env.DB;
   const days = Math.max(1, Math.min(365, +p.get('days') || 30)), since = iso(Date.now() - days * DAY);
@@ -18,12 +28,11 @@ async function stats(req, env) {
   // nth: this browser's visit number, all time, so "returning" counts visitors seen before the period too.
   const V = `WITH v AS (SELECT *, (SELECT count(*) FROM visits w WHERE w.vid = visits.vid AND w.started_at <= visits.started_at) nth FROM visits WHERE started_at >= ?1)`;
   const q = (sql) => DB.prepare(`${V} ${sql}`).bind(since);
-  const [totals, daily, sites, paths, referrers, countries, states, orgs, events, recent, subs, signups, marks] = await DB.batch([
+  const [totals, daily, sites, paths, referrers, countries, states, orgs, events, recent, subs, signups, marks, byPage] = await DB.batch([
     q(`SELECT count(*) visits, count(DISTINCT vid) visitors, coalesce(sum(seconds), 0) seconds, coalesce(sum(mobile), 0) mobile,
        count(DISTINCT CASE WHEN nth > 1 THEN vid END) returners, coalesce(sum(seconds > 60), 0) engaged FROM v`),
     q(`SELECT substr(started_at, 1, 10) day, count(*) visits, count(DISTINCT vid) visitors FROM v GROUP BY day ORDER BY day`),
-    // Which state page: /co... is Colorado; everything else is the California app (it lives at the root for now).
-    q(`SELECT CASE WHEN path = '/co' OR path LIKE '/co/%' THEN 'Colorado' ELSE 'California' END site, count(*) visits,
+    q(`SELECT ${stateOf('path', 'started_at')} site, count(*) visits,
        count(DISTINCT vid) visitors, coalesce(sum(seconds), 0) seconds, coalesce(sum(seconds > 60), 0) engaged FROM v GROUP BY 1 ORDER BY visits DESC`),
     q(`SELECT path, count(*) visits, count(DISTINCT vid) visitors, sum(seconds) seconds FROM v GROUP BY path ORDER BY visits DESC LIMIT 30`),
     q(`SELECT coalesce(referrer, '(direct)') referrer, count(*) visits, count(DISTINCT vid) visitors FROM v GROUP BY 1 ORDER BY visits DESC LIMIT 30`),
@@ -38,18 +47,26 @@ async function stats(req, env) {
     q(`SELECT substr(vid, 1, 6) vid, started_at, path, referrer, seconds, clicks, country, region_code code, city, org, mobile, nth, events FROM v ORDER BY started_at DESC LIMIT 150`),
     DB.prepare(`SELECT status, count(*) n FROM subscribers GROUP BY status`),
     DB.prepare(`SELECT substr(confirmed_at, 1, 10) day, count(*) n FROM subscribers WHERE confirmed_at >= ?1 GROUP BY day ORDER BY day`).bind(since),
-    DB.prepare(`SELECT kind, count(*) n, max(at) last FROM owner_marks GROUP BY kind`)
+    DB.prepare(`SELECT kind, count(*) n, max(at) last FROM owner_marks GROUP BY kind`),
+    // Sign-ups requested in the period, by the page the form was on.
+    DB.prepare(`SELECT ${stateOf("coalesce(consent_source, '/')")} site, coalesce(consent_source, '/') path, count(*) requested,
+      count(confirmed_at) confirmed FROM subscribers WHERE created_at >= ?1 GROUP BY 1, 2 ORDER BY requested DESC`).bind(since)
   ]);
+  const bySite = (site) => byPage.results.filter((r) => r.site === site);
+  for (const r of sites.results) {
+    r.signups = bySite(r.site).reduce((n, x) => n + x.requested, 0);
+    r.confirmed = bySite(r.site).reduce((n, x) => n + x.confirmed, 0);
+  }
   return json({
     days, admin: env.ADMIN_USER, totals: totals.results[0], daily: daily.results, sites: sites.results, paths: paths.results, referrers: referrers.results,
     countries: countries.results, states: states.results, orgs: orgs.results, events: events.results,
     recent: recent.results.map((r) => ({ ...r, events: JSON.parse(r.events || '{}') })),
-    subscribers: Object.fromEntries(subs.results.map((r) => [r.status, r.n])), signups: signups.results, owner: marks.results
+    subscribers: Object.fromEntries(subs.results.map((r) => [r.status, r.n])), signups: signups.results, signupPages: byPage.results, owner: marks.results
   });
 }
 
 /* ---------- Subscribers ---------- */
-const COLS = 'id, email, name, interests, status, created_at, consent_at, consent_version, consent_source, country, region_code, confirmed_at, unsubscribed_at, last_sent_at, sends, notes';
+const COLS = 'id, list, email, name, interests, status, created_at, consent_at, consent_version, consent_source, country, region_code, confirmed_at, unsubscribed_at, last_sent_at, sends, notes';
 const STATUSES = new Set(['pending', 'active', 'unsubscribed']);
 // Quotes where needed, and defuses cells a spreadsheet would run as a formula.
 function csvCell(v) {
@@ -61,12 +78,14 @@ function csvCell(v) {
 async function subscribers(req, env, user, id, csv) {
   const DB = env.DB;
   if (req.method === 'GET' && !id) {
-    const status = new URL(req.url).searchParams.get('status');
-    const where = STATUSES.has(status) ? 'WHERE status = ?1' : '';
-    const stmt = DB.prepare(`SELECT ${COLS} FROM subscribers ${where} ORDER BY created_at DESC LIMIT 10000`);
-    const rows = (await (where ? stmt.bind(status) : stmt).all()).results;
+    const q = new URL(req.url).searchParams, status = q.get('status'), list = q.get('list');
+    const conds = [], args = [];
+    if (STATUSES.has(status)) { args.push(status); conds.push(`status = ?${args.length}`); }
+    if (LISTS[list]) { args.push(list); conds.push(`list = ?${args.length}`); }
+    const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+    const rows = (await DB.prepare(`SELECT ${COLS} FROM subscribers ${where} ORDER BY created_at DESC LIMIT 10000`).bind(...args).all()).results;
     if (!csv) return json({ subscribers: rows.map((r) => ({ ...r, interests: JSON.parse(r.interests || '[]') })) });
-    await audit(env, req, user, 'export_csv', null, { status: status || 'all', rows: rows.length });
+    await audit(env, req, user, 'export_csv', null, { status: status || 'all', list: LISTS[list] ? list : 'all', rows: rows.length });
     const head = COLS.split(', ');
     const text = [head.join(','), ...rows.map((r) => head.map((k) => csvCell(r[k])).join(','))].join('\r\n');
     return new Response(text, { headers: { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': `attachment; filename="subscribers-${iso().slice(0, 10)}.csv"`, 'cache-control': 'no-store' } });
@@ -98,28 +117,33 @@ async function subscribers(req, env, user, id, csv) {
 }
 
 /* ---------- Digest ---------- */
+// Each action takes the state list (?list= on GET, { list } on POST); California when absent.
 async function digest(req, env, user, action) {
+  const listParam = new URL(req.url).searchParams.get('list');
+  const b = req.method === 'POST' ? await body(req) : {};
+  const list = LISTS[b.list] ? b.list : LISTS[listParam] ? listParam : 'ca';
+  const map = async (d) => (list === 'ca' ? ensureMap(env, d) : null);
   if (action === 'preview' && req.method === 'GET') {
-    const d = await loadDigest(env);
-    const m = renderDigest(d, env, `${env.API_URL}/unsubscribe?s=preview`, await ensureMap(env, d));
+    const d = await loadDigest(env, fetch, list);
+    const m = renderDigest(d, env, `${env.API_URL}/unsubscribe?s=preview`, await map(d), list);
     return new Response(m.html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store',
       'content-security-policy': "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: 'self'" } });
   }
   if (action === 'test' && req.method === 'POST') {
-    const e = checkEmailShape((await body(req)).to);
+    const e = checkEmailShape(b.to);
     if (e.error) return json({ error: e.error }, 422);
-    const d = await loadDigest(env);
-    const m = renderDigest(d, env, `${env.API_URL}/unsubscribe?s=test`, await ensureMap(env, d));
-    const [r] = await sendMail(env, [{ to: e.email, ...m, subject: `[Test] ${m.subject}` }]);
-    await audit(env, req, user, 'digest_test', null, { ok: r.ok, error: r.error });
+    const d = await loadDigest(env, fetch, list);
+    const m = renderDigest(d, env, `${env.API_URL}/unsubscribe?s=test`, await map(d), list);
+    const [r] = await sendMail(env, [{ to: e.email, from: mailFrom(env, list), ...m, subject: `[Test] ${m.subject}` }]);
+    await audit(env, req, user, 'digest_test', null, { list, ok: r.ok, error: r.error });
     return r.ok ? json({ ok: true, dryRun: !env.RESEND_API_KEY }) : json({ error: r.error }, 502);
   }
   if (action === 'send' && req.method === 'POST') {
-    const b = await body(req);
-    return json(await runWeekly(env, { actor: user, req, force: b.force === true }));
+    return json(await runWeekly(env, { list, actor: user, req, force: b.force === true }));
   }
   if (action === 'history' && req.method === 'GET') {
-    return json({ digests: (await env.DB.prepare('SELECT * FROM digests ORDER BY week DESC LIMIT 60').all()).results, mail: env.RESEND_API_KEY ? 'live' : 'dry-run' });
+    return json({ digests: (await env.DB.prepare('SELECT * FROM digests ORDER BY week DESC, list LIMIT 120').all()).results, mail: env.RESEND_API_KEY ? 'live' : 'dry-run',
+      lists: Object.values(LISTS).map((L) => ({ id: L.id, state: L.state })) });
   }
   return json({ error: 'Not found' }, 404);
 }
@@ -172,6 +196,9 @@ export async function handleAdmin(req, env, user, path) {
   const s = /^\/api\/admin\/subscribers(?:\/([^/]+))?$/.exec(path); if (s) return subscribers(req, env, user, s[1], false);
   const d = /^\/api\/admin\/digest\/(preview|test|send|history)$/.exec(path); if (d) return digest(req, env, user, d[1]);
   if (path === '/api/admin/audit' && req.method === 'GET') return auditLog(req, env);
+  if (path === '/api/admin/ingest' && req.method === 'GET') {
+    try { return json(await ingestStatus(env)); } catch (e) { return json({ error: `Could not read ingest records: ${e.message}` }, 502); }
+  }
   const bl = /^\/api\/admin\/backlog(?:\/([^/]+))?$/.exec(path); if (bl) return backlog(req, env, user, bl[1] && decodeURIComponent(bl[1]));
   return json({ error: 'Not found' }, 404);
 }

@@ -76,6 +76,11 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:now
 .row input[type=search]{flex:1;min-width:160px}
 iframe{width:100%;height:70vh;border:1px solid var(--line);border-radius:6px;background:#fff}
 code{font-size:12px}
+/* Ingest */
+.plan{display:grid;grid-template-columns:130px 1fr;gap:4px 12px;margin:0 0 10px;font-size:13px}.plan dt{color:var(--muted)}.plan dd{margin:0}.plan ul{margin:0;padding-left:18px}
+.mode{font-size:11px;border:1px solid var(--line);border-radius:3px;padding:0 5px;white-space:nowrap}.mode-full{border-color:var(--accent);color:var(--accent)}
+.bad{color:var(--err)}.good{color:var(--ok)}
+@media (max-width:640px){.plan{grid-template-columns:1fr}}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -105,13 +110,17 @@ code{font-size:12px}
       <button role="tab" data-tab="digest" aria-selected="false">Weekly email</button>
       <button role="tab" data-tab="audit" aria-selected="false">Audit log</button>
       <button role="tab" data-tab="backlog" aria-selected="false">Backlog</button>
+      <button role="tab" data-tab="ingest" aria-selected="false">Ingest</button>
     </nav>
 
     <section data-panel="visitors">
       <div class="tiles" id="tiles"></div>
       <div class="card"><h2>Visits per day</h2><div class="chart" id="chart"></div></div>
       <div class="card"><h2>Who is visiting <span class="n">by network owner (company, agency, university, ISP)</span></h2><div class="wrap" id="orgs"></div></div>
-      <div class="card"><h2>By state page <span class="n">/co is Colorado; everything else is California</span></h2><div class="wrap" id="sites"></div></div>
+      <div class="grid">
+        <div class="card"><h2>By state page <span class="n">/co is Colorado, /wy is Wyoming; everything else is California</span></h2><div class="wrap" id="sites"></div></div>
+        <div class="card"><h2>Sign-ups by page <span class="n">requested in the period; confirmed so far</span></h2><div class="wrap" id="signupPages"></div></div>
+      </div>
       <div class="grid">
         <div class="card"><h2>Pages</h2><div class="wrap" id="paths"></div></div>
         <div class="card"><h2>Referrers</h2><div class="wrap" id="referrers"></div></div>
@@ -130,6 +139,7 @@ code{font-size:12px}
       <div class="card">
         <div class="row" style="margin-bottom:10px">
           <input type="search" id="q" placeholder="Search email, name, notes" aria-label="Search subscribers">
+          <select id="subList" aria-label="State list"><option value="">All states</option><option value="ca">California</option><option value="co">Colorado</option><option value="wy">Wyoming</option></select>
           <select id="status" aria-label="Status"><option value="">All</option><option value="active">Active</option><option value="pending">Pending</option><option value="unsubscribed">Unsubscribed</option></select>
           <a id="csv" href="/api/admin/subscribers.csv" download><button type="button">Export CSV</button></a>
         </div>
@@ -142,12 +152,13 @@ code{font-size:12px}
       <div class="card">
         <h2>This week's email <span class="n" id="mailMode"></span></h2>
         <div class="row">
+          <select id="digestList" aria-label="State list"><option value="ca">California</option><option value="co">Colorado</option><option value="wy">Wyoming</option></select>
           <input type="email" id="testTo" placeholder="you@example.com" aria-label="Send a test to">
           <button type="button" id="sendTest">Send test</button>
           <button type="button" class="primary" id="sendNow">Send to all active now</button>
         </div>
         <p class="okmsg" id="digestMsg"></p>
-        <p class="hint">It sends automatically on Monday (Tuesday at the latest), in the first hourly check after the weekly data refresh reaches the site. Sending again in the same week only reaches people who have not had it yet.</p>
+        <p class="hint">Each state is its own list and email. They send automatically on Monday (Tuesday at the latest), in the first hourly check after that state's weekly data refresh reaches the site. Sending again in the same week only reaches people who have not had it yet.</p>
       </div>
       <div class="card"><h2>History</h2><div class="wrap" id="history"></div></div>
       <div class="card"><h2>Preview</h2><iframe id="preview" title="Digest preview" sandbox></iframe></div>
@@ -164,6 +175,16 @@ code{font-size:12px}
       <p class="hint" id="bInfo"></p>
       <div id="bList"></div>
       <p class="hint">Ranked in build order within each priority. Status, priority and notes save for you; the list itself lives in <code>worker/src/backlog.mjs</code>, with design notes in <code>BACKLOG.md</code> and <code>docs/colorado_plan.md</code>.</p>
+    </section>
+
+    <section data-panel="ingest" hidden>
+      <p class="hint" id="iPolicy" style="margin:0 0 12px"></p>
+      <h2>Ingest runs this week <span class="n" id="iWeek"></span></h2>
+      <div class="tiles" id="iTiles"></div>
+      <div id="iSources"></div>
+      <div class="card"><h2>Weekly ingest totals <span class="n">last 8 weeks, by source</span></h2><div class="wrap" id="iWeeks"></div>
+        <p class="hint">Requests and downloads are counted from the first run after 2026-11-09; earlier runs show a dash. New and changed count records that differ from what was stored, ignoring the check date.</p></div>
+      <p class="hint">The plan lives in <code>data/ingest_plan.json</code>; runs are read from each state's <code>etl_runs.jsonl</code> on the main branch, within about two minutes of the ingest committing. Force a mode from GitHub Actions: run the workflow and pick <i>delta</i> or <i>full</i>.</p>
     </section>
 
     <section data-panel="audit" hidden>
@@ -224,7 +245,7 @@ code{font-size:12px}
   $('#refresh').onclick = () => load();
   $('#days').onchange = () => load();
 
-  function load() { ({ visitors, subs: loadSubs, digest: loadDigest, audit: () => loadAudit(true), backlog: loadBacklog })[tab]().catch((e) => console.error(e)); }
+  function load() { ({ visitors, subs: loadSubs, digest: loadDigest, audit: () => loadAudit(true), backlog: loadBacklog, ingest: loadIngest })[tab]().catch((e) => console.error(e)); }
 
   /* ----- Visitors ----- */
   function chart(daily, days) {
@@ -248,7 +269,10 @@ code{font-size:12px}
       { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 }, { h: 'Over 1 min', k: 'engaged', num: 1 },
       { h: 'Time', f: (r) => dur(r.seconds), num: 1 }, { h: 'Last', f: (r) => esc(when(r.last)), num: 1 }], s.orgs);
     $('#sites').innerHTML = table([{ h: 'State page', k: 'site' }, { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 },
-      { h: 'Over 1 min', k: 'engaged', num: 1 }, { h: 'Time', f: (r) => dur(r.seconds), num: 1 }, { h: 'Average', f: (r) => dur(r.visits ? Math.round(r.seconds / r.visits) : 0), num: 1 }], s.sites || []);
+      { h: 'Over 1 min', k: 'engaged', num: 1 }, { h: 'Time', f: (r) => dur(r.seconds), num: 1 }, { h: 'Average', f: (r) => dur(r.visits ? Math.round(r.seconds / r.visits) : 0), num: 1 },
+      { h: 'Sign-ups', f: (r) => fmt(r.signups || 0), num: 1 }, { h: 'Confirmed', f: (r) => fmt(r.confirmed || 0), num: 1 }], s.sites || []);
+    $('#signupPages').innerHTML = table([{ h: 'State page', k: 'site' }, { h: 'Page', k: 'path' }, { h: 'Sign-ups', k: 'requested', num: 1 },
+      { h: 'Confirmed', k: 'confirmed', num: 1 }], s.signupPages || [], 'No sign-ups in this period.');
     $('#paths').innerHTML = table([{ h: 'Page', k: 'path' }, { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 }, { h: 'Time', f: (r) => dur(r.seconds), num: 1 }], s.paths);
     $('#referrers').innerHTML = table([{ h: 'From', k: 'referrer' }, { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 }], s.referrers);
     $('#states').innerHTML = table([{ h: 'State', f: (r) => esc(r.region || r.code) }, { h: 'Visits', k: 'visits', num: 1 }, { h: 'Visitors', k: 'visitors', num: 1 }, { h: 'Time', f: (r) => dur(r.seconds), num: 1 }], s.states);
@@ -266,9 +290,10 @@ code{font-size:12px}
   /* ----- Subscribers ----- */
   let subRows = [];
   async function loadSubs() {
-    const st = $('#status').value;
-    subRows = (await api('GET', `/api/admin/subscribers${st ? `?status=${st}` : ''}`)).subscribers;
-    $('#csv').href = `/api/admin/subscribers.csv${st ? `?status=${st}` : ''}`;
+    const st = $('#status').value, ls = $('#subList').value;
+    const qs = new URLSearchParams(Object.entries({ status: st, list: ls }).filter(([, v]) => v)).toString();
+    subRows = (await api('GET', `/api/admin/subscribers${qs ? `?${qs}` : ''}`)).subscribers;
+    $('#csv').href = `/api/admin/subscribers.csv${qs ? `?${qs}` : ''}`;
     const c = (s) => subRows.filter((r) => r.status === s).length;
     $('#subTiles').innerHTML = st ? '' : [[c('active'), 'active'], [c('pending'), 'waiting to confirm'], [c('unsubscribed'), 'unsubscribed']].map(([v, l]) => `<div class="tile"><b>${fmt(v)}</b><span>${l}</span></div>`).join('');
     renderSubs();
@@ -278,6 +303,7 @@ code{font-size:12px}
     const rows = q ? subRows.filter((r) => `${r.email} ${r.name || ''} ${r.notes}`.toLowerCase().includes(q)) : subRows;
     $('#subs').innerHTML = table([
       { h: 'Email', f: (r) => `${esc(r.email)}<span class="org">${esc(r.name || '')}</span>` },
+      { h: 'State', f: (r) => esc(({ ca: 'California', co: 'Colorado', wy: 'Wyoming' })[r.list] || r.list) },
       { h: 'Status', f: (r) => `<span class="chip st-${esc(r.status)}">${esc(r.status)}</span>` },
       { h: 'Signed up', f: (r) => `${esc(when(r.created_at))}<span class="org">${esc(r.consent_source || '')} · ${esc(r.consent_version)}</span>` },
       { h: 'Confirmed', f: (r) => esc(when(r.confirmed_at)) },
@@ -289,6 +315,7 @@ code{font-size:12px}
   }
   $('#q').oninput = renderSubs;
   $('#status').onchange = () => loadSubs();
+  $('#subList').onchange = () => loadSubs();
   $('#subs').addEventListener('click', async (e) => {
     const b = e.target.closest('button'); if (!b) return;
     const row = subRows.find((r) => r.id === (b.dataset.unsub || b.dataset.erase));
@@ -305,24 +332,71 @@ code{font-size:12px}
   async function loadDigest() {
     const h = await api('GET', '/api/admin/digest/history');
     $('#mailMode').textContent = h.mail === 'live' ? '' : '(dry run: RESEND_API_KEY is not set, so nothing is actually sent)';
-    $('#history').innerHTML = table([{ h: 'Week ending', k: 'week' }, { h: 'Started', f: (r) => esc(when(r.started_at)) },
+    const names = Object.fromEntries((h.lists || []).map((l) => [l.id, l.state]));
+    $('#history').innerHTML = table([{ h: 'State', f: (r) => esc(names[r.list] || r.list) }, { h: 'Week ending', k: 'week' }, { h: 'Started', f: (r) => esc(when(r.started_at)) },
       { h: 'Recipients', k: 'recipients', num: 1 }, { h: 'Sent', k: 'sent', num: 1 }, { h: 'Failed', k: 'failed', num: 1 }], h.digests, 'No weekly email sent yet.');
     // srcdoc, not src: a sandboxed frame would not carry the session cookie.
-    fetch('/api/admin/digest/preview', { credentials: 'same-origin' }).then((r) => r.text()).then((h) => { $('#preview').srcdoc = h; });
+    fetch(`/api/admin/digest/preview?list=${$('#digestList').value}`, { credentials: 'same-origin' }).then((r) => r.text()).then((h) => { $('#preview').srcdoc = h; });
   }
   const digestMsg = (t, bad) => { $('#digestMsg').textContent = t; $('#digestMsg').className = bad ? 'err' : 'okmsg'; };
   $('#sendTest').onclick = async () => {
-    try { const r = await api('POST', '/api/admin/digest/test', { to: $('#testTo').value }); digestMsg(r.dryRun ? 'Dry run: logged, not sent.' : 'Test sent.'); }
+    try { const r = await api('POST', '/api/admin/digest/test', { to: $('#testTo').value, list: $('#digestList').value }); digestMsg(r.dryRun ? 'Dry run: logged, not sent.' : 'Test sent.'); }
     catch (e) { digestMsg(e.message, true); }
   };
+  $('#digestList').onchange = () => loadDigest();
   $('#sendNow').onclick = async () => {
-    if (!confirm('Send this week\'s email to every active subscriber who has not had it?')) return;
+    const sel = $('#digestList'), state = sel.options[sel.selectedIndex].text;
+    if (!confirm(`Send this week's ${state} email to every active ${state} subscriber who has not had it?`)) return;
     try {
-      const r = await api('POST', '/api/admin/digest/send', {});
+      const r = await api('POST', '/api/admin/digest/send', { list: sel.value });
       digestMsg(r.skipped ? `Skipped: ${r.skipped} (site data from ${r.generatedAt}).` : `Week ending ${r.week}: ${r.sent} sent, ${r.failed} failed${r.dryRun ? ' (dry run)' : ''}.`, !!r.skipped || r.failed > 0);
       loadDigest();
     } catch (e) { digestMsg(e.message, true); }
   };
+
+  /* ----- Ingest ----- */
+  const mb = (b) => b == null ? '—' : b < 1e6 ? `${Math.max(0.1, b / 1e6).toFixed(1)} MB` : `${(b / 1e6).toFixed(b < 1e7 ? 1 : 0)} MB`;
+  const n0 = (v) => v == null ? '—' : fmt(v);
+  const day = (t) => t ? new Date(t).toLocaleDateString('en-US', { timeZone: 'America/Denver', month: 'short', day: 'numeric' }) : '';
+  const modeTag = (m) => `<span class="mode mode-${esc(m)}">${esc(m)}</span>`;
+  async function loadIngest() {
+    let d;
+    try { d = await api('GET', '/api/admin/ingest'); } catch (e) { $('#iSources').innerHTML = `<p class="err">${esc(e.message)}</p>`; return; }
+    $('#iPolicy').textContent = `${d.policy} (Plan updated ${d.updated}.)`;
+    $('#iWeek').textContent = `week of ${day(d.week_start + 'T12:00:00Z')}`;
+    const wk = d.sources.map((s) => s.weeks[0]), tot = (k) => wk.some((w) => w[k] != null) ? wk.reduce((n, w) => n + (w[k] || 0), 0) : null;
+    const failed = tot('failed');
+    $('#iTiles').innerHTML = [[n0(tot('runs')), 'runs'], [n0(failed), 'failed', failed ? 'bad' : ''], [n0(tot('requests')), 'requests to agency sites'],
+      [mb(tot('bytes')), 'downloaded'], [n0(tot('new')), 'new records'], [n0(tot('changed')), 'changed records'], [n0(tot('spuds_new')), 'new spuds (CO, WY)']]
+      .map(([v, l, c]) => `<div class="tile"><b class="${c || ''}">${v}</b><span>${l}</span></div>`).join('');
+    $('#iSources').innerHTML = d.sources.map((s) => `<div class="card">
+      <h2>${esc(s.state)} · ${esc(s.agency)} <span class="n">${esc(s.host)}</span></h2>
+      ${s.error ? `<p class="err">${esc(s.error)}</p>` : ''}
+      <dl class="plan">
+        <dt>Next run</dt><dd>${esc(when(s.next_run))} ${modeTag(s.next_mode)} <span class="org" style="display:inline">· ${esc(s.schedule)}, <code>${esc(s.workflow)}</code></span></dd>
+        <dt>Full refresh</dt><dd>${s.mode === 'auto' ? `every ${s.full_every_days} days; last ${esc(day(s.last_full) || 'never')}, next full run ${esc(day(s.next_full))}` : 'every run'}</dd>
+        <dt>Fetches</dt><dd><ul>${s.fetches.map((f) => `<li>${esc(f)}</li>`).join('')}</ul></dd>
+        ${s.limits ? `<dt>Limits</dt><dd>${esc(Object.entries(s.limits).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' · '))}</dd>` : ''}
+        ${s.notes ? `<dt>Notes</dt><dd>${esc(s.notes)}</dd>` : ''}
+      </dl>
+      <div class="wrap">${table([
+        { h: 'Finished', f: (r) => esc(when(r.finished_at)) },
+        { h: 'Step', f: (r) => esc(s.run_sources.length > 1 ? r.source : '') },
+        { h: 'Mode', f: (r) => modeTag(r.mode) },
+        { h: 'Status', f: (r) => `<span class="${r.status === 'success' ? 'good' : 'bad'}">${esc(r.status)}${r.blocked ? ' · blocked' : ''}</span>` },
+        { h: 'Requests', f: (r) => n0(r.requests), num: 1 }, { h: 'Downloaded', f: (r) => mb(r.bytes), num: 1 },
+        { h: 'Time', f: (r) => r.seconds == null ? '—' : dur(Math.round(r.seconds)), num: 1 },
+        { h: 'Read', f: (r) => n0(r.read), num: 1 }, { h: 'New', f: (r) => n0(r.rows?.new), num: 1 }, { h: 'Changed', f: (r) => n0(r.rows?.changed), num: 1 },
+        { h: 'Unchanged', f: (r) => n0(r.rows?.unchanged), num: 1 }, { h: 'New spuds', f: (r) => n0(r.spuds_new), num: 1 },
+        { h: 'Detail pages', f: (r) => r.details_fetched == null ? '' : `${fmt(r.details_fetched)}${r.details_limit != null ? ` of ${r.details_limit}` : ''}`, num: 1 },
+        { h: 'Notes', f: (r) => esc(r.notes.join('; ')) }], s.runs.slice(0, 8), 'No runs recorded yet.')}</div></div>`).join('');
+    const rows = d.sources.flatMap((s) => s.weeks.map((w) => ({ ...w, src: `${s.state} · ${s.agency}` }))).filter((w) => w.runs)
+      .sort((a, b) => b.week.localeCompare(a.week) || a.src.localeCompare(b.src));
+    $('#iWeeks').innerHTML = table([{ h: 'Week of', f: (w) => esc(day(w.week + 'T12:00:00Z')) }, { h: 'Source', k: 'src' }, { h: 'Runs', k: 'runs', num: 1 },
+      { h: 'Failed', f: (w) => `<span class="${w.failed ? 'bad' : ''}">${fmt(w.failed)}${w.blocked ? ' · blocked' : ''}</span>`, num: 1 },
+      { h: 'Requests', f: (w) => n0(w.requests), num: 1 }, { h: 'Downloaded', f: (w) => mb(w.bytes), num: 1 },
+      { h: 'New', f: (w) => n0(w.new), num: 1 }, { h: 'Changed', f: (w) => n0(w.changed), num: 1 }, { h: 'New spuds', f: (w) => n0(w.spuds_new), num: 1 }], rows, 'No runs in the last 8 weeks.');
+  }
 
   /* ----- Audit ----- */
   let auditRows = [];

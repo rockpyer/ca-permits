@@ -10,10 +10,19 @@ A Cloudflare Worker beside the static site. permits.ryweller.com stays on GitHub
 | `/confirm`, `/unsubscribe` | Links in emails (GET shows a button, POST acts; POST is also RFC 8058 one-click) |
 | `/img/map-<week>.png` | Each week's email map, copied from the site so old emails keep their own map |
 | `/admin` | Admin page, signed in as **Neptune** (permits.ryweller.com/admin forwards here): visitors (with a California / Colorado split), subscribers, weekly email, audit log, and the dev **Backlog** (items in `src/backlog.mjs`, status/priority/notes in D1) |
-| cron, hourly 15:23–23:23 UTC Mon and Tue | Weekly digest, sent at the first run after the weekly data refresh reaches the site |
+| cron, hourly 15:23–23:23 UTC Mon and Tue | Weekly digests, one per state list, each sent at the first run after that state's data refresh reaches the site |
 
-Storage is the D1 database `ca-permits` (`fa528a5c-…`, schema in `migrations/`; 0001–0002 applied, `0003_backlog.sql` must be applied once in the D1 console before backlog changes can save). Email goes through
+Storage is the D1 database `ca-permits` (`fa528a5c-…`, schema in `migrations/`; 0001–0002 applied, `0003_backlog.sql` must be applied once in the D1 console before backlog changes can save). **`0004_state_lists.sql` must be applied before the Worker that reads the `list` column deploys**, or sign-ups and the weekly send fail. Email goes through
 [Resend](https://resend.com/docs/api-reference/emails/send-batch-emails).
+
+## State lists
+
+Each state is its own list (`src/lists.mjs`): **ca** (the root site), **co** (`/co`) and **wy** (`/wy`). An address can be
+on several; each has its own consent record, confirmation, sender name ("Colorado Permits"), weekly email and unsubscribe
+link. The cron reads `/data/digest.json` (California, `frontend/scripts/digest.mjs`) and `/data/co/digest.json`,
+`/data/wy/digest.json` (`frontend/scripts/state-digest.mjs`), and sends each list in turn; one state's stale or missing
+data does not hold up the others. Every email's footnote links the other states' pages and Ryan's other tools
+(`OTHER_WORK` in `src/layout.mjs`).
 
 ## Sign-up API (for the form)
 
@@ -21,12 +30,13 @@ Storage is the D1 database `ca-permits` (`fa528a5c-…`, schema in `migrations/`
 POST https://permits-api.ryweller.com/api/subscribe
 Content-Type: application/json
 
-{ "email": "pat@operator.com", "name": "Pat", "interests": ["kern"], "source": "/drilling", "consent": true, "website": "" }
+{ "email": "pat@operator.com", "list": "co", "name": "Pat", "interests": ["kern"], "source": "/drilling", "consent": true, "website": "" }
 ```
 
-- `consent` must be `true`, from an unchecked-by-default checkbox labeled with `CONSENT_TEXT` in `src/subscribe.mjs`
-  ("Email me a weekly summary of California permit activity. Unsubscribe anytime."). If the wording changes, bump
-  `CONSENT_VERSION` so each subscriber's record shows what they agreed to.
+- `list` is `ca`, `co` or `wy` (default `ca`); anything else is `422`.
+- `consent` must be `true`, from an unchecked-by-default checkbox labeled with that list's `consent` in `src/lists.mjs`
+  ("Email me a weekly summary of Colorado permit activity. Unsubscribe anytime."). If the wording changes, bump the
+  version in `consentVersion()` (`src/subscribe.mjs`) so each subscriber's record shows what they agreed to.
 - `website` is a honeypot: render it hidden (`tabindex="-1" autocomplete="off"`, off-screen). Bots that fill it are dropped.
 - `name`, `interests` (up to 10 slugs, `a-z0-9-`) and `source` (the page path) are optional.
 - Answers `{ ok: true }` for every well-formed request, including addresses already on the list, so the form never reveals

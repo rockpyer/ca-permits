@@ -127,7 +127,7 @@ export function FilterRail({
         </FilterSection>
 
         <FilterSection
-          title="Date Range"
+          title="Approval date"
           defaultOpen
           actions={<DateRangeChips filters={filters} dateBounds={dateBounds} onChange={onChange} />}
         >

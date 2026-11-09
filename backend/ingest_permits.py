@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from arcgis import ArcGISLayer, query_features
 from config import PERMITS_LAYER_URL
-from store import fail_if_count_collapsed, merge_rows, read_jsonl, record_run, write_jsonl
+from store import fail_if_count_collapsed, merge_rows, read_jsonl, record_run, row_changes, write_jsonl
 from normalize import arcgis_date, generated_links, normalize_api, notice_type_label, stable_source_key
 
 PERMIT_FIELDS = [
@@ -92,12 +92,14 @@ def ingest() -> list[dict]:
     by_key = {row["source_key"]: row for row in rows}
     deduped = list(by_key.values())
     fail_if_count_collapsed("permits", len(deduped), 1)
-    merged = merge_rows(read_jsonl("permits.jsonl"), deduped, "source_key")
+    changes = row_changes()
+    merged = merge_rows(read_jsonl("permits.jsonl"), deduped, "source_key", changes)
     write_jsonl("permits.jsonl", merged, "source_key")
     record_run(
         "permits",
         source_count=len(rows),
         upsert_count=len(deduped),
+        rows=changes,
         details={"deduped_count": len(deduped), "stored_count": len(merged)},
     )
     return merged
